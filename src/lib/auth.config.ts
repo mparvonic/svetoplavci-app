@@ -29,6 +29,7 @@ export const authConfig = {
   pages: {
     signIn: "/auth/signin",
     verifyRequest: "/auth/verify-request",
+    error: "/auth/error",
   },
   callbacks: {
     async signIn({ user }) {
