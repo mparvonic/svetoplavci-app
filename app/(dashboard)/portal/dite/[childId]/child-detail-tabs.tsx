@@ -636,8 +636,12 @@ export function ChildDetailTabs({
   );
 
   return (
-    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-      <TabsList className="mt-6 mb-8 flex w-full flex-col gap-3 bg-transparent px-0 text-sm md:mt-6 md:mb-12 md:grid md:grid-cols-4 md:px-1">
+    <Tabs
+      value={activeTab}
+      onValueChange={handleTabChange}
+      className="w-full mt-4 mb-4"
+    >
+      <TabsList className="mx-2 flex w-full flex-col gap-3 bg-transparent text-sm h-auto md:mx-0 md:flex-row md:grid md:grid-cols-4 md:px-1">
         <TabsTrigger
           value="lodicky"
           className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#DA0100] data-[state=active]:bg-[#DA0100] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#DA0100] data-[state=active]:border-[#DA0100] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
@@ -664,7 +668,7 @@ export function ChildDetailTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value="lodicky" className="mt-0 space-y-4">
-        <div className="rounded-xl border border-[#002060] bg-white p-4">
+        <div className="mt-4 rounded-xl border border-[#002060] bg-white p-4">
           <div className="flex flex-wrap gap-4">
             <FilterSelect label="Předmět" value={f1Predmet} options={tab1Filters.predmet} onChange={setF1Predmet} />
             <FilterSelect label="Podpředmět" value={f1Podpredmet} options={tab1Filters.podpredmet} onChange={setF1Podpredmet} />
@@ -676,7 +680,7 @@ export function ChildDetailTabs({
         <CollapsibleLodickyTable rows={lodickyFiltered} columns={TAB1_COLUMNS} />
       </TabsContent>
       <TabsContent value="lodicky-po-plavbach" className="mt-0 space-y-4">
-        <div className="rounded-xl border border-[#002060] bg-white p-4">
+        <div className="mt-4 rounded-xl border border-[#002060] bg-white p-4">
           <div className="flex flex-wrap gap-4">
             <FilterSelect label="Předmět" value={f2Predmet} options={tab2Filters.predmet} onChange={setF2Predmet} />
             <FilterSelect label="Podpředmět" value={f2Podpredmet} options={tab2Filters.podpredmet} onChange={setF2Podpredmet} />
