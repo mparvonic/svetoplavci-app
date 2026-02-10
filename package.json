@@ -33,6 +33,7 @@
     "@prisma/client": "^7.3.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/plotly.js-basic-dist-min": "^2.12.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.2.4",
