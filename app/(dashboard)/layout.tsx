@@ -20,7 +20,9 @@ export default function DashboardLayout({
             </Button>
           </form>
         </header>
-        <main className="flex-1 overflow-auto p-4">{children}</main>
+        <main className="flex-1 overflow-auto px-4 py-6">
+          <div className="mx-auto w-full max-w-6xl space-y-6">{children}</div>
+        </main>
       </div>
     </InactivitySignOut>
   );

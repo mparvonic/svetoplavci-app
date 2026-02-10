@@ -303,7 +303,13 @@ function CollapsibleLodickyTable({
     }
     return { allKeys: keys, predmetyOnlyKeys: onlyP };
   }, [tree]);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(predmetyOnlyKeys));
+  // Výchozí stav: vše plně rozbalené (všechny Předměty i Podpředměty)
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(allKeys));
+
+  // Po změně dat (např. filtr, jiné dítě) znovu vše rozbalit
+  useEffect(() => {
+    setExpanded(new Set(allKeys));
+  }, [allKeys]);
   const toggle = useCallback((key: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -325,7 +331,9 @@ function CollapsibleLodickyTable({
           <TableHeader>
             <TableRow>
               {columns.map((col) => (
-                <TableHead key={colKey(col.key)} className="whitespace-nowrap">{col.label}</TableHead>
+                <TableHead key={colKey(col.key)} className="whitespace-nowrap text-slate-700 font-semibold">
+                  {col.label}
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -365,7 +373,9 @@ function CollapsibleLodickyTable({
             <TableRow>
               <TableHead className="w-8 shrink-0" />
               {columns.map((col) => (
-                <TableHead key={colKey(col.key)} className="whitespace-nowrap">{col.label}</TableHead>
+                <TableHead key={colKey(col.key)} className="whitespace-nowrap text-slate-700 font-semibold">
+                  {col.label}
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>

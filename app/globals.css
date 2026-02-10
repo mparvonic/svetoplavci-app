@@ -162,3 +162,8 @@
 .animate-sail {
   animation: sail 2s ease-in-out infinite;
 }
+
+/* Rezervované třídy pro tabulky Lodiček – aktuálně bez sticky headeru
+.lodicky-table-wrapper { }
+.lodicky-table thead th { }
+*/
