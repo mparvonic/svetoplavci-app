@@ -277,11 +277,23 @@ export async function updateTableRow(
 
 function parseContactEmails(raw: unknown): string[] {
   if (Array.isArray(raw)) {
-    return raw.map((e) => String(e).trim().toLowerCase()).filter(Boolean);
+    // Coda „Select list“ / multi-select může vracet pole hodnot,
+    // kde každá položka může být buď prostý email, nebo text s více emaily.
+    const out: string[] = [];
+    for (const item of raw) {
+      const s = String(item ?? "").trim().toLowerCase();
+      if (!s) continue;
+      s
+        .split(/[,;]+/)
+        .map((e) => e.trim())
+        .filter(Boolean)
+        .forEach((e) => out.push(e));
+    }
+    return Array.from(new Set(out));
   }
   if (typeof raw !== "string") return [];
   return raw
-    .split(",")
+    .split(/[,;]+/)
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 }
@@ -465,10 +477,6 @@ function relationContainsRowId(relationRaw: unknown, targetRowId: string): boole
  * Načte děti rodiče: ze sloupce Děti (relation), nebo fallback – řádky, kde sloupec Rodič odkazuje na tohoto rodiče.
  */
 export async function getChildrenOfParent(parentRowId: string): Promise<CodaChild[]> {
-  const cacheKey = `children:${parentRowId}`;
-  const cached = getCached<CodaChild[]>(cacheKey);
-  if (cached) return cached;
-
   const docId = getDocId();
   const tableId = getTableSeznamOsob();
   const nameToId = await getColumnNameToIdMap(docId, tableId);
@@ -519,7 +527,6 @@ export async function getChildrenOfParent(parentRowId: string): Promise<CodaChil
   }
 
   if (relationItems.length === 0) {
-    setCache(cacheKey, []);
     return [];
   }
 
@@ -541,7 +548,6 @@ export async function getChildrenOfParent(parentRowId: string): Promise<CodaChil
       group: String(getRowValue(v, "Smečka", nameToId) ?? ""),
     });
   }
-  setCache(cacheKey, children);
   return children;
 }
 
