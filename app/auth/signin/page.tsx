@@ -4,15 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 
+import { redirect } from "next/navigation";
+
+// Jednoduché throttlování magic linků (na serveru, podle emailu) – 30 s mezi požadavky
+const magicLastSent = new Map<string, number>();
+
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; callbackUrl?: string; reason?: string }>;
+  searchParams: Promise<{ error?: string; callbackUrl?: string; reason?: string; tooFast?: string }>;
 }) {
   const params = await searchParams;
   const error = params.error;
   const callbackUrl = params.callbackUrl ?? "/";
   const reason = params.reason;
+  const tooFast = params.tooFast === "1";
 
   const isNoRole = error === "NoRole";
   const isInactivity = reason === "inactivity";
@@ -59,6 +65,15 @@ export default async function SignInPage({
               Uživatel nemá přidělenou žádnou roli. Kontaktujte správce.
             </div>
           )}
+          {tooFast && (
+            <div
+              className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
+              role="alert"
+            >
+              Další přihlašovací odkaz můžete požadovat nejdříve za několik sekund. Zkuste to prosím znovu za
+              chvíli.
+            </div>
+          )}
 
               <form
                 action={async () => {
@@ -92,11 +107,24 @@ export default async function SignInPage({
               <form
                 action={async (formData: FormData) => {
                   "use server";
-                  await signIn("nodemailer", formData);
+                  const email = formData.get("email");
+                  if (typeof email !== "string") return;
+                  const key = email.trim().toLowerCase();
+                  const now = Date.now();
+                  const lastSent = magicLastSent.get(key);
+                  if (lastSent && now - lastSent < 30_000) {
+                    redirect("/auth/signin?tooFast=1");
+                  }
+
+                  await signIn("nodemailer", {
+                    email,
+                    redirectTo: callbackUrl,
+                  });
+
+                  magicLastSent.set(key, now);
                 }}
                 className="space-y-3"
               >
-                <input type="hidden" name="callbackUrl" value={callbackUrl} />
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-medium text-[#002060]">
                     E‑mail

@@ -417,8 +417,11 @@ const AKTIVNI_COLUMNS = ["Aktivní", "Aktivní osoba", "Aktivní?"];
  */
 export async function findParentByEmail(email: string): Promise<CodaParent | null> {
   const cacheKey = `parent:${email.trim().toLowerCase()}`;
-  const cached = getCached<CodaParent>(cacheKey);
-  if (cached) return cached;
+  const useCache = process.env.AUTH_DEBUG !== "1";
+  if (useCache) {
+    const cached = getCached<CodaParent>(cacheKey);
+    if (cached) return cached;
+  }
 
   const docId = getDocId();
   const tableId = getTableSeznamOsob();
@@ -459,7 +462,9 @@ export async function findParentByEmail(email: string): Promise<CodaParent | nul
       roles,
       childrenIds,
     };
-    setCache(cacheKey, parent);
+    if (useCache) {
+      setCache(cacheKey, parent);
+    }
     return parent;
   }
   return null;

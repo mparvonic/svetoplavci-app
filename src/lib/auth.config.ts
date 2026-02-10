@@ -28,43 +28,39 @@ export const authConfig = {
   },
   pages: {
     signIn: "/auth/signin",
+    verifyRequest: "/auth/verify-request",
   },
   callbacks: {
     async signIn({ user }) {
       const email = user?.email;
       if (!email) return false;
 
-      // 1) Mock / interní tabulka (admin, učit el, žák…)
-      const userRecord = await getUserByEmail(email);
-      if (userRecord) {
-        if (process.env.NODE_ENV === "development") {
-          console.log("[auth] signIn: email", email, "→ userRecord (mock)", userRecord.role);
-        }
-        return true;
+      const debug = process.env.AUTH_DEBUG === "1" || process.env.NODE_ENV === "development";
+      if (debug) {
+        console.log("[auth] signIn start", { email });
       }
 
-      // 2) Coda tabulka Seznam osob – rodič (Role obsahuje „Rodič“, Aktivní, Kontaktní maily obsahuje email)
+      // 1) Coda tabulka Seznam osob – rodič (Role obsahuje „Rodič“, Aktivní, Kontaktní maily obsahuje email)
       const parent = await findParentByEmail(email);
       if (parent) {
-        if (process.env.NODE_ENV === "development") {
-          console.log("[auth] signIn: email", email, "→ parent (Coda)", parent.name);
+        if (debug) {
+          console.log("[auth] signIn: email", email, "→ parent (Coda)", {
+            parentName: parent.name,
+            parentRowId: parent.rowId,
+            contactEmails: parent.contactEmails,
+            roles: parent.roles,
+          });
         }
         return true;
       }
 
-      if (process.env.NODE_ENV === "development") {
+      if (debug) {
         console.log("[auth] signIn: email", email, "→ NoRole (není v mock ani Coda)");
       }
       return "/auth/signin?error=NoRole";
     },
     async jwt({ token, user }) {
       if (user?.email) {
-        const userRecord = await getUserByEmail(user.email);
-        if (userRecord) {
-          token.role = userRecord.role;
-          token.jmeno = userRecord.jmeno;
-          return token;
-        }
         const parent = await findParentByEmail(user.email);
         if (parent) {
           token.role = "rodic";

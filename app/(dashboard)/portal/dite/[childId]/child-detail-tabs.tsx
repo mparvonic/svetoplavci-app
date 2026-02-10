@@ -637,7 +637,7 @@ export function ChildDetailTabs({
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-      <TabsList className="mt-6 mb-12 grid w-full grid-cols-3 gap-3 bg-transparent px-1 text-sm md:grid-cols-4">
+      <TabsList className="mt-6 mb-12 flex w-full flex-col gap-3 bg-transparent px-1 text-sm md:grid md:grid-cols-4">
         <TabsTrigger
           value="lodicky"
           className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#DA0100] data-[state=active]:bg-[#DA0100] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#DA0100] data-[state=active]:border-[#DA0100] focus-visible:ring-offset-0 data-[state=active]:shadow-none"

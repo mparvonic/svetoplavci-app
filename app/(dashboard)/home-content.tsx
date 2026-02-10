@@ -119,13 +119,6 @@ export function HomeContent({
             <span className="text-base font-semibold">{parentName}</span>
             {userEmail && <span className="text-xs opacity-90">{userEmail}</span>}
           </div>
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-            className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-white/40 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide hover:bg-white/20"
-          >
-            Odhlásit se
-          </button>
         </div>
       </div>
 
