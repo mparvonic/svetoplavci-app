@@ -73,9 +73,8 @@ const emailProviders = [
 `;
 
             try {
-              // provider.server je Nodemailer transport
-              // @ts-expect-error - typy provideru neznají vlastnost server, ale v runtime existuje
-              await provider.server.sendMail({
+              // provider.server je Nodemailer transport – typově si pomůžeme přes any
+              await (provider as any).server.sendMail({
                 to: identifier,
                 from: provider.from,
                 subject,
