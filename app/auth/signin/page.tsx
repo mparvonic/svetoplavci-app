@@ -29,6 +29,9 @@ export default async function SignInPage({
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-xl">Přihlášení</CardTitle>
           <CardDescription>Přihlaste se pomocí Google nebo e‑mailu (magický odkaz)</CardDescription>
+          <p className="text-xs text-muted-foreground">
+            Použijte prosím stejnou e‑mailovou adresu, kterou má rodič evidovanou v systému Edookit.
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           {isInactivity && (

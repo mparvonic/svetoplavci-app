@@ -94,9 +94,16 @@ export const authConfig = {
       try {
         const target = new URL(url, baseUrl);
         if (target.pathname === "/auth/signin" || url.startsWith(baseUrl + "/auth/signin")) {
-          if (target.searchParams.get("reason") === "inactivity") {
+          const reason = target.searchParams.get("reason");
+          const error = target.searchParams.get("error");
+
+          // Při odhlášení kvůli nečinnosti a při chybě NoRole (uživatel není v systému)
+          // necháme uživatele na stránce přihlášení s odpovídajícím vysvětlením.
+          if (reason === "inactivity" || error === "NoRole") {
             return target.origin + target.pathname + target.search;
           }
+
+          // Ostatní případy → přesměruj na úvodní stránku
           return baseUrl + "/";
         }
         return target.origin + target.pathname + target.search;
