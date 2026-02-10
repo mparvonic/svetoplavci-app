@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { signOut } from "next-auth/react";
+import { cn } from "@/lib/utils";
 import { ChildDetailTabs } from "@/app/(dashboard)/portal/dite/[childId]/child-detail-tabs";
 import { Button } from "@/components/ui/button";
 import { SailboatLoading } from "@/components/sailboat-loading";
@@ -76,12 +78,27 @@ export function HomeContent({
   if (children.length === 0) {
     return (
       <div className="space-y-6">
-        <p className="text-sm text-muted-foreground">
-          Přihlášen jako: <span className="font-medium text-foreground">{parentName}</span>
-          {userEmail && <span className="text-muted-foreground"> ({userEmail})</span>}
-        </p>
-        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-200">
-          Nemáte přiřazená žádná děti. Kontaktujte správce, pokud to není v pořádku.
+        <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <h1 className="text-xl font-semibold text-[#002060]">Výsledky dítěte</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Zatím tu nemáte žádné přiřazené dítě. Kontaktujte správce školy, pokud to není v pořádku.
+            </p>
+          </div>
+          <div className="rounded-xl border bg-[#002060] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs uppercase tracking-wide opacity-80">Rodič</span>
+              <span className="text-base font-semibold">{parentName}</span>
+              {userEmail && <span className="text-xs opacity-90">{userEmail}</span>}
+            </div>
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-white/40 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide hover:bg-white/20"
+            >
+              Odhlásit se
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -89,47 +106,64 @@ export function HomeContent({
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
-          Přihlášen jako: <span className="font-medium text-foreground">{parentName}</span>
-          {userEmail && <span className="text-muted-foreground"> ({userEmail})</span>}
-        </p>
-      </header>
-
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Výsledky dítěte</h1>
-        <p className="text-muted-foreground">
-          Vyberte dítě a zobrazte jeho výsledky.
-        </p>
+      <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="rounded-xl border border-[#002060] bg-card p-4 shadow-sm">
+          <h1 className="text-2xl font-bold tracking-tight text-[#002060]">Výsledky dítěte</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Vyberte dítě a zobrazte jeho výsledky v přehledných dlaždicích.
+          </p>
+        </div>
+        <div className="rounded-xl border border-[#DA0100] bg-[#DA0100] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
+          <div className="flex flex-col gap-1">
+            <span className="text-xs uppercase tracking-wide opacity-80">Rodič</span>
+            <span className="text-base font-semibold">{parentName}</span>
+            {userEmail && <span className="text-xs opacity-90">{userEmail}</span>}
+          </div>
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+            className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-white/40 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide hover:bg-white/20"
+          >
+            Odhlásit se
+          </button>
+        </div>
       </div>
 
       {children.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <span className="sr-only">Dítě:</span>
-          {children.map((c) => (
-            <Button
-              key={c.rowId}
-              type="button"
-              variant={selectedChildId === c.rowId ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedChildId(c.rowId)}
-            >
-              {c.nickname || c.name}
-              {c.currentYear || c.group ? ` · ${[c.currentYear, c.group].filter(Boolean).join(" ")}` : ""}
-            </Button>
-          ))}
+          {children.map((c) => {
+            const isSelected = selectedChildId === c.rowId;
+            return (
+              <Button
+                key={c.rowId}
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "flex h-auto flex-col items-start justify-start rounded-xl border px-4 py-3 text-left shadow-sm",
+                  isSelected
+                    ? "border-[#002060] bg-[#002060] text-white hover:bg-[#001747]"
+                    : "border-[#002060] bg-white text-[#002060] hover:bg-[#eef2ff]"
+                )}
+                onClick={() => setSelectedChildId(c.rowId)}
+              >
+                <span className="text-sm font-semibold">
+                  {c.nickname || c.name}
+                </span>
+                {(c.currentYear || c.group) && (
+                  <span className={cn("mt-1 text-xs", isSelected ? "text-white/80" : "text-slate-500")}>
+                    {[c.currentYear, c.group].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+              </Button>
+            );
+          })}
         </div>
       )}
 
       {selectedChild && (
         <>
-          <div>
-            <h2 className="text-lg font-semibold">{selectedChild.name}</h2>
-            <p className="text-sm text-muted-foreground">
-              {[selectedChild.currentYear, selectedChild.group].filter(Boolean).join(" · ") || "—"}
-            </p>
-          </div>
-
           {loading && (
             <SailboatLoading message="Načítám lodičky…" />
           )}

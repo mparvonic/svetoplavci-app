@@ -19,21 +19,30 @@ export default async function SignInPage({
   const emailEnabled = !!(process.env.EMAIL_SERVER ?? process.env.SMTP_URL);
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
-      <img
-        src="/svetoplavci_logo.png?v=transparent"
-        alt="Světoplavci"
-        className="h-48 w-auto max-w-[840px] object-contain object-center"
-      />
-      <Card className="w-full max-w-sm">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-xl">Přihlášení</CardTitle>
-          <CardDescription>Přihlaste se pomocí Google nebo e‑mailu (magický odkaz)</CardDescription>
-          <p className="text-xs text-muted-foreground">
-            Použijte prosím stejnou e‑mailovou adresu, kterou má rodič evidovanou v systému Edookit.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#002060] via-[#002060] to-[#DA0100] p-4 text-white">
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-between gap-8 py-8">
+        <div className="flex w-full items-start justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/70">Školní aplikace</p>
+            <h1 className="text-3xl font-bold tracking-tight">Světoplavci</h1>
+            <p className="max-w-md text-xs text-white/80">
+              Přihlaste se a vyplujte za výsledky svých dětí. Všechno je možné!
+            </p>
+          </div>
+        </div>
+
+        <div className="grid w-full gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <Card className="border-none bg-white/95 shadow-xl backdrop-blur-sm">
+            <CardHeader className="space-y-3 text-left">
+              <CardTitle className="text-2xl font-bold text-[#002060]">Přihlášení rodiče</CardTitle>
+              <CardDescription className="text-sm text-[#4b5563]">
+                Vyberte způsob přihlášení. Doporučujeme Google nebo e‑mailový magický odkaz.
+              </CardDescription>
+              <p className="rounded-md border border-dashed border-[#002060]/40 bg-[#f9fafb] px-3 py-2 text-xs font-semibold text-[#002060]">
+                Použijte, prosím, stejnou e‑mailovou adresu, kterou máte evidovanou v systému Edookit.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-5">
           {isInactivity && (
             <div
               className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
@@ -51,26 +60,32 @@ export default async function SignInPage({
             </div>
           )}
 
-          <form
-            action={async () => {
-              "use server";
-              await signIn("google", { redirectTo: callbackUrl });
-            }}
-          >
-            <Button type="submit" variant="default" className="w-full" size="lg">
-              <GoogleIcon className="size-5" />
-              Přihlásit se přes Google
-            </Button>
-          </form>
+              <form
+                action={async () => {
+                  "use server";
+                  await signIn("google", { redirectTo: callbackUrl });
+                }}
+              >
+                <Button
+                  type="submit"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#002060] bg-[#002060] px-4 py-6 text-sm font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#001747]"
+                  size="lg"
+                >
+                  <GoogleIcon className="size-5" />
+                  <span>Přihlásit se přes Google</span>
+                </Button>
+              </form>
 
           {emailEnabled && (
             <>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <Separator className="w-full" />
+                  <Separator className="w-full bg-slate-200" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">nebo</span>
+                  <span className="rounded-full bg-white px-3 py-0.5 text-[10px] font-semibold tracking-[0.18em] text-slate-500">
+                    nebo
+                  </span>
                 </div>
               </div>
 
@@ -83,7 +98,7 @@ export default async function SignInPage({
               >
                 <input type="hidden" name="callbackUrl" value={callbackUrl} />
                 <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium">
+                  <label htmlFor="email" className="text-sm font-medium text-[#002060]">
                     E‑mail
                   </label>
                   <Input
@@ -93,25 +108,57 @@ export default async function SignInPage({
                     placeholder="vas@email.cz"
                     required
                     autoComplete="email"
-                    className="w-full"
+                    className="w-full rounded-xl border border-[#002060]/40 bg-white/80 text-[#002060] placeholder:text-slate-400 focus-visible:ring-[#002060]"
                   />
                 </div>
-                <Button type="submit" variant="outline" className="w-full" size="lg">
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className="w-full rounded-xl border-[#DA0100] bg-white px-4 py-6 text-sm font-semibold uppercase tracking-wide text-[#DA0100] hover:bg-[#fff1f0]"
+                  size="lg"
+                >
                   Poslat magický odkaz
                 </Button>
               </form>
-              <p className="text-center text-xs text-muted-foreground">
+              <p className="text-center text-xs text-slate-500">
                 Na zadaný e‑mail přijde odkaz pro přihlášení. Odkaz je platný 24 hodin.
               </p>
             </>
           )}
           {!emailEnabled && (
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm text-slate-500">
               Přihlášení e‑mailem: nastavte v .env proměnné EMAIL_SERVER a EMAIL_FROM (SMTP).
             </p>
           )}
         </CardContent>
       </Card>
+          <div className="hidden h-full flex-col justify-between gap-4 rounded-3xl border border-white/40 bg-white/10 p-6 text-xs shadow-xl backdrop-blur-sm md:flex">
+        <div className="space-y-3">
+          <p className="text-[10px] uppercase tracking-[0.25em] text-white/70">Jak to funguje</p>
+          <h2 className="text-lg font-semibold">Výsledky dítěte na jednom místě</h2>
+          <p className="text-xs text-white/80">
+            Po přihlášení uvidíte výsledky svých dětí v přehledných dlaždicích – lodičky, vysvědčení a grafy
+            v jednoduchém a srozumitelném rozhraní.
+          </p>
+        </div>
+        <div className="space-y-1 text-white/80">
+          <p className="text-[10px] uppercase tracking-[0.25em]">Tip</p>
+          <ul className="list-disc space-y-1 pl-4 text-xs">
+            <li>Používejte stejný e‑mail jako v Edookitu.</li>
+            <li>Odkaz z e‑mailu je platný 24 hodin.</li>
+            <li>Po 30 minutách nečinnosti budete automaticky odhlášeni.</li>
+          </ul>
+        </div>
+      </div>
+      </div>
+        <div className="flex w-full justify-center">
+          <img
+            src="/svetoplavci_logo.svg"
+            alt="Světoplavci"
+            className="h-72 w-auto max-w-[1400px] object-contain invert brightness-0 saturate-0"
+          />
+        </div>
+    </div>
     </div>
   );
 }
