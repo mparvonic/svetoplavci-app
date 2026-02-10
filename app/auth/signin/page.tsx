@@ -155,7 +155,7 @@ export default async function SignInPage({
           <img
             src="/svetoplavci_logo.svg"
             alt="Světoplavci"
-            className="h-72 w-auto max-w-[1400px] object-contain invert brightness-0 saturate-0"
+            className="h-24 w-auto max-w-[320px] object-contain invert brightness-0 saturate-0 sm:h-40 sm:max-w-[640px] lg:h-72 lg:max-w-[1400px]"
           />
         </div>
     </div>
