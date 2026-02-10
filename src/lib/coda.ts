@@ -654,6 +654,8 @@ export async function getChildTableData(
 
   const docId = getDocId();
   const isLodickyDite = tableId === "table-RuXGEEn2z4";
+  const isHodnoceni =
+    tableId === "table-oCLreazO22" || tableId === "table-NbDPhMF4ci";
   const viewTableId = isLodickyDite && childRocnik ? getViewTableIdForRocnik(childRocnik) : undefined;
   const fetchTableId = viewTableId ?? TABLE_ROW_SOURCE[tableId] ?? tableId;
   const { nameToId, idToName } = await getTableColumnMaps(docId, fetchTableId);
@@ -693,9 +695,19 @@ export async function getChildTableData(
       return [];
     }
   } else {
-    // Tabulky s relation sloupcem (Jméno) – Coda API při filtru podle row ID často vrací 0 řádků.
-    // Načteme všechny řádky a filtrujeme v paměti (jmenoValueMatchesChild: relation i text „Adinka Sch.“).
-    if (relationColIdForQuery) {
+    // Pro tabulky hodnocení: zkusíme filtrovat podle jména/přezdívky (rychlejší než načítat vše)
+    // Pro ostatní tabulky s relation sloupcem: Coda API při filtru podle row ID často vrací 0 řádků,
+    // takže načteme řádky a filtrujeme v paměti.
+    if (isHodnoceni && searchTerm) {
+      // Pro hodnocení tabulky: zkusíme filtrovat podle přezdívky nebo jména
+      queryFilter =
+        prezdivkaColId && searchTerm
+          ? `${prezdivkaColId}:"${String(searchTerm).replace(/"/g, '\\"')}"`
+          : (jmenoColId && searchTerm
+              ? `${jmenoColId}:"${String(searchTerm).replace(/"/g, '\\"')}"`
+              : undefined);
+    } else if (relationColIdForQuery && !isHodnoceni) {
+      // Pro ostatní tabulky s relation: bez filtru, filtrujeme v paměti
       queryFilter = undefined;
     } else {
       queryFilter =
@@ -705,10 +717,15 @@ export async function getChildTableData(
     }
   }
 
-  const all: CodaRow[] = [];
+  let all: CodaRow[] = [];
   let pageToken: string | undefined;
-  // Bez query načítáme víc stránek (Hodnocení oblastí může mít mnoho řádků).
-  const maxPages = queryFilter ? 5 : (useSourceTable ? 50 : 30);
+  
+  // Pro tabulky hodnocení: zkusíme filtrovaný dotaz podle jména/přezdívky (rychlejší než načítat vše)
+  // Pokud nemáme queryFilter, načteme jen několik stránek (ne celou tabulku)
+  const maxPages = isHodnoceni 
+    ? (queryFilter ? 3 : 5)  // Pro hodnocení: max 3 stránky s filtrem, 5 bez filtru
+    : (queryFilter ? 5 : (useSourceTable ? 50 : 30));  // Pro ostatní tabulky: původní logika
+  
   let pages = 0;
   try {
     do {

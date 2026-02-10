@@ -1,10 +1,5 @@
 import { auth } from "@/src/lib/auth";
-import {
-  findParentByEmail,
-  getChildrenOfParent,
-  getChildTableData,
-  getCurveData,
-} from "@/src/lib/coda";
+import { findParentByEmail, getChildrenOfParent, getChildTableData, getCurveData } from "@/src/lib/coda";
 import type { CodaRow } from "@/src/lib/coda";
 import { NextResponse } from "next/server";
 
@@ -35,21 +30,18 @@ function toNum(x: unknown, def: number): number {
  * GET /api/coda/child/[childId]/vysvedceni-grafy
  * Vrátí curve + report pro záložku „Vysvědčení – grafy“ (Plotly).
  */
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ childId: string }> }
-) {
-  const session = await auth();
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Nepřihlášen" }, { status: 401 });
-  }
-
-  const { childId } = await params;
-  if (!childId) {
-    return NextResponse.json({ error: "Chybí childId" }, { status: 400 });
-  }
-
+export async function GET(_req: Request, { params }: { params: Promise<{ childId: string }> }) {
   try {
+    const session = await auth();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Nepřihlášen" }, { status: 401 });
+    }
+
+    const { childId } = await params;
+    if (!childId) {
+      return NextResponse.json({ error: "Chybí childId" }, { status: 400 });
+    }
+
     const parent = await findParentByEmail(session.user.email);
     if (!parent) {
       return NextResponse.json({ error: "Přístup zamítnut." }, { status: 403 });
@@ -65,6 +57,26 @@ export async function GET(
     }
 
     const childName = child.nickname || child.name;
+
+    // Paralelní načtení všech potřebných dat najednou
+    const [curveResult, predmetuResult, oblastiResult] = await Promise.allSettled([
+      getCurveData(child.rocnik),
+      getChildTableData(
+        TABLE_HODNOCENI_PREDMETU,
+        child.rowId,
+        child.name,
+        child.nickname,
+        child.rocnik
+      ),
+      getChildTableData(
+        TABLE_HODNOCENI_OBLASTI,
+        child.rowId,
+        child.name,
+        child.nickname,
+        child.rocnik
+      ),
+    ]);
+
     let curveOut: {
       rocnik: string;
       stepen_key: string;
@@ -73,8 +85,8 @@ export async function GET(
       milestones2: (number | null)[];
     } | null = null;
 
-    const curveData = await getCurveData(child.rocnik);
-    if (curveData) {
+    if (curveResult.status === "fulfilled" && curveResult.value) {
+      const curveData = curveResult.value;
       curveOut = {
         rocnik: curveData.rocnik,
         stepen_key: curveData.stepen_key,
@@ -84,30 +96,16 @@ export async function GET(
       };
     }
 
-    let predmetuRows: CodaRow[] = [];
-    let oblastiRows: CodaRow[] = [];
+    const predmetuRows: CodaRow[] =
+      predmetuResult.status === "fulfilled" ? predmetuResult.value : [];
+    const oblastiRows: CodaRow[] =
+      oblastiResult.status === "fulfilled" ? oblastiResult.value : [];
 
-    try {
-      predmetuRows = await getChildTableData(
-        TABLE_HODNOCENI_PREDMETU,
-        child.rowId,
-        child.name,
-        child.nickname,
-        child.rocnik
-      );
-    } catch (e) {
-      console.error("[vysvedceni-grafy] Hodnocení předmětů:", e);
+    if (predmetuResult.status === "rejected") {
+      console.error("[vysvedceni-grafy] Hodnocení předmětů:", predmetuResult.reason);
     }
-    try {
-      oblastiRows = await getChildTableData(
-        TABLE_HODNOCENI_OBLASTI,
-        child.rowId,
-        child.name,
-        child.nickname,
-        child.rocnik
-      );
-    } catch (e) {
-      console.error("[vysvedceni-grafy] Hodnocení oblastí:", e);
+    if (oblastiResult.status === "rejected") {
+      console.error("[vysvedceni-grafy] Hodnocení oblastí:", oblastiResult.reason);
     }
 
     const areasBySubject = new Map<string, typeof oblastiRows>();
