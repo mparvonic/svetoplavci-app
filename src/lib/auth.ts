@@ -5,13 +5,17 @@ import { authConfig } from "@/src/lib/auth.config";
 import { prisma } from "@/src/lib/prisma";
 
 const emailServer = process.env.EMAIL_SERVER ?? process.env.SMTP_URL;
+const emailFromAddress = process.env.EMAIL_FROM ?? process.env.EMAIL_FROM_ADDRESS ?? "noreply@localhost";
+const emailFrom = emailFromAddress.includes("<")
+  ? emailFromAddress
+  : `Školní aplikace Světoplavci <${emailFromAddress}>`;
 const emailProviders = [
   ...authConfig.providers,
   ...(emailServer
     ? [
         Nodemailer({
           server: emailServer,
-          from: process.env.EMAIL_FROM ?? process.env.EMAIL_FROM_ADDRESS ?? "noreply@localhost",
+          from: emailFrom,
         }),
       ]
     : []),

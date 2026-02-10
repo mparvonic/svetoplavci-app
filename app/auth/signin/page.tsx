@@ -7,13 +7,15 @@ import { Separator } from "@/components/ui/separator";
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; callbackUrl?: string }>;
+  searchParams: Promise<{ error?: string; callbackUrl?: string; reason?: string }>;
 }) {
   const params = await searchParams;
   const error = params.error;
   const callbackUrl = params.callbackUrl ?? "/";
+  const reason = params.reason;
 
   const isNoRole = error === "NoRole";
+  const isInactivity = reason === "inactivity";
   const emailEnabled = !!(process.env.EMAIL_SERVER ?? process.env.SMTP_URL);
 
   return (
@@ -29,6 +31,14 @@ export default async function SignInPage({
           <CardDescription>Přihlaste se pomocí Google nebo e‑mailu (magický odkaz)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isInactivity && (
+            <div
+              className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
+              role="alert"
+            >
+              Byli jste odhlášeni po 30 minutách nečinnosti. Přihlaste se znovu.
+            </div>
+          )}
           {isNoRole && (
             <div
               className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -89,9 +99,6 @@ export default async function SignInPage({
               </form>
               <p className="text-center text-xs text-muted-foreground">
                 Na zadaný e‑mail přijde odkaz pro přihlášení. Odkaz je platný 24 hodin.
-              </p>
-              <p className="text-center text-xs text-amber-600 dark:text-amber-500">
-                Odkaz otevřete <strong>ve stejném prohlížeči</strong> (zkopírujte adresu z e‑mailu a vložte do záložky s touto stránkou). Kliknutí přímo v e‑mailu může otevřít jiný prohlížeč, kde se přihlášení neprojeví.
               </p>
             </>
           )}

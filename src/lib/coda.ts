@@ -180,8 +180,8 @@ export async function getTableRows(
   return res.json() as Promise<CodaListRowsResponse>;
 }
 
-/** Načte všechny řádky tabulky (po stránkách) a uloží do cache – použití pro Seznam osob, aby se nevolalo list rows opakovaně. */
-async function getTableRowsAll(docId: string, tableId: string): Promise<CodaRow[]> {
+/** Načte všechny řádky tabulky (po stránkách) a uloží do cache. */
+export async function getTableRowsAll(docId: string, tableId: string): Promise<CodaRow[]> {
   const cacheKey = `tableRows:${docId}:${tableId}`;
   const cached = getCached<CodaRow[]>(cacheKey);
   if (cached) return cached;
@@ -759,4 +759,74 @@ export async function getChildTableData(
   }));
   setCache(cacheKey, rowsWithNameKeys);
   return rowsWithNameKeys;
+}
+
+function getCurveTableId(): string | undefined {
+  return process.env.CODA_TABLE_CURVE || undefined;
+}
+
+/** Data křivky plnění pro daný ročník (1. pololetí): highlight norma, stupeň, milníky. */
+export async function getCurveData(rocnik: string): Promise<{
+  rocnik: string;
+  stepen_key: string;
+  highlight: number | null;
+  milestones: (number | null)[];
+  milestones2: (number | null)[];
+} | null> {
+  const tableId = getCurveTableId();
+  if (!tableId) return null;
+  const docId = getDocId();
+  const { nameToId } = await getTableColumnMaps(docId, tableId);
+  const all = await getTableRowsAll(docId, tableId);
+  const CURVE_POLOLETI = "1. pololetí";
+
+  function toFloatPct(x: unknown): number | null {
+    if (x == null) return null;
+    if (typeof x === "number") return Number.isFinite(x) ? x : null;
+    const s = String(x).replace(/\u00a0/g, "").replace(/\s/g, "").replace(/%/g, "").replace(/,/g, ".");
+    const v = parseFloat(s);
+    return Number.isFinite(v) ? v : null;
+  }
+  function toIntSafe(x: unknown, def: number): number {
+    const m = String(x).match(/\d+/);
+    return m ? parseInt(m[0], 10) : def;
+  }
+  function normText(x: unknown): string {
+    return String(x ?? "").trim();
+  }
+
+  const rowHighlight = all.find(
+    (row) =>
+      normText(getRowValue(row.values as Record<string, unknown>, "Ročník", nameToId)) === rocnik.trim() &&
+      normText(getRowValue(row.values as Record<string, unknown>, "Pololetí", nameToId)) === CURVE_POLOLETI
+  );
+  if (!rowHighlight) return null;
+
+  const highlight = toFloatPct(getRowValue(rowHighlight.values as Record<string, unknown>, "Norma", nameToId));
+  const stepenKey = normText(getRowValue(rowHighlight.values as Record<string, unknown>, "Stupeň", nameToId));
+  if (!stepenKey) return null;
+
+  const sameStep = all.filter(
+    (row) => normText(getRowValue(row.values as Record<string, unknown>, "Stupeň", nameToId)) === stepenKey
+  );
+  sameStep.sort((a, b) =>
+    toIntSafe(getRowValue(a.values as Record<string, unknown>, "Období", nameToId), 999999) -
+    toIntSafe(getRowValue(b.values as Record<string, unknown>, "Období", nameToId), 999999)
+  );
+
+  const milestones: (number | null)[] = [];
+  const milestones2: (number | null)[] = [];
+  for (const r of sameStep) {
+    const v = r.values as Record<string, unknown>;
+    milestones.push(toFloatPct(getRowValue(v, "Norma", nameToId)));
+    milestones2.push(toFloatPct(getRowValue(v, "Norma zkrácená", nameToId)));
+  }
+
+  return {
+    rocnik: rocnik.trim(),
+    stepen_key: stepenKey,
+    highlight: highlight ?? null,
+    milestones,
+    milestones2,
+  };
 }

@@ -13,6 +13,7 @@ import {
 import type { CodaRow } from "@/src/lib/coda";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SailboatLoading } from "@/components/sailboat-loading";
+import { VysvedceniGrafy } from "./vysvedceni-grafy";
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -603,10 +604,11 @@ export function ChildDetailTabs({
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-      <TabsList className="grid w-full grid-cols-3 gap-1">
+      <TabsList className="grid w-full grid-cols-4 gap-1">
         <TabsTrigger value="lodicky">Lodičky dítěte</TabsTrigger>
         <TabsTrigger value="lodicky-po-plavbach">Lodičky po plavbách</TabsTrigger>
-        <TabsTrigger value="vysvedceni">Vysvědčení</TabsTrigger>
+        <TabsTrigger value="vysvedceni">Vysvědčení – data</TabsTrigger>
+        <TabsTrigger value="vysvedceni-grafy">Vysvědčení – grafy</TabsTrigger>
       </TabsList>
       <TabsContent value="lodicky" className="mt-4 space-y-4">
         <div className="flex flex-wrap gap-4">
@@ -648,6 +650,9 @@ export function ChildDetailTabs({
             </section>
           </>
         )}
+      </TabsContent>
+      <TabsContent value="vysvedceni-grafy" className="mt-4">
+        <VysvedceniGrafy childId={childId} childName={_childName} />
       </TabsContent>
     </Tabs>
   );

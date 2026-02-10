@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ChildDetailTabs } from "@/app/(dashboard)/portal/dite/[childId]/child-detail-tabs";
+import { Button } from "@/components/ui/button";
 import { SailboatLoading } from "@/components/sailboat-loading";
 import type { CodaRow } from "@/src/lib/coda";
 
@@ -16,9 +17,11 @@ interface Child {
 
 export function HomeContent({
   parentName,
+  userEmail,
   children,
 }: {
   parentName: string;
+  userEmail?: string;
   children: Child[];
 }) {
   const [selectedChildId, setSelectedChildId] = useState<string>(
@@ -75,6 +78,7 @@ export function HomeContent({
       <div className="space-y-6">
         <p className="text-sm text-muted-foreground">
           Přihlášen jako: <span className="font-medium text-foreground">{parentName}</span>
+          {userEmail && <span className="text-muted-foreground"> ({userEmail})</span>}
         </p>
         <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-4 text-amber-800 dark:text-amber-200">
           Nemáte přiřazená žádná děti. Kontaktujte správce, pokud to není v pořádku.
@@ -88,6 +92,7 @@ export function HomeContent({
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           Přihlášen jako: <span className="font-medium text-foreground">{parentName}</span>
+          {userEmail && <span className="text-muted-foreground"> ({userEmail})</span>}
         </p>
       </header>
 
@@ -98,23 +103,21 @@ export function HomeContent({
         </p>
       </div>
 
-      {children.length > 1 && (
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Dítě
-          </label>
-          <select
-            value={selectedChildId}
-            onChange={(e) => setSelectedChildId(e.target.value)}
-            className="h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm"
-          >
-            {children.map((c) => (
-              <option key={c.rowId} value={c.rowId}>
-                {c.nickname || c.name}
-                {c.currentYear || c.group ? ` · ${[c.currentYear, c.group].filter(Boolean).join(" ")}` : ""}
-              </option>
-            ))}
-          </select>
+      {children.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <span className="sr-only">Dítě:</span>
+          {children.map((c) => (
+            <Button
+              key={c.rowId}
+              type="button"
+              variant={selectedChildId === c.rowId ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedChildId(c.rowId)}
+            >
+              {c.nickname || c.name}
+              {c.currentYear || c.group ? ` · ${[c.currentYear, c.group].filter(Boolean).join(" ")}` : ""}
+            </Button>
+          ))}
         </div>
       )}
 

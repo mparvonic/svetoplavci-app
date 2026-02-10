@@ -90,9 +90,13 @@ export const authConfig = {
         return baseUrl + "/";
       }
       // Po magickém odkazu bývá callbackUrl = stránka přihlášení; po úspěchu má jít uživatel na úvod.
+      // Při odhlášení kvůli nečinnosti necháme přesměrovat na přihlášení s reason=inactivity.
       try {
         const target = new URL(url, baseUrl);
         if (target.pathname === "/auth/signin" || url.startsWith(baseUrl + "/auth/signin")) {
+          if (target.searchParams.get("reason") === "inactivity") {
+            return target.origin + target.pathname + target.search;
+          }
           return baseUrl + "/";
         }
         return target.origin + target.pathname + target.search;

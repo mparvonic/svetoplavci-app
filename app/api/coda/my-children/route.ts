@@ -27,6 +27,7 @@ export async function GET() {
     const children = await getChildrenOfParent(parent.rowId);
     return NextResponse.json({
       parent: { name: parent.name, rowId: parent.rowId },
+      userEmail: session.user.email,
       children,
     });
   } catch (e) {
