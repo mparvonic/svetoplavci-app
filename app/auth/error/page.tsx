@@ -17,7 +17,7 @@ export default async function AuthErrorPage({
   } else if (code === "NoRole") {
     title = "Přístup zamítnut";
     message =
-      "Váš e‑mail nebyl nalezen mezi oprávněnými uživateli. Zkontrolujte, zda používáte stejnou adresu jako v systému Edookit, nebo kontaktujte správce.";
+      "Váš e‑mail nebyl nalezen mezi oprávněnými uživateli. Zkontrolujte, zda používáte stejnou adresu jako v systému Edookit. Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy na adrese kancelar@svetoplavci.cz.";
   }
 
   return (

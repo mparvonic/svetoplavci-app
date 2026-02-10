@@ -24,7 +24,10 @@ export async function GET(
     const parent = await findParentByEmail(session.user.email);
     if (!parent) {
       return NextResponse.json(
-        { error: "Přístup zamítnut. Váš email nebyl nalezen v systému." },
+        {
+          error:
+            "Přístup zamítnut. Váš e‑mail nebyl nalezen v systému. Zkontrolujte, zda používáte stejnou adresu jako v systému Edookit. Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy (kancelar@svetoplavci.cz).",
+        },
         { status: 403 }
       );
     }

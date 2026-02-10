@@ -42,11 +42,9 @@ export default async function SignInPage({
             <CardHeader className="space-y-3 text-left">
               <CardTitle className="text-2xl font-bold text-[#002060]">Přihlášení rodiče</CardTitle>
               <CardDescription className="text-sm text-[#4b5563]">
-                Vyberte způsob přihlášení. Doporučujeme Google nebo e‑mailový magický odkaz.
+                Vyberte způsob přihlášení. Doporučujeme Google nebo e‑mailový magický odkaz. Pokud nemáte účet
+                Google, můžete se přihlásit prostřednictvím libovolného e‑mailu.
               </CardDescription>
-              <p className="rounded-md border border-dashed border-[#002060]/40 bg-[#f9fafb] px-3 py-2 text-xs font-semibold text-[#002060]">
-                Použijte, prosím, stejnou e‑mailovou adresu, kterou máte evidovanou v systému Edookit.
-              </p>
             </CardHeader>
             <CardContent className="space-y-5">
           {isInactivity && (
@@ -62,7 +60,9 @@ export default async function SignInPage({
               className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
               role="alert"
             >
-              Uživatel nemá přidělenou žádnou roli. Kontaktujte správce.
+              Uživatel nemá přidělenou žádnou roli. Zkontrolujte, zda používáte stejnou adresu jako v systému
+              Edookit. Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy
+              (kancelar@svetoplavci.cz).
             </div>
           )}
           {tooFast && (
@@ -145,11 +145,11 @@ export default async function SignInPage({
                   className="w-full rounded-xl border-[#DA0100] bg-white px-4 py-6 text-sm font-semibold uppercase tracking-wide text-[#DA0100] hover:bg-[#fff1f0]"
                   size="lg"
                 >
-                  Poslat magický odkaz
+                  Poslat odkaz k přihlášení
                 </Button>
               </form>
               <p className="text-center text-xs text-slate-500">
-                Na zadaný e‑mail přijde odkaz pro přihlášení. Odkaz je platný 24 hodin.
+                Na zadaný e‑mail přijde odkaz pro přihlášení.
               </p>
             </>
           )}
@@ -161,23 +161,28 @@ export default async function SignInPage({
         </CardContent>
       </Card>
           <div className="hidden h-full flex-col justify-between gap-4 rounded-3xl border border-white/40 bg-white/10 p-6 text-xs shadow-xl backdrop-blur-sm md:flex">
-        <div className="space-y-3">
-          <p className="text-[10px] uppercase tracking-[0.25em] text-white/70">Jak to funguje</p>
-          <h2 className="text-lg font-semibold">Výsledky dítěte na jednom místě</h2>
-          <p className="text-xs text-white/80">
-            Po přihlášení uvidíte výsledky svých dětí v přehledných dlaždicích – lodičky, vysvědčení a grafy
-            v jednoduchém a srozumitelném rozhraní.
-          </p>
-        </div>
-        <div className="space-y-1 text-white/80">
-          <p className="text-[10px] uppercase tracking-[0.25em]">Tip</p>
-          <ul className="list-disc space-y-1 pl-4 text-xs">
-            <li>Používejte stejný e‑mail jako v Edookitu.</li>
-            <li>Odkaz z e‑mailu je platný 24 hodin.</li>
-            <li>Po 30 minutách nečinnosti budete automaticky odhlášeni.</li>
-          </ul>
-        </div>
-      </div>
+            <div className="space-y-3">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-white/70">Jak to funguje</p>
+              <h2 className="text-lg font-semibold">Výsledky dítěte na jednom místě</h2>
+              <p className="text-xs text-white/80">
+                Po přihlášení uvidíte výsledky svých dětí v přehledných dlaždicích – lodičky, vysvědčení a
+                grafy v jednoduchém a srozumitelném rozhraní.
+              </p>
+            </div>
+            <div className="space-y-1 text-white/80">
+              <p className="text-[10px] uppercase tracking-[0.25em]">Tip</p>
+              <ul className="list-disc space-y-1 pl-4 text-xs">
+                <li>Používejte stejný e‑mail, který máte evidovaný v systému Edookit.</li>
+                <li>
+                  Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy na adrese{" "}
+                  <span className="underline">kancelar@svetoplavci.cz</span>.
+                </li>
+                <li>Odkaz z e‑mailu je platný 24 hodin.</li>
+                <li>Po 30 minutách nečinnosti budete automaticky odhlášeni.</li>
+                <li>Data jsou zpracovávána v souladu s pravidly GDPR a interními směrnicemi školy.</li>
+              </ul>
+            </div>
+          </div>
       </div>
         <div className="flex w-full justify-center">
           <img
