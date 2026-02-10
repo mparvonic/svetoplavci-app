@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import Nodemailer from "next-auth/providers/nodemailer";
+import nodemailer from "nodemailer";
 import { authConfig } from "@/src/lib/auth.config";
 import { prisma } from "@/src/lib/prisma";
 
@@ -73,8 +74,12 @@ const emailProviders = [
 `;
 
             try {
-              // provider.server je Nodemailer transport – typově si pomůžeme přes any
-              await (provider as any).server.sendMail({
+              // Vytvoříme vlastní Nodemailer transport z konfigurace provideru
+              const transport = nodemailer.createTransport(
+                // @ts-expect-error - typ serveru může být string nebo objekt, createTransport zvládne obojí
+                provider.server ?? emailServer
+              );
+              await transport.sendMail({
                 to: identifier,
                 from: provider.from,
                 subject,
