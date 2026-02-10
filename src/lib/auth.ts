@@ -76,8 +76,7 @@ const emailProviders = [
             try {
               // Vytvoříme vlastní Nodemailer transport z konfigurace provideru
               const transport = nodemailer.createTransport(
-                // @ts-expect-error - typ serveru může být string nebo objekt, createTransport zvládne obojí
-                provider.server ?? emailServer
+                (provider as any).server ?? emailServer
               );
               await transport.sendMail({
                 to: identifier,
