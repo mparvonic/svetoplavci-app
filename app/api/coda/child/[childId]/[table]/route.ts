@@ -3,7 +3,7 @@ import {
   findParentByEmail,
   getChildrenOfParent,
   getChildTableData,
-} from "@/src/lib/coda";
+} from "@/src/lib/mirror-db";
 import type { TableId } from "@/src/types/coda";
 import { NextResponse } from "next/server";
 

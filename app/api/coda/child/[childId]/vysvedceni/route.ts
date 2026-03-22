@@ -1,5 +1,5 @@
 import { auth } from "@/src/lib/auth";
-import { findParentByEmail, getChildrenOfParent, getChildTableData } from "@/src/lib/coda";
+import { findParentByEmail, getChildrenOfParent, getChildTableData } from "@/src/lib/mirror-db";
 import type { CodaRow } from "@/src/lib/coda";
 import { NextResponse } from "next/server";
 
