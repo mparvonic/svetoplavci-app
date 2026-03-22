@@ -16,8 +16,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG DATABASE_URL
-ENV DATABASE_URL=$DATABASE_URL
+ARG POSTGRES_PRISMA_URL
+ENV POSTGRES_PRISMA_URL=$POSTGRES_PRISMA_URL
 
 # Generate Prisma client + push schema
 RUN npx prisma generate
