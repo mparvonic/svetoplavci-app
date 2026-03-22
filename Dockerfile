@@ -16,12 +16,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG POSTGRES_PRISMA_URL
-ENV POSTGRES_PRISMA_URL=$POSTGRES_PRISMA_URL
-
-# Generate Prisma client + push schema
+# Generate Prisma client
 RUN npx prisma generate
-RUN npx prisma db push
 
 # Build Next.js standalone
 ENV NEXT_TELEMETRY_DISABLED=1
