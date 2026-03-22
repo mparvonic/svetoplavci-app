@@ -21,7 +21,7 @@ ENV DATABASE_URL=$DATABASE_URL
 
 # Generate Prisma client + push schema
 RUN npx prisma generate
-RUN npx prisma db push --skip-generate
+RUN npx prisma db push
 
 # Build Next.js standalone
 ENV NEXT_TELEMETRY_DISABLED=1
