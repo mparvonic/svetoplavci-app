@@ -107,38 +107,33 @@ async function syncOneTable(config: SyncTableConfig): Promise<SyncResult> {
   try {
     const rows = await fetchAllRows(config.codaId);
 
-    // TRUNCATE + INSERT v transakci — čtenáři vidí stará data až do commitu
-    await prisma.$transaction(
-      async (tx) => {
-        await tx.$executeRawUnsafe(`TRUNCATE TABLE "${config.mirrorTable}"`);
+    // TRUNCATE + batch INSERT (bez transakcie — krátky výpadok je akceptovateľný)
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE "${config.mirrorTable}"`);
 
-        for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-          const batch = rows.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
 
-          const valueClauses = batch.map(
-            (_, j) =>
-              `($${j * 4 + 1}, $${j * 4 + 2}::timestamptz, $${j * 4 + 3}::timestamptz, NOW(), $${j * 4 + 4}::jsonb)`
-          );
+      const valueClauses = batch.map(
+        (_, j) =>
+          `($${j * 4 + 1}, $${j * 4 + 2}::timestamptz, $${j * 4 + 3}::timestamptz, NOW(), $${j * 4 + 4}::jsonb)`
+      );
 
-          const params: unknown[] = [];
-          for (const row of batch) {
-            params.push(
-              row.id,
-              row.createdAt,
-              row.updatedAt,
-              JSON.stringify(row.values)
-            );
-          }
+      const params: unknown[] = [];
+      for (const row of batch) {
+        params.push(
+          row.id,
+          row.createdAt,
+          row.updatedAt,
+          JSON.stringify(row.values)
+        );
+      }
 
-          await tx.$executeRawUnsafe(
-            `INSERT INTO "${config.mirrorTable}" (coda_row_id, coda_created_at, coda_updated_at, synced_at, data)
-             VALUES ${valueClauses.join(", ")}`,
-            ...params
-          );
-        }
-      },
-      { timeout: 120_000 }
-    );
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "${config.mirrorTable}" (coda_row_id, coda_created_at, coda_updated_at, synced_at, data)
+         VALUES ${valueClauses.join(", ")}`,
+        ...params
+      );
+    }
 
     const durationMs = Date.now() - start;
 
