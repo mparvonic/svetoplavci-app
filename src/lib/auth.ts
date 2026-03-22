@@ -4,6 +4,7 @@ import Nodemailer from "next-auth/providers/nodemailer";
 import nodemailer from "nodemailer";
 import { authConfig } from "@/src/lib/auth.config";
 import { prisma } from "@/src/lib/prisma";
+import { findParentByEmail } from "@/src/lib/mirror-db";
 
 const emailServer = process.env.EMAIL_SERVER ?? process.env.SMTP_URL;
 const emailFromAddress = process.env.EMAIL_FROM ?? process.env.EMAIL_FROM_ADDRESS ?? "noreply@localhost";
@@ -99,4 +100,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
   providers: emailProviders,
+  callbacks: {
+    ...authConfig.callbacks,
+    async signIn({ user }) {
+      const email = user?.email;
+      if (!email) return false;
+      const debug = process.env.AUTH_DEBUG === "1" || process.env.NODE_ENV === "development";
+      const parent = await findParentByEmail(email);
+      if (parent) {
+        if (debug) console.log("[auth] signIn:", email, "→ parent", parent.name);
+        return true;
+      }
+      if (debug) console.log("[auth] signIn:", email, "→ NoRole");
+      return "/auth/signin?error=NoRole";
+    },
+    async jwt({ token, user }) {
+      if (user?.email) {
+        const parent = await findParentByEmail(user.email);
+        if (parent) {
+          token.role = "rodic";
+          token.jmeno = parent.name;
+        }
+      }
+      return token;
+    },
+  },
 });
