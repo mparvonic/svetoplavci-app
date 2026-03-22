@@ -1,5 +1,9 @@
 // Auth.js (NextAuth) + magic link – User, Account, Session, VerificationToken
 // https://authjs.dev/getting-started/adapters/prisma
+//
+// Mirror tabulky = jednosměrná kopie dat z Coda (sync 2x denně).
+// Schéma je záměrně jednoduché: coda_row_id (PK) + data JSONB.
+// V Phase 3 budou nahrazeny normalizovanými tabulkami.
 
 generator client {
   provider = "prisma-client-js"
@@ -54,4 +58,78 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ─── Mirror tabulky (Coda → PostgreSQL) ──────────────────────────────────────
+
+model MirrorSeznamOsob {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_seznam_osob")
+}
+
+model MirrorOsobniLodicky {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_osobni_lodicky")
+}
+
+model MirrorLodickyPoPlavbach {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_lodicky_po_plavbach")
+}
+
+model MirrorHodnoceniPredmetu {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_hodnoceni_predmetu")
+}
+
+model MirrorHodnoceniOblasti {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_hodnoceni_oblasti")
+}
+
+model MirrorKrivka {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_krivka")
+}
+
+model CodaSyncLog {
+  tableId      String    @id @map("table_id")
+  tableName    String    @map("table_name")
+  lastSyncedAt DateTime? @map("last_synced_at")
+  rowsSynced   Int       @default(0) @map("rows_synced")
+  durationMs   Int?      @map("duration_ms")
+  lastError    String?   @map("last_error")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("coda_sync_log")
 }
