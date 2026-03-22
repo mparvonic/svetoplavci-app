@@ -19,8 +19,9 @@ COPY . .
 ARG DATABASE_URL
 ENV DATABASE_URL=$DATABASE_URL
 
-# Generate Prisma client
+# Generate Prisma client + push schema
 RUN npx prisma generate
+RUN npx prisma db push --skip-generate
 
 # Build Next.js standalone
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -41,11 +42,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Prisma CLI + client + schema for db push at startup
+# Prisma client (generated)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/prisma ./prisma
 
 # Entrypoint script
 COPY --from=builder /app/docker-entrypoint.sh ./
