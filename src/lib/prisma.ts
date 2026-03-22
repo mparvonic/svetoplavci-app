@@ -5,16 +5,22 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-function createPrisma(): PrismaClient {
+function getClient(): PrismaClient {
+  if (globalForPrisma.prisma) return globalForPrisma.prisma;
   const connectionString = process.env.POSTGRES_PRISMA_URL;
   if (!connectionString) throw new Error("POSTGRES_PRISMA_URL is not set");
   const adapter = new PrismaPg({ connectionString });
-  return new PrismaClient({
+  const client = new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
+  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
+  return client;
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrisma();
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// Lazy proxy — PrismaClient sa vytvorí až pri prvom dotaze, nie pri importe
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_, prop) {
+    return getClient()[prop as keyof PrismaClient];
+  },
+});
