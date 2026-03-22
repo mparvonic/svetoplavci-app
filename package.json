@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
     "coda:columns": "node scripts/list-coda-columns.mjs",
     "db:tunnel": "ssh -N -L 5433:localhost:5432 root@194.182.84.146",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push --env-file .env.local"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
@@ -39,7 +40,6 @@
     "@types/plotly.js-basic-dist-min": "^2.12.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dotenv": "^17.2.4",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "prisma": "^7.3.0",
