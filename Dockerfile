@@ -18,10 +18,16 @@ COPY . .
 
 ARG POSTGRES_PRISMA_URL
 ENV POSTGRES_PRISMA_URL=$POSTGRES_PRISMA_URL
+ARG APP_RUNTIME_MODE=app
+ENV APP_RUNTIME_MODE=$APP_RUNTIME_MODE
 
 # Generate Prisma client + push schema
 RUN npx prisma generate
-RUN npx prisma db push
+RUN if [ "$APP_RUNTIME_MODE" = "proto" ]; then \
+      echo "Skipping prisma db push for proto build mode"; \
+    else \
+      npx prisma db push; \
+    fi
 
 # Build Next.js standalone
 ENV NEXT_TELEMETRY_DISABLED=1
