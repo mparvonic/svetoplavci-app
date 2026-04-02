@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   description: "Aplikace pro školu – portál, admin, kiosk",
 };
 
+const isProtoRuntime = process.env.APP_RUNTIME_MODE === "proto";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,11 +31,17 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>
+        {isProtoRuntime ? (
           <TooltipProvider delayDuration={0}>
             {children}
           </TooltipProvider>
-        </Providers>
+        ) : (
+          <Providers>
+            <TooltipProvider delayDuration={0}>
+              {children}
+            </TooltipProvider>
+          </Providers>
+        )}
       </body>
     </html>
   );

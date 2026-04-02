@@ -2,10 +2,22 @@ import NextAuth from "next-auth";
 import { authConfig } from "@/src/lib/auth.config";
 
 const { auth } = NextAuth(authConfig);
+const isProtoRuntime = process.env.APP_RUNTIME_MODE === "proto";
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
+
+  // Proto režim: veřejný mock/prototyp bez auth a bez backendových závislostí.
+  if (isProtoRuntime) {
+    if (pathname === "/") {
+      return Response.redirect(new URL("/ui-redesign", req.nextUrl.origin));
+    }
+    if (pathname.startsWith("/ui-redesign")) {
+      return;
+    }
+    return Response.redirect(new URL("/ui-redesign", req.nextUrl.origin));
+  }
 
   // Veřejné cesty – bez kontroly
   if (pathname === "/" || pathname.startsWith("/auth/")) {
