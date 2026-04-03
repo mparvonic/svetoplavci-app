@@ -240,9 +240,9 @@ function readCsvParents(csvPath: string): NormalizedUserRecord[] {
 
     const derivedRoles = new Set<string>();
     const roleNorm = roleRaw.toLowerCase();
-    if (roleNorm.includes("rodi")) derivedRoles.add(CSV_ROLE_PARENT);
+    // CSV export is parent-centric: every imported record must always have role "rodic".
+    derivedRoles.add(CSV_ROLE_PARENT);
     if (roleNorm.includes("administr")) derivedRoles.add(CSV_ROLE_ADMIN);
-    if (derivedRoles.size === 0) derivedRoles.add(CSV_ROLE_PARENT);
 
     const sourceKey = `csv_parent:${sourceRecordId}`;
     const dedupKey = buildPersonDedupKey({
