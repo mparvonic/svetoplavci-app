@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import { authConfig } from "@/src/lib/auth.config";
-import type { NextFetchEvent, NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
 const { auth } = NextAuth(authConfig);
 const isProtoRuntime = process.env.APP_RUNTIME_MODE === "proto";
@@ -31,7 +31,7 @@ const securedMiddleware = auth((req) => {
   // /kiosk/* a /portal/* – přístup pro všechny přihlášené (už ověřeno výše)
 });
 
-export default function middleware(req: NextRequest, event: NextFetchEvent) {
+export default function middleware(req: NextRequest) {
   // Proto režim: veřejný mock/prototyp bez auth a bez backendových závislostí.
   if (isProtoRuntime) {
     const { pathname } = req.nextUrl;
@@ -44,7 +44,7 @@ export default function middleware(req: NextRequest, event: NextFetchEvent) {
     return Response.redirect(new URL("/ui-redesign", req.nextUrl.origin));
   }
 
-  return securedMiddleware(req, event);
+  return (securedMiddleware as any)(req);
 }
 
 export const config = {
