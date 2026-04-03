@@ -11,6 +11,12 @@ const CSV_ROLE_ADMIN = "admin";
 const API_ROLE_STUDENT = "zak";
 const API_ROLE_EMPLOYEE = "zamestnanec";
 const API_READ_ONLY_SOURCE_TYPES = new Set(["edookit_student", "edookit_employee"]);
+const CODA_SO_PREZDIVKA = "c--RSuRrZPWK";
+const CODA_SO_IDENTIFIKATOR = "c-5nG1glNg-o";
+const CODA_SO_ROLE = "c-aI2b_O-scX";
+const CODA_SO_KRESTNI = "c-hJKW60xeO1";
+const CODA_SO_PRIJMENI = "c-GMLYzGw8ke";
+const CODA_SO_JMENO = "c-MzlgfRju0X";
 
 type SourceType = "edookit_student" | "edookit_employee" | "csv_parent";
 type SyncMode = "initial" | "daily" | "manual";
@@ -39,6 +45,18 @@ export interface SyncUsersOptions {
   date?: string;
   includeInactiveSince?: string;
   csvPath?: string;
+  mapCodaNicknames?: boolean;
+}
+
+export interface CodaNicknameSyncStats {
+  rowsTotal: number;
+  rowsWithNickname: number;
+  rowsMatched: number;
+  rowsUnmatched: number;
+  personsWithCandidate: number;
+  personsUpdated: number;
+  personsAlreadySet: number;
+  nicknameConflicts: number;
 }
 
 export interface SyncUsersResult {
@@ -50,6 +68,7 @@ export interface SyncUsersResult {
   employeesCount: number;
   csvCount: number;
   personsTouched: number;
+  codaNickname?: CodaNicknameSyncStats;
 }
 
 type EdookitStudent = Record<string, unknown>;
@@ -200,6 +219,39 @@ function normalizeNickname(value: string): string {
   return normalizeSpaces(value).toLocaleLowerCase("cs-CZ");
 }
 
+function normalizeNameMatch(value: string): string {
+  return normalizeSpaces(value)
+    .toLocaleLowerCase("cs-CZ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function mergeUniqueMap(map: Map<string, string | null>, key: string, value: string): void {
+  const existing = map.get(key);
+  if (existing === undefined) {
+    map.set(key, value);
+    return;
+  }
+  if (existing !== value) {
+    map.set(key, null);
+  }
+}
+
+function resolveUniqueMap(map: Map<string, string | null>, key: string): string | null {
+  const found = map.get(key);
+  if (found === undefined || found === null) return null;
+  return found;
+}
+
+function roleContainsRodic(rawRole: unknown): boolean {
+  const value = normText(rawRole);
+  if (!value) return false;
+  return value
+    .split(",")
+    .map((part) => normalizeSpaces(part).toLocaleLowerCase("cs-CZ"))
+    .some((part) => part === "rodič" || part === "rodic");
+}
+
 async function buildUniqueNickname(input: {
   personId: string;
   firstName?: string;
@@ -281,6 +333,143 @@ async function ensurePersonNickname(person: {
   }
 
   throw new Error(`Could not assign unique nickname for person '${person.id}'.`);
+}
+
+export async function syncCodaNicknames(): Promise<CodaNicknameSyncStats> {
+  const persons = await prisma.appPerson.findMany({
+    select: {
+      id: true,
+      identifier: true,
+      firstName: true,
+      lastName: true,
+      displayName: true,
+      nickname: true,
+      roles: {
+        where: { isActive: true },
+        select: { role: true },
+      },
+    },
+  });
+
+  const byIdentifier = new Map<string, string | null>();
+  const byDisplayName = new Map<string, string | null>();
+  const byParentName = new Map<string, string | null>();
+  const personById = new Map(persons.map((p) => [p.id, p]));
+
+  for (const person of persons) {
+    const identifierNorm = normIdentifier(person.identifier);
+    if (identifierNorm) {
+      mergeUniqueMap(byIdentifier, identifierNorm, person.id);
+    }
+
+    const displayNameNorm = normalizeNameMatch(person.displayName);
+    if (displayNameNorm) {
+      mergeUniqueMap(byDisplayName, displayNameNorm, person.id);
+    }
+
+    const isParent = person.roles.some((role) => role.role === CSV_ROLE_PARENT);
+    if (isParent) {
+      const firstNameNorm = normalizeNameMatch(person.firstName ?? "");
+      const lastNameNorm = normalizeNameMatch(person.lastName ?? "");
+      if (firstNameNorm && lastNameNorm) {
+        mergeUniqueMap(byParentName, `${firstNameNorm}|${lastNameNorm}`, person.id);
+      }
+    }
+  }
+
+  const codaRows = await prisma.mirrorSeznamOsob.findMany({
+    select: {
+      codaRowId: true,
+      data: true,
+    },
+  });
+
+  const personNicknameCounts = new Map<string, Map<string, number>>();
+  let rowsWithNickname = 0;
+  let rowsMatched = 0;
+  let rowsUnmatched = 0;
+
+  for (const row of codaRows) {
+    const payload = toObjectPayload(row.data);
+    const nickname = normalizeSpaces(normText(payload[CODA_SO_PREZDIVKA]));
+    if (!nickname) continue;
+    rowsWithNickname += 1;
+
+    const identifierNorm = normIdentifier(payload[CODA_SO_IDENTIFIKATOR]);
+    const roleRaw = payload[CODA_SO_ROLE];
+    const firstNameNorm = normalizeNameMatch(normText(payload[CODA_SO_KRESTNI]));
+    const lastNameNorm = normalizeNameMatch(normText(payload[CODA_SO_PRIJMENI]));
+    const displayNameNorm = normalizeNameMatch(normText(payload[CODA_SO_JMENO]));
+
+    let personId = identifierNorm ? resolveUniqueMap(byIdentifier, identifierNorm) : null;
+    if (!personId && roleContainsRodic(roleRaw) && firstNameNorm && lastNameNorm) {
+      personId = resolveUniqueMap(byParentName, `${firstNameNorm}|${lastNameNorm}`);
+    }
+    if (!personId && displayNameNorm) {
+      personId = resolveUniqueMap(byDisplayName, displayNameNorm);
+    }
+
+    if (!personId) {
+      rowsUnmatched += 1;
+      continue;
+    }
+
+    rowsMatched += 1;
+    if (!personNicknameCounts.has(personId)) {
+      personNicknameCounts.set(personId, new Map());
+    }
+    const bucket = personNicknameCounts.get(personId)!;
+    bucket.set(nickname, (bucket.get(nickname) ?? 0) + 1);
+  }
+
+  let personsUpdated = 0;
+  let personsAlreadySet = 0;
+  let nicknameConflicts = 0;
+
+  for (const [personId, bucket] of personNicknameCounts.entries()) {
+    const preferredNickname = [...bucket.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "cs"))
+      .at(0)?.[0];
+
+    if (!preferredNickname) continue;
+
+    const currentPerson = personById.get(personId);
+    if (!currentPerson) continue;
+
+    if (normalizeNickname(currentPerson.nickname ?? "") === normalizeNickname(preferredNickname)) {
+      personsAlreadySet += 1;
+      continue;
+    }
+
+    try {
+      await prisma.appPerson.update({
+        where: { id: personId },
+        data: { nickname: preferredNickname },
+      });
+      personsUpdated += 1;
+      personById.set(personId, {
+        ...currentPerson,
+        nickname: preferredNickname,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        nicknameConflicts += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  return {
+    rowsTotal: codaRows.length,
+    rowsWithNickname,
+    rowsMatched,
+    rowsUnmatched,
+    personsWithCandidate: personNicknameCounts.size,
+    personsUpdated,
+    personsAlreadySet,
+    nicknameConflicts,
+  };
 }
 
 function parseCsv(content: string, delimiter = ";"): string[][] {
@@ -1186,6 +1375,7 @@ export async function syncUsers(options: SyncUsersOptions = {}): Promise<SyncUse
       runId: run.id,
       requestedDate: date,
     });
+    const codaNickname = options.mapCodaNicknames ? await syncCodaNicknames() : undefined;
 
     await prisma.appUserSyncRun.update({
       where: { id: run.id },
@@ -1208,6 +1398,7 @@ export async function syncUsers(options: SyncUsersOptions = {}): Promise<SyncUse
       employeesCount: employees.length,
       csvCount: csvRecords.length,
       personsTouched: applied.personsTouched,
+      codaNickname,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

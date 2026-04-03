@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
     date?: string;
     includeInactiveSince?: string;
     csvPath?: string;
+    mapCodaNicknames?: boolean;
   } = {};
   try {
     payload = (await req.json()) as typeof payload;
