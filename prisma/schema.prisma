@@ -160,6 +160,9 @@ model AppPerson {
   dedupKey    String   @unique @map("dedup_key")
   displayName String   @map("display_name")
   nickname    String?
+  chipUid     String?  @map("chip_uid")
+  chipHid     String?  @map("chip_hid")
+  photo       String?
   firstName   String?  @map("first_name")
   middleName  String?  @map("middle_name")
   lastName    String?  @map("last_name")
@@ -180,6 +183,8 @@ model AppPerson {
 
   @@index([identifier], map: "app_person_identifier_idx")
   @@index([plus4uId], map: "app_person_plus4u_id_idx")
+  @@index([chipUid], map: "app_person_chip_uid_idx")
+  @@index([chipHid], map: "app_person_chip_hid_idx")
   @@map("app_person")
 }
 
