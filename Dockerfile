@@ -18,10 +18,15 @@ COPY . .
 
 ARG POSTGRES_PRISMA_URL
 ENV POSTGRES_PRISMA_URL=$POSTGRES_PRISMA_URL
+ARG RUN_PRISMA_DB_PUSH=0
 
 # Generate Prisma client + push schema
 RUN npx prisma generate
-RUN npx prisma db push
+RUN if [ "$RUN_PRISMA_DB_PUSH" = "1" ]; then \
+      npx prisma db push; \
+    else \
+      echo "Skipping prisma db push during image build"; \
+    fi
 
 # Build Next.js standalone
 ENV NEXT_TELEMETRY_DISABLED=1
