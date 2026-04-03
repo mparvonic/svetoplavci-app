@@ -30,13 +30,18 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG PRISMA_CLI_VERSION=7.3.0
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
+# Prisma CLI for runtime migrate deploy
+RUN npm install -g prisma@${PRISMA_CLI_VERSION}
+
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/prisma ./prisma
 
 # Prisma client (generated)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
