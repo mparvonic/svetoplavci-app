@@ -10,7 +10,7 @@ function createPrisma(): PrismaClient {
   if (!connectionString) {
     throw new Error("POSTGRES_PRISMA_URL is not set");
   }
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg({ connectionString, max: 2 });
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
@@ -20,7 +20,7 @@ function createPrisma(): PrismaClient {
 function getPrisma(): PrismaClient {
   if (globalForPrisma.prisma) return globalForPrisma.prisma;
   const client = createPrisma();
-  if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
+  globalForPrisma.prisma = client;
   return client;
 }
 
