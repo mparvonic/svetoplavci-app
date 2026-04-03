@@ -1,16 +1,32 @@
-export type UserRole = "admin" | "ucitel" | "rodic" | "zak";
+import { getApprovedLoginProfileByEmail } from "@/src/lib/user-directory";
+
+export type UserRole =
+  | "admin"
+  | "zamestnanec"
+  | "ucitel"
+  | "rodic"
+  | "zak"
+  | "tester"
+  | "proto";
 
 export interface UserRecord {
   email: string;
   role: UserRole;
+  roles: UserRole[];
   jmeno: string;
 }
 
 /**
- * Rezerva pro případné budoucí napojení na samostatnou tabulku uživatelů.
- * Aktuálně vždy vrací null – všechny role se odvozují z Coda (Seznam osob).
+ * Načte uživatele z interního user directory modelu.
+ * Přístup je povolen jen pokud je e-mail navázaný na osobu přes approved link.
  */
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {
-  void email;
-  return null;
+  const profile = await getApprovedLoginProfileByEmail(email);
+  if (!profile) return null;
+  return {
+    email: profile.email,
+    role: profile.primaryRole,
+    roles: profile.roles,
+    jmeno: profile.jmeno ?? profile.email,
+  };
 }

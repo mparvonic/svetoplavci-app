@@ -4,6 +4,8 @@ import Nodemailer from "next-auth/providers/nodemailer";
 import nodemailer from "nodemailer";
 import { authConfig } from "@/src/lib/auth.config";
 import { prisma } from "@/src/lib/prisma";
+import { getUserByEmail } from "@/src/lib/auth-utils";
+import { findParentByEmail } from "@/src/lib/mirror-db";
 
 const emailServer = process.env.EMAIL_SERVER ?? process.env.SMTP_URL;
 const emailFromAddress = process.env.EMAIL_FROM ?? process.env.EMAIL_FROM_ADDRESS ?? "noreply@localhost";
@@ -75,9 +77,7 @@ const emailProviders = [
 
             try {
               // Vytvoříme vlastní Nodemailer transport z konfigurace provideru
-              const transport = nodemailer.createTransport(
-                (provider as any).server ?? emailServer
-              );
+              const transport = nodemailer.createTransport(provider.server ?? emailServer);
               await transport.sendMail({
                 to: identifier,
                 from: provider.from,
@@ -95,8 +95,53 @@ const emailProviders = [
     : []),
 ];
 
+async function resolveAuthUser(email: string) {
+  const userFromDirectory = await getUserByEmail(email);
+  if (userFromDirectory) return userFromDirectory;
+
+  const mode = (process.env.AUTH_USER_MODEL ?? "strict").toLowerCase();
+  if (mode !== "legacy" && mode !== "hybrid") return null;
+
+  // Dočasný fallback kvůli plynulému přechodu.
+  const parent = await findParentByEmail(email);
+  if (!parent) return null;
+  return {
+    email: email.trim().toLowerCase(),
+    role: "rodic" as const,
+    roles: ["rodic" as const],
+    jmeno: parent.name,
+  };
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
   providers: emailProviders,
+  callbacks: {
+    ...authConfig.callbacks,
+    async signIn({ user }) {
+      const email = user?.email;
+      if (!email) return false;
+      const debug = process.env.AUTH_DEBUG === "1" || process.env.NODE_ENV === "development";
+
+      const authUser = await resolveAuthUser(email);
+      if (authUser) {
+        if (debug) console.log("[auth] signIn:", email, "→ role", authUser.role, authUser.jmeno);
+        return true;
+      }
+      if (debug) console.log("[auth] signIn:", email, "→ NoRole");
+      return "/auth/signin?error=NoRole";
+    },
+    async jwt({ token, user }) {
+      if (user?.email) {
+        const authUser = await resolveAuthUser(user.email);
+        if (authUser) {
+          token.role = authUser.role;
+          token.roles = authUser.roles;
+          token.jmeno = authUser.jmeno;
+        }
+      }
+      return token;
+    },
+  },
 });

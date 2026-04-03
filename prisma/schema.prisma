@@ -1,5 +1,9 @@
 // Auth.js (NextAuth) + magic link – User, Account, Session, VerificationToken
 // https://authjs.dev/getting-started/adapters/prisma
+//
+// Mirror tabulky = jednosměrná kopie dat z Coda (sync 2x denně).
+// Schéma je záměrně jednoduché: coda_row_id (PK) + data JSONB.
+// V Phase 3 budou nahrazeny normalizovanými tabulkami.
 
 generator client {
   provider = "prisma-client-js"
@@ -54,4 +58,240 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ─── Mirror tabulky (Coda → PostgreSQL) ──────────────────────────────────────
+
+model MirrorSeznamOsob {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_seznam_osob")
+}
+
+model MirrorOsobniLodicky {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_osobni_lodicky")
+}
+
+model MirrorLodickyPoPlavbach {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_lodicky_po_plavbach")
+}
+
+model MirrorHodnoceniPredmetu {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_hodnoceni_predmetu")
+}
+
+model MirrorHodnoceniOblasti {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_hodnoceni_oblasti")
+}
+
+model MirrorKrivka {
+  codaRowId     String    @id @map("coda_row_id")
+  codaCreatedAt DateTime? @map("coda_created_at")
+  codaUpdatedAt DateTime? @map("coda_updated_at")
+  syncedAt      DateTime  @default(now()) @map("synced_at")
+  data          Json
+
+  @@map("mirror_krivka")
+}
+
+model CodaSyncLog {
+  tableId      String    @id @map("table_id")
+  tableName    String    @map("table_name")
+  lastSyncedAt DateTime? @map("last_synced_at")
+  rowsSynced   Int       @default(0) @map("rows_synced")
+  durationMs   Int?      @map("duration_ms")
+  lastError    String?   @map("last_error")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("coda_sync_log")
+}
+
+model AppPerson {
+  id          String   @id @default(cuid())
+  dedupKey    String   @unique @map("dedup_key")
+  displayName String   @map("display_name")
+  firstName   String?  @map("first_name")
+  middleName  String?  @map("middle_name")
+  lastName    String?  @map("last_name")
+  identifier  String?
+  plus4uId    String?  @map("plus4u_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  sourceRecords AppPersonSourceRecord[]
+  loginLinks    AppLoginPersonLink[]
+  roles         AppRoleAssignment[]
+  parentLinks   AppPersonRelation[]     @relation("ParentPerson")
+  childLinks    AppPersonRelation[]     @relation("ChildPerson")
+
+  @@index([identifier], map: "app_person_identifier_idx")
+  @@index([plus4uId], map: "app_person_plus4u_id_idx")
+  @@map("app_person")
+}
+
+model AppPersonSourceRecord {
+  id                String   @id @default(cuid())
+  personId          String   @map("person_id")
+  sourceType        String   @map("source_type")
+  sourceKey         String   @unique @map("source_key")
+  sourcePersonId    String?  @map("source_person_id")
+  sourceRecordId    String?  @map("source_record_id")
+  organizationIdent String?  @map("organization_ident")
+  primaryEmail      String?  @map("primary_email")
+  activeSource      Boolean  @default(true) @map("active_source")
+  derivedRoles      String[] @default([]) @map("derived_roles")
+  payload           Json
+  sourceHash        String?  @map("source_hash")
+  syncedAt          DateTime @default(now()) @map("synced_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId], map: "app_person_source_record_person_id_idx")
+  @@index([sourceType], map: "app_person_source_record_source_type_idx")
+  @@index([sourcePersonId], map: "app_person_source_record_source_person_id_idx")
+  @@map("app_person_source_record")
+}
+
+model AppLoginIdentity {
+  id              String   @id @default(cuid())
+  identityType    String   @default("email") @map("identity_type")
+  identityValue   String   @map("identity_value")
+  normalizedValue String   @map("normalized_value")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  personLinks AppLoginPersonLink[]
+  conflicts   AppIdentityConflict[]
+
+  @@unique([identityType, normalizedValue], map: "app_login_identity_type_normalized_value_key")
+  @@index([normalizedValue], map: "app_login_identity_normalized_value_idx")
+  @@map("app_login_identity")
+}
+
+model AppLoginPersonLink {
+  id         String    @id @default(cuid())
+  identityId String    @map("identity_id")
+  personId   String    @map("person_id")
+  status     String    @default("pending")
+  approvedBy String?   @map("approved_by")
+  approvedAt DateTime? @map("approved_at")
+  reason     String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  identity AppLoginIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
+  person   AppPerson        @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([identityId, personId], map: "app_login_person_link_identity_id_person_id_key")
+  @@index([personId], map: "app_login_person_link_person_id_idx")
+  @@index([status], map: "app_login_person_link_status_idx")
+  @@map("app_login_person_link")
+}
+
+model AppRoleAssignment {
+  id        String    @id @default(cuid())
+  personId  String    @map("person_id")
+  role      String
+  source    String    @default("auto")
+  isActive  Boolean   @default(true) @map("is_active")
+  validFrom DateTime? @map("valid_from")
+  validTo   DateTime? @map("valid_to")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@unique([personId, role, source], map: "app_role_assignment_person_id_role_source_key")
+  @@index([role], map: "app_role_assignment_role_idx")
+  @@index([source], map: "app_role_assignment_source_idx")
+  @@map("app_role_assignment")
+}
+
+model AppPersonRelation {
+  id             String   @id @default(cuid())
+  parentPersonId String   @map("parent_person_id")
+  childPersonId  String   @map("child_person_id")
+  relationType   String   @default("parent_of") @map("relation_type")
+  source         String   @default("auto")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  parentPerson AppPerson @relation("ParentPerson", fields: [parentPersonId], references: [id], onDelete: Cascade)
+  childPerson  AppPerson @relation("ChildPerson", fields: [childPersonId], references: [id], onDelete: Cascade)
+
+  @@unique([parentPersonId, childPersonId, relationType, source], map: "app_person_relation_parent_child_relation_source_key")
+  @@index([childPersonId], map: "app_person_relation_child_person_id_idx")
+  @@map("app_person_relation")
+}
+
+model AppIdentityConflict {
+  id              String    @id @default(cuid())
+  identityId      String?   @map("identity_id")
+  normalizedValue String    @map("normalized_value")
+  status          String    @default("open")
+  reason          String
+  details         Json?
+  resolvedBy      String?   @map("resolved_by")
+  resolvedAt      DateTime? @map("resolved_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  identity AppLoginIdentity? @relation(fields: [identityId], references: [id], onDelete: SetNull)
+
+  @@index([status], map: "app_identity_conflict_status_idx")
+  @@index([normalizedValue], map: "app_identity_conflict_normalized_value_idx")
+  @@map("app_identity_conflict")
+}
+
+model AppUserSyncRun {
+  id                   String    @id @default(cuid())
+  source               String
+  runType              String    @map("run_type")
+  requestedDate        String?   @map("requested_date")
+  includeInactiveSince String?   @map("include_inactive_since")
+  status               String    @default("running")
+  studentsCount        Int       @default(0) @map("students_count")
+  employeesCount       Int       @default(0) @map("employees_count")
+  csvCount             Int       @default(0) @map("csv_count")
+  personsTouched       Int       @default(0) @map("persons_touched")
+  error                String?
+  startedAt            DateTime  @default(now()) @map("started_at")
+  finishedAt           DateTime? @map("finished_at")
+
+  @@index([source], map: "app_user_sync_run_source_idx")
+  @@index([status], map: "app_user_sync_run_status_idx")
+  @@map("app_user_sync_run")
 }

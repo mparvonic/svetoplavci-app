@@ -18,6 +18,10 @@ export default async function AuthErrorPage({
     title = "Přístup zamítnut";
     message =
       "Váš e‑mail nebyl nalezen mezi oprávněnými uživateli. Zkontrolujte, zda používáte stejnou adresu jako v systému Edookit. Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy na adrese kancelar@svetoplavci.cz.";
+  } else if (code === "NoEnvRole") {
+    title = "Přístup do prostředí zamítnut";
+    message =
+      "Váš účet nemá roli potřebnou pro toto prostředí aplikace. Pokud potřebujete přístup, obraťte se na správce aplikace.";
   }
 
   return (
@@ -38,4 +42,3 @@ export default async function AuthErrorPage({
     </div>
   );
 }
-

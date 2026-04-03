@@ -21,6 +21,7 @@ export default async function SignInPage({
   const tooFast = params.tooFast === "1";
 
   const isNoRole = error === "NoRole";
+  const isNoEnvRole = error === "NoEnvRole";
   const isInactivity = reason === "inactivity";
   const emailEnabled = !!(process.env.EMAIL_SERVER ?? process.env.SMTP_URL);
 
@@ -63,6 +64,15 @@ export default async function SignInPage({
               Uživatel nemá přidělenou žádnou roli. Zkontrolujte, zda používáte stejnou adresu jako v systému
               Edookit. Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy
               (kancelar@svetoplavci.cz).
+            </div>
+          )}
+          {isNoEnvRole && (
+            <div
+              className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              role="alert"
+            >
+              Váš účet nemá roli potřebnou pro toto prostředí aplikace. Pokud potřebujete přístup, obraťte se na
+              správce aplikace.
             </div>
           )}
           {tooFast && (

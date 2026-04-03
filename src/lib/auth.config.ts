@@ -1,15 +1,12 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
-import { getUserByEmail } from "@/src/lib/auth-utils";
-import { findParentByEmail } from "@/src/lib/coda";
 
 /**
  * Edge-kompatibilní konfigurace NextAuth (bez Nodemailer/Node.js modulů).
- * Používá se v middleware. Plná konfigurace včetně Email provideru je v auth.ts.
+ * Používá se v middleware. signIn + jwt callbacky (s DB lookup) jsou v auth.ts.
  */
 export const authConfig = {
-  trustHost: true, // Potřebné pro dev i proxy; jinak ClientFetchError / UntrustedHost
-  // Bez secret Auth.js vrací 500 a klient zobrazí „server configuration“. V produkci vždy nastav AUTH_SECRET/NEXTAUTH_SECRET.
+  trustHost: true,
   secret:
     process.env.AUTH_SECRET ??
     process.env.NEXTAUTH_SECRET ??
@@ -24,7 +21,7 @@ export const authConfig = {
   ],
   session: {
     strategy: "jwt" as const,
-    maxAge: 30 * 24 * 60 * 60, // 30 dní
+    maxAge: 30 * 24 * 60 * 60,
   },
   pages: {
     signIn: "/auth/signin",
@@ -32,48 +29,28 @@ export const authConfig = {
     error: "/auth/error",
   },
   callbacks: {
-    async signIn({ user }) {
-      const email = user?.email;
-      if (!email) return false;
-
-      const debug = process.env.AUTH_DEBUG === "1" || process.env.NODE_ENV === "development";
-      if (debug) {
-        console.log("[auth] signIn start", { email });
-      }
-
-      // 1) Coda tabulka Seznam osob – rodič (Role obsahuje „Rodič“, Aktivní, Kontaktní maily obsahuje email)
-      const parent = await findParentByEmail(email);
-      if (parent) {
-        if (debug) {
-          console.log("[auth] signIn: email", email, "→ parent (Coda)", {
-            parentName: parent.name,
-            parentRowId: parent.rowId,
-            contactEmails: parent.contactEmails,
-            roles: parent.roles,
-          });
-        }
-        return true;
-      }
-
-      if (debug) {
-        console.log("[auth] signIn: email", email, "→ NoRole (není v mock ani Coda)");
-      }
-      return "/auth/signin?error=NoRole";
-    },
-    async jwt({ token, user }) {
-      if (user?.email) {
-        const parent = await findParentByEmail(user.email);
-        if (parent) {
-          token.role = "rodic";
-          token.jmeno = parent.name;
-        }
-      }
-      return token;
-    },
     async session({ session, token }) {
       if (session.user) {
         const role = token.role ?? "zak";
-        session.user.role = role as "admin" | "ucitel" | "rodic" | "zak";
+        session.user.role = role as
+          | "admin"
+          | "zamestnanec"
+          | "ucitel"
+          | "rodic"
+          | "zak"
+          | "tester"
+          | "proto";
+        session.user.roles = Array.isArray(token.roles)
+          ? (token.roles as Array<
+              | "admin"
+              | "zamestnanec"
+              | "ucitel"
+              | "rodic"
+              | "zak"
+              | "tester"
+              | "proto"
+            >)
+          : [session.user.role];
         session.user.jmeno =
           (typeof token.jmeno === "string" ? token.jmeno : undefined) ??
           session.user.name ??
@@ -82,25 +59,17 @@ export const authConfig = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      // Neplatný nebo chybějící url (např. po signOut) → úvodní stránka
       if (url == null || url === "" || url === "undefined") {
         return baseUrl + "/";
       }
-      // Po magickém odkazu bývá callbackUrl = stránka přihlášení; po úspěchu má jít uživatel na úvod.
-      // Při odhlášení kvůli nečinnosti necháme přesměrovat na přihlášení s reason=inactivity.
       try {
         const target = new URL(url, baseUrl);
         if (target.pathname === "/auth/signin" || url.startsWith(baseUrl + "/auth/signin")) {
           const reason = target.searchParams.get("reason");
           const error = target.searchParams.get("error");
-
-          // Při odhlášení kvůli nečinnosti a při chybě NoRole (uživatel není v systému)
-          // necháme uživatele na stránce přihlášení s odpovídajícím vysvětlením.
           if (reason === "inactivity" || error === "NoRole") {
             return target.origin + target.pathname + target.search;
           }
-
-          // Ostatní případy → přesměruj na úvodní stránku
           return baseUrl + "/";
         }
         return target.origin + target.pathname + target.search;
