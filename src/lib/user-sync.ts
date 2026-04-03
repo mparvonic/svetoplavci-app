@@ -59,6 +59,18 @@ export interface CodaNicknameSyncStats {
   nicknameConflicts: number;
 }
 
+export interface CsvParentChildRelationSyncStats {
+  parentSourceRows: number;
+  parentRowsWithChildren: number;
+  childRefsTotal: number;
+  childRefsResolved: number;
+  childRefsUnmatched: number;
+  relationsCreated: number;
+  relationsActivated: number;
+  relationsDeactivated: number;
+  unmatchedChildNames: string[];
+}
+
 export interface SyncUsersResult {
   runId: string;
   mode: SyncMode;
@@ -69,6 +81,7 @@ export interface SyncUsersResult {
   csvCount: number;
   personsTouched: number;
   codaNickname?: CodaNicknameSyncStats;
+  csvParentChildRelations?: CsvParentChildRelationSyncStats;
 }
 
 type EdookitStudent = Record<string, unknown>;
@@ -1256,12 +1269,215 @@ async function syncStudentStateForPerson(input: {
   });
 }
 
+function splitCsvChildrenRaw(value: unknown): string[] {
+  const raw = normText(value);
+  if (!raw) return [];
+  return raw
+    .split(/[\n,;]+/)
+    .map((part) => normalizeNameMatch(part))
+    .filter(Boolean);
+}
+
+function readCsvChildrenFromPayload(payload: Record<string, unknown>): string[] {
+  const directAliases = new Set(["deti ve skole", "deti"]);
+  const fallbackValues: string[] = [];
+
+  for (const [key, value] of Object.entries(payload)) {
+    const normalized = normalizeHeaderName(key);
+    if (directAliases.has(normalized)) {
+      return splitCsvChildrenRaw(value);
+    }
+
+    if (normalized.includes("deti") && (normalized.includes("skole") || normalized === "deti")) {
+      fallbackValues.push(normText(value));
+    }
+  }
+
+  if (fallbackValues.length === 0) return [];
+  return splitCsvChildrenRaw(fallbackValues.join(", "));
+}
+
+function createStudentNameKey(input: { firstName: string; lastName: string }): {
+  firstLast: string;
+  lastFirst: string;
+} {
+  const first = normalizeNameMatch(input.firstName);
+  const last = normalizeNameMatch(input.lastName);
+  if (!first || !last) {
+    return { firstLast: "", lastFirst: "" };
+  }
+  return {
+    firstLast: `${first} ${last}`,
+    lastFirst: `${last} ${first}`,
+  };
+}
+
+async function syncCsvParentChildRelations(): Promise<CsvParentChildRelationSyncStats> {
+  const students = await prisma.appPerson.findMany({
+    where: {
+      isActive: true,
+      roles: {
+        some: {
+          role: API_ROLE_STUDENT,
+          isActive: true,
+        },
+      },
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      displayName: true,
+    },
+  });
+
+  const childByNameKey = new Map<string, string | null>();
+  for (const student of students) {
+    let firstName = student.firstName ?? "";
+    let lastName = student.lastName ?? "";
+    if (!firstName || !lastName) {
+      const parts = normalizeSpaces(student.displayName).split(" ").filter(Boolean);
+      if (!firstName && parts.length > 0) firstName = parts[0];
+      if (!lastName && parts.length > 1) lastName = parts[parts.length - 1];
+    }
+
+    const keys = createStudentNameKey({
+      firstName,
+      lastName,
+    });
+    if (keys.firstLast) mergeUniqueMap(childByNameKey, keys.firstLast, student.id);
+    if (keys.lastFirst) mergeUniqueMap(childByNameKey, keys.lastFirst, student.id);
+  }
+
+  const parentSources = await prisma.appPersonSourceRecord.findMany({
+    where: {
+      sourceType: "csv_parent",
+      activeSource: true,
+    },
+    select: {
+      personId: true,
+      payload: true,
+    },
+  });
+
+  const desiredPairs = new Set<string>();
+  const unmatchedChildCounts = new Map<string, number>();
+  let parentRowsWithChildren = 0;
+  let childRefsTotal = 0;
+  let childRefsResolved = 0;
+  let childRefsUnmatched = 0;
+
+  for (const source of parentSources) {
+    const payload = toObjectPayload(source.payload);
+    const childNames = readCsvChildrenFromPayload(payload);
+    if (childNames.length === 0) continue;
+
+    parentRowsWithChildren += 1;
+    for (const childName of childNames) {
+      childRefsTotal += 1;
+      const childId = resolveUniqueMap(childByNameKey, childName);
+      if (!childId) {
+        childRefsUnmatched += 1;
+        unmatchedChildCounts.set(childName, (unmatchedChildCounts.get(childName) ?? 0) + 1);
+        continue;
+      }
+
+      if (childId === source.personId) continue;
+      desiredPairs.add(`${source.personId}|${childId}`);
+      childRefsResolved += 1;
+    }
+  }
+
+  const existingRelations = await prisma.appPersonRelation.findMany({
+    where: {
+      source: "csv_parent",
+      relationType: "parent_of",
+    },
+    select: {
+      id: true,
+      parentPersonId: true,
+      childPersonId: true,
+      isActive: true,
+    },
+  });
+
+  const existingByKey = new Map(
+    existingRelations.map((row) => [`${row.parentPersonId}|${row.childPersonId}`, row] as const)
+  );
+
+  let relationsCreated = 0;
+  let relationsActivated = 0;
+  let relationsDeactivated = 0;
+
+  await prisma.$transaction(async (tx) => {
+    for (const key of desiredPairs) {
+      const existing = existingByKey.get(key);
+      const [parentPersonId, childPersonId] = key.split("|");
+
+      if (!existing) {
+        await tx.appPersonRelation.create({
+          data: {
+            parentPersonId,
+            childPersonId,
+            relationType: "parent_of",
+            source: "csv_parent",
+            isActive: true,
+          },
+        });
+        relationsCreated += 1;
+        continue;
+      }
+
+      if (!existing.isActive) {
+        await tx.appPersonRelation.update({
+          where: { id: existing.id },
+          data: {
+            isActive: true,
+          },
+        });
+        relationsActivated += 1;
+      }
+    }
+
+    for (const relation of existingRelations) {
+      const key = `${relation.parentPersonId}|${relation.childPersonId}`;
+      if (relation.isActive && !desiredPairs.has(key)) {
+        await tx.appPersonRelation.update({
+          where: { id: relation.id },
+          data: {
+            isActive: false,
+          },
+        });
+        relationsDeactivated += 1;
+      }
+    }
+  });
+
+  const unmatchedChildNames = [...unmatchedChildCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "cs"))
+    .slice(0, 50)
+    .map(([name, count]) => `${name}:${count}`);
+
+  return {
+    parentSourceRows: parentSources.length,
+    parentRowsWithChildren,
+    childRefsTotal,
+    childRefsResolved,
+    childRefsUnmatched,
+    relationsCreated,
+    relationsActivated,
+    relationsDeactivated,
+    unmatchedChildNames,
+  };
+}
+
 async function applyRecords(input: {
   records: NormalizedUserRecord[];
   runId: string;
   requestedDate: string;
 }): Promise<{
   personsTouched: number;
+  csvParentChildRelations: CsvParentChildRelationSyncStats;
 }> {
   const records = input.records;
   const touchedPersonIds = new Set<string>();
@@ -1336,8 +1552,11 @@ async function applyRecords(input: {
     await refreshIdentityConflict(identityId);
   }
 
+  const csvParentChildRelations = await syncCsvParentChildRelations();
+
   return {
     personsTouched: touchedPersonIds.size,
+    csvParentChildRelations,
   };
 }
 
@@ -1399,6 +1618,7 @@ export async function syncUsers(options: SyncUsersOptions = {}): Promise<SyncUse
       csvCount: csvRecords.length,
       personsTouched: applied.personsTouched,
       codaNickname,
+      csvParentChildRelations: applied.csvParentChildRelations,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
