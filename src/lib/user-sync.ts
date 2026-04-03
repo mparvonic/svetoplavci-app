@@ -125,6 +125,127 @@ function buildPersonDedupKey(input: {
   return `${input.sourceType}:hash:${sha256(input.sourceKey).slice(0, 24)}`;
 }
 
+function normalizeSpaces(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function pickNameParts(input: {
+  firstName?: string;
+  lastName?: string;
+  displayName: string;
+}): { firstPart: string; lastPart: string } {
+  const displayName = normalizeSpaces(input.displayName);
+  const displayParts = displayName ? displayName.split(" ").filter(Boolean) : [];
+
+  const firstPart =
+    normalizeSpaces(input.firstName ?? "") || displayParts[0] || "Uzivatel";
+
+  let lastPart = normalizeSpaces(input.lastName ?? "");
+  if (!lastPart && displayParts.length > 1) {
+    lastPart = displayParts[displayParts.length - 1];
+  }
+
+  return { firstPart, lastPart };
+}
+
+function nicknameCandidates(firstPart: string, lastPart: string): string[] {
+  if (!lastPart) {
+    return [`${firstPart}.`];
+  }
+  const candidates: string[] = [];
+  for (let len = 1; len <= lastPart.length; len += 1) {
+    candidates.push(`${firstPart} ${lastPart.slice(0, len)}.`);
+  }
+  return candidates;
+}
+
+function normalizeNickname(value: string): string {
+  return normalizeSpaces(value).toLocaleLowerCase("cs-CZ");
+}
+
+async function buildUniqueNickname(input: {
+  personId: string;
+  firstName?: string;
+  lastName?: string;
+  displayName: string;
+}): Promise<string> {
+  const { firstPart, lastPart } = pickNameParts(input);
+  const existingNicknames = await prisma.appPerson.findMany({
+    where: {
+      id: {
+        not: input.personId,
+      },
+      nickname: {
+        not: null,
+      },
+    },
+    select: {
+      nickname: true,
+    },
+  });
+
+  const used = new Set(
+    existingNicknames
+      .map((row) => row.nickname)
+      .filter((value): value is string => Boolean(value))
+      .map((value) => normalizeNickname(value))
+  );
+
+  for (const candidate of nicknameCandidates(firstPart, lastPart)) {
+    if (!used.has(normalizeNickname(candidate))) {
+      return candidate;
+    }
+  }
+
+  // If the full surname prefix is still not unique (same first+surname exists),
+  // continue with numeric suffix to preserve uniqueness.
+  let counter = 2;
+  while (true) {
+    const candidate = lastPart
+      ? `${firstPart} ${lastPart}. ${counter}`
+      : `${firstPart}. ${counter}`;
+    if (!used.has(normalizeNickname(candidate))) {
+      return candidate;
+    }
+    counter += 1;
+  }
+}
+
+async function ensurePersonNickname(person: {
+  id: string;
+  nickname: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
+}): Promise<string> {
+  if (person.nickname) return person.nickname;
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const nickname = await buildUniqueNickname({
+      personId: person.id,
+      firstName: person.firstName ?? undefined,
+      lastName: person.lastName ?? undefined,
+      displayName: person.displayName,
+    });
+
+    try {
+      const updated = await prisma.appPerson.update({
+        where: { id: person.id },
+        data: { nickname },
+        select: { nickname: true },
+      });
+      return updated.nickname ?? nickname;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error(`Could not assign unique nickname for person '${person.id}'.`);
+}
+
 function parseCsv(content: string, delimiter = ";"): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -430,7 +551,16 @@ async function upsertNormalizedRecord(
       identifier: record.identifier,
       plus4uId: record.plus4uId,
     },
+    select: {
+      id: true,
+      nickname: true,
+      firstName: true,
+      lastName: true,
+      displayName: true,
+    },
   });
+
+  await ensurePersonNickname(person);
 
   await prisma.appPersonSourceRecord.upsert({
     where: {

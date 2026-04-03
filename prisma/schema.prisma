@@ -138,6 +138,7 @@ model AppPerson {
   id          String   @id @default(cuid())
   dedupKey    String   @unique @map("dedup_key")
   displayName String   @map("display_name")
+  nickname    String?  @unique
   firstName   String?  @map("first_name")
   middleName  String?  @map("middle_name")
   lastName    String?  @map("last_name")
