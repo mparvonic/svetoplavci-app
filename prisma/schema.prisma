@@ -13,6 +13,27 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AppGroupKind {
+  stupen
+  rocnik
+  smecka
+  posadka
+  studijni_skupina
+}
+
+enum AppStudyModeKey {
+  denni
+  individualni
+  zahranici
+  unknown
+}
+
+enum AppPolicyScope {
+  global
+  study_mode
+  role
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -153,6 +174,9 @@ model AppPerson {
   roles         AppRoleAssignment[]
   parentLinks   AppPersonRelation[]     @relation("ParentPerson")
   childLinks    AppPersonRelation[]     @relation("ChildPerson")
+  studentStates AppStudentState[]
+  memberships   AppGroupMembership[]
+  violations    AppMembershipViolation[]
 
   @@index([identifier], map: "app_person_identifier_idx")
   @@index([plus4uId], map: "app_person_plus4u_id_idx")
@@ -292,7 +316,212 @@ model AppUserSyncRun {
   startedAt            DateTime  @default(now()) @map("started_at")
   finishedAt           DateTime? @map("finished_at")
 
+  studentStatesChanged AppStudentState[] @relation("SyncRunStudentState")
+
   @@index([source], map: "app_user_sync_run_source_idx")
   @@index([status], map: "app_user_sync_run_status_idx")
   @@map("app_user_sync_run")
+}
+
+model AppStudyModeMap {
+  code      String          @id
+  modeKey   AppStudyModeKey @map("mode_key")
+  label     String
+  isActive  Boolean         @default(true) @map("is_active")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  @@index([modeKey], map: "app_study_mode_map_mode_key_idx")
+  @@map("app_study_mode_map")
+}
+
+model AppSchoolYear {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  startDate         DateTime @map("start_date") @db.Date
+  endDate           DateTime @map("end_date") @db.Date
+  teachingStartDate DateTime @map("teaching_start_date") @db.Date
+  teachingEndDate   DateTime @map("teaching_end_date") @db.Date
+  term1EndDate      DateTime @map("term1_end_date") @db.Date
+  term2StartDate    DateTime @map("term2_start_date") @db.Date
+  isActive          Boolean  @default(false) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  groups        AppGroup[]
+  studentStates AppStudentState[]
+
+  @@map("app_school_year")
+}
+
+model AppGroup {
+  id           String       @id @default(cuid())
+  kind         AppGroupKind
+  code         String
+  name         String
+  schoolYearId String?      @map("school_year_id")
+  validFrom    DateTime     @default(now()) @map("valid_from")
+  validTo      DateTime?    @map("valid_to")
+  isActive     Boolean      @default(true) @map("is_active")
+  metadata     Json         @default(dbgenerated("'{}'::jsonb"))
+  createdBy    String?      @map("created_by")
+  updatedBy    String?      @map("updated_by")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  schoolYear      AppSchoolYear?       @relation(fields: [schoolYearId], references: [id], onDelete: SetNull)
+  parentGroupRows AppGroupLink[]       @relation("GroupLinkParent")
+  childGroupRows  AppGroupLink[]       @relation("GroupLinkChild")
+  memberships     AppGroupMembership[]
+
+  @@unique([kind, code, schoolYearId], map: "app_group_kind_code_school_year_id_key")
+  @@index([kind], map: "app_group_kind_idx")
+  @@index([schoolYearId], map: "app_group_school_year_id_idx")
+  @@map("app_group")
+}
+
+model AppGroupLink {
+  id            String    @id @default(cuid())
+  parentGroupId String   @map("parent_group_id")
+  childGroupId  String   @map("child_group_id")
+  relationType  String   @map("relation_type")
+  validFrom     DateTime @default(now()) @map("valid_from")
+  validTo       DateTime? @map("valid_to")
+  createdBy     String?  @map("created_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  parentGroup AppGroup @relation("GroupLinkParent", fields: [parentGroupId], references: [id], onDelete: Cascade)
+  childGroup  AppGroup @relation("GroupLinkChild", fields: [childGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([parentGroupId, childGroupId, relationType, validFrom], map: "app_group_link_parent_child_relation_valid_from_key")
+  @@index([childGroupId], map: "app_group_link_child_group_id_idx")
+  @@map("app_group_link")
+}
+
+model AppStudentState {
+  id                 String          @id @default(cuid())
+  personId           String          @map("person_id")
+  sourceType         String          @default("edookit") @map("source_type")
+  sourceKey          String          @map("source_key")
+  effectiveFrom      DateTime        @map("effective_from")
+  effectiveTo        DateTime?       @map("effective_to")
+  schoolYearId       String?         @map("school_year_id")
+  currentGradeNum    Int?            @map("current_grade_num")
+  initialGradeNum    Int?            @map("initial_grade_num")
+  studyModeCode      String?         @map("study_mode_code")
+  studyModeKey       AppStudyModeKey @default(unknown) @map("study_mode_key")
+  changedBySyncRunId String?         @map("changed_by_sync_run_id")
+  rawHash            String          @map("raw_hash")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  person            AppPerson      @relation(fields: [personId], references: [id], onDelete: Cascade)
+  schoolYear        AppSchoolYear? @relation(fields: [schoolYearId], references: [id], onDelete: SetNull)
+  changedBySyncRun  AppUserSyncRun? @relation("SyncRunStudentState", fields: [changedBySyncRunId], references: [id], onDelete: SetNull)
+
+  @@index([personId], map: "app_student_state_person_id_idx")
+  @@index([effectiveFrom], map: "app_student_state_effective_from_idx")
+  @@index([studyModeKey], map: "app_student_state_study_mode_key_idx")
+  @@map("app_student_state")
+}
+
+model AppMembershipPolicy {
+  id         String         @id @default(cuid())
+  scope      AppPolicyScope
+  scopeValue String?        @map("scope_value")
+  priority   Int            @default(100)
+  isActive   Boolean        @default(true) @map("is_active")
+  validFrom  DateTime       @default(now()) @map("valid_from")
+  validTo    DateTime?      @map("valid_to")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  rules AppMembershipPolicyRule[]
+
+  @@index([scope, scopeValue], map: "app_membership_policy_scope_scope_value_idx")
+  @@index([isActive], map: "app_membership_policy_is_active_idx")
+  @@map("app_membership_policy")
+}
+
+model AppMembershipPolicyRule {
+  id          String       @id @default(cuid())
+  policyId    String       @map("policy_id")
+  groupKind   AppGroupKind @map("group_kind")
+  minCount    Int          @default(0) @map("min_count")
+  maxCount    Int?         @map("max_count")
+  enforcement String       @default("strict")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  policy AppMembershipPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, groupKind], map: "app_membership_policy_rule_policy_id_group_kind_key")
+  @@index([groupKind], map: "app_membership_policy_rule_group_kind_idx")
+  @@map("app_membership_policy_rule")
+}
+
+model AppGroupMembership {
+  id             String       @id @default(cuid())
+  personId       String       @map("person_id")
+  groupId        String       @map("group_id")
+  groupKind      AppGroupKind @default(studijni_skupina) @map("group_kind")
+  membershipRole String?      @map("membership_role")
+  validFrom      DateTime     @map("valid_from")
+  validTo        DateTime?    @map("valid_to")
+  source         String
+  reason         String?
+  createdBy      String?      @map("created_by")
+  updatedBy      String?      @map("updated_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+  group  AppGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  events AppGroupMembershipEvent[]
+
+  @@index([personId], map: "app_group_membership_person_id_idx")
+  @@index([groupId], map: "app_group_membership_group_id_idx")
+  @@index([groupKind], map: "app_group_membership_group_kind_idx")
+  @@map("app_group_membership")
+}
+
+model AppGroupMembershipEvent {
+  id           String   @id @default(cuid())
+  membershipId String   @map("membership_id")
+  action       String
+  changedAt    DateTime @default(now()) @map("changed_at")
+  changedBy    String?  @map("changed_by")
+  source       String
+  oldData      Json?    @map("old_data")
+  newData      Json?    @map("new_data")
+
+  membership AppGroupMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([membershipId], map: "app_group_membership_event_membership_id_idx")
+  @@map("app_group_membership_event")
+}
+
+model AppMembershipViolation {
+  id             String       @id @default(cuid())
+  personId       String       @map("person_id")
+  occurredAt     DateTime     @default(now()) @map("occurred_at")
+  intervalFrom   DateTime     @map("interval_from")
+  intervalTo     DateTime?    @map("interval_to")
+  ruleScope      String       @map("rule_scope")
+  ruleScopeValue String?      @map("rule_scope_value")
+  groupKind      AppGroupKind @map("group_kind")
+  expectedMin    Int          @map("expected_min")
+  expectedMax    Int?         @map("expected_max")
+  actualCount    Int          @map("actual_count")
+  severity       String       @default("error")
+  source         String
+  context        Json         @default(dbgenerated("'{}'::jsonb"))
+  resolvedAt     DateTime?    @map("resolved_at")
+  resolvedBy     String?      @map("resolved_by")
+
+  person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId], map: "app_membership_violation_person_id_idx")
+  @@index([resolvedAt], map: "app_membership_violation_resolved_at_idx")
+  @@map("app_membership_violation")
 }

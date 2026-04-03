@@ -17,6 +17,6 @@ Primární účel je **referenční bod pro AI asistenta** (a vývojáře) – a
 - `api-endpoints.md` – hlavní API routy Next.js používané frontendem.
 - `ui-ux.md` – hlavní obrazovky, metro design, mobilní vs. desktop layout.
 - `security.md` – shrnutí bezpečnostního modelu a odkaz na `GDPR.md`.
+- `school-year-groups.md` – datový model školního roku, skupin, členství a změnové historie stavu dítěte.
 
 Stav odpovídá commitům kolem nasazení verze s metro dlaždicemi, českými texty přihlášení a doplněnou ochranou rodič/dítě přes Codu.
-

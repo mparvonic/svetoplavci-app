@@ -54,6 +54,17 @@ export interface SyncUsersResult {
 
 type EdookitStudent = Record<string, unknown>;
 type EdookitEmployee = Record<string, unknown>;
+type StudyModeKey = "denni" | "individualni" | "zahranici" | "unknown";
+
+interface StudentStateProjection {
+  sourceType: "edookit_student";
+  sourceKey: string;
+  currentGradeNum: number | null;
+  initialGradeNum: number | null;
+  studyModeCode: string | null;
+  studyModeKey: StudyModeKey;
+  rawHash: string;
+}
 
 function isApiReadOnlySourceType(sourceType: SourceType): boolean {
   return API_READ_ONLY_SOURCE_TYPES.has(sourceType);
@@ -97,6 +108,27 @@ function boolFromCsv(value: unknown): boolean {
   if (["1", "true", "ano", "yes"].includes(v)) return true;
   if (["0", "false", "ne", "no"].includes(v)) return false;
   return true;
+}
+
+function parseGradeNum(value: unknown): number | null {
+  const raw = normText(value);
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed < 1 || parsed > 9) return null;
+  return parsed;
+}
+
+function normalizeStudyModeCode(value: unknown): string | null {
+  const raw = normText(value);
+  return raw || null;
+}
+
+function toObjectPayload(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
 }
 
 function isActiveAtDate(unenrolledSinceRaw: unknown, asOfDate: string): boolean {
@@ -827,12 +859,226 @@ async function recomputePersonRolesAndActivity(personId: string): Promise<void> 
   });
 }
 
-async function applyRecords(records: NormalizedUserRecord[]): Promise<{
+function pickPreferredStudentRecord(
+  current: NormalizedUserRecord | undefined,
+  incoming: NormalizedUserRecord
+): NormalizedUserRecord {
+  if (!current) return incoming;
+
+  const score = (record: NormalizedUserRecord): number => {
+    const payload = record.payload;
+    let value = 0;
+    if (record.activeSource) value += 100;
+    if (parseGradeNum(payload.CurrentGradeNum) != null) value += 10;
+    if (parseGradeNum(payload.InitialGradeNum) != null) value += 5;
+    if (normalizeStudyModeCode(payload.UIV_ZPUSOB)) value += 2;
+    return value;
+  };
+
+  const currentScore = score(current);
+  const incomingScore = score(incoming);
+  if (incomingScore > currentScore) return incoming;
+  if (incomingScore < currentScore) return current;
+  return incoming.sourceKey < current.sourceKey ? incoming : current;
+}
+
+async function loadStudyModeMap(): Promise<Map<string, StudyModeKey>> {
+  const rows = await prisma.appStudyModeMap.findMany({
+    where: { isActive: true },
+    select: {
+      code: true,
+      modeKey: true,
+    },
+  });
+
+  const map = new Map<string, StudyModeKey>();
+  for (const row of rows) {
+    map.set(row.code, row.modeKey as StudyModeKey);
+  }
+  return map;
+}
+
+async function findSchoolYearIdForDate(dateIso: string): Promise<string | null> {
+  const normalized = normalizeDate(dateIso);
+  const date = new Date(`${normalized}T00:00:00.000Z`);
+  const schoolYear = await prisma.appSchoolYear.findFirst({
+    where: {
+      startDate: {
+        lte: date,
+      },
+      endDate: {
+        gte: date,
+      },
+    },
+    select: {
+      id: true,
+    },
+    orderBy: {
+      startDate: "desc",
+    },
+  });
+  return schoolYear?.id ?? null;
+}
+
+function projectStudentStateFromPayload(input: {
+  sourceKey: string;
+  payload: Record<string, unknown>;
+  modeByCode: Map<string, StudyModeKey>;
+}): StudentStateProjection {
+  const currentGradeNum = parseGradeNum(input.payload.CurrentGradeNum);
+  const initialGradeNum = parseGradeNum(input.payload.InitialGradeNum);
+  const studyModeCode = normalizeStudyModeCode(input.payload.UIV_ZPUSOB);
+  const studyModeKey = (studyModeCode ? input.modeByCode.get(studyModeCode) : undefined) ?? "unknown";
+
+  const rawHash = sha256({
+    currentGradeNum,
+    initialGradeNum,
+    studyModeCode,
+    studyModeKey,
+  });
+
+  return {
+    sourceType: "edookit_student",
+    sourceKey: input.sourceKey,
+    currentGradeNum,
+    initialGradeNum,
+    studyModeCode,
+    studyModeKey,
+    rawHash,
+  };
+}
+
+async function resolveStudentStateProjection(
+  personId: string,
+  preferredRecord: NormalizedUserRecord | undefined,
+  modeByCode: Map<string, StudyModeKey>
+): Promise<StudentStateProjection | null> {
+  if (preferredRecord?.activeSource) {
+    return projectStudentStateFromPayload({
+      sourceKey: preferredRecord.sourceKey,
+      payload: preferredRecord.payload,
+      modeByCode,
+    });
+  }
+
+  const source = await prisma.appPersonSourceRecord.findFirst({
+    where: {
+      personId,
+      sourceType: "edookit_student",
+      activeSource: true,
+    },
+    select: {
+      sourceKey: true,
+      payload: true,
+    },
+    orderBy: [
+      {
+        syncedAt: "desc",
+      },
+      {
+        sourceKey: "asc",
+      },
+    ],
+  });
+
+  if (!source) return null;
+
+  return projectStudentStateFromPayload({
+    sourceKey: source.sourceKey,
+    payload: toObjectPayload(source.payload),
+    modeByCode,
+  });
+}
+
+async function syncStudentStateForPerson(input: {
+  personId: string;
+  preferredRecord?: NormalizedUserRecord;
+  modeByCode: Map<string, StudyModeKey>;
+  runId: string;
+  schoolYearId: string | null;
+}): Promise<void> {
+  const projection = await resolveStudentStateProjection(
+    input.personId,
+    input.preferredRecord,
+    input.modeByCode
+  );
+
+  const openState = await prisma.appStudentState.findFirst({
+    where: {
+      personId: input.personId,
+      effectiveTo: null,
+    },
+    orderBy: {
+      effectiveFrom: "desc",
+    },
+  });
+
+  const now = new Date();
+  if (!projection) {
+    if (openState) {
+      await prisma.appStudentState.update({
+        where: { id: openState.id },
+        data: {
+          effectiveTo: now,
+        },
+      });
+    }
+    return;
+  }
+
+  if (openState && openState.rawHash === projection.rawHash) {
+    if (openState.sourceKey !== projection.sourceKey || openState.schoolYearId !== input.schoolYearId) {
+      await prisma.appStudentState.update({
+        where: { id: openState.id },
+        data: {
+          sourceKey: projection.sourceKey,
+          schoolYearId: input.schoolYearId,
+          changedBySyncRunId: input.runId,
+        },
+      });
+    }
+    return;
+  }
+
+  if (openState) {
+    await prisma.appStudentState.update({
+      where: { id: openState.id },
+      data: {
+        effectiveTo: now,
+      },
+    });
+  }
+
+  await prisma.appStudentState.create({
+    data: {
+      personId: input.personId,
+      sourceType: projection.sourceType,
+      sourceKey: projection.sourceKey,
+      effectiveFrom: now,
+      effectiveTo: null,
+      schoolYearId: input.schoolYearId,
+      currentGradeNum: projection.currentGradeNum,
+      initialGradeNum: projection.initialGradeNum,
+      studyModeCode: projection.studyModeCode,
+      studyModeKey: projection.studyModeKey,
+      changedBySyncRunId: input.runId,
+      rawHash: projection.rawHash,
+    },
+  });
+}
+
+async function applyRecords(input: {
+  records: NormalizedUserRecord[];
+  runId: string;
+  requestedDate: string;
+}): Promise<{
   personsTouched: number;
 }> {
+  const records = input.records;
   const touchedPersonIds = new Set<string>();
   const touchedIdentityIds = new Set<string>();
   const seenBySource = new Map<SourceType, Set<string>>();
+  const studentRecordByPerson = new Map<string, NormalizedUserRecord>();
 
   for (const record of records) {
     if (!seenBySource.has(record.sourceType)) {
@@ -842,6 +1088,10 @@ async function applyRecords(records: NormalizedUserRecord[]): Promise<{
 
     const { personId, identityId } = await upsertNormalizedRecord(record);
     touchedPersonIds.add(personId);
+    if (record.sourceType === "edookit_student") {
+      const preferred = pickPreferredStudentRecord(studentRecordByPerson.get(personId), record);
+      studentRecordByPerson.set(personId, preferred);
+    }
     if (identityId) touchedIdentityIds.add(identityId);
   }
 
@@ -878,6 +1128,18 @@ async function applyRecords(records: NormalizedUserRecord[]): Promise<{
 
   for (const personId of touchedPersonIds) {
     await recomputePersonRolesAndActivity(personId);
+  }
+
+  const studyModeMap = await loadStudyModeMap();
+  const schoolYearId = await findSchoolYearIdForDate(input.requestedDate);
+  for (const personId of touchedPersonIds) {
+    await syncStudentStateForPerson({
+      personId,
+      preferredRecord: studentRecordByPerson.get(personId),
+      modeByCode: studyModeMap,
+      runId: input.runId,
+      schoolYearId,
+    });
   }
 
   for (const identityId of touchedIdentityIds) {
@@ -919,7 +1181,11 @@ export async function syncUsers(options: SyncUsersOptions = {}): Promise<SyncUse
     const csvRecords = options.csvPath ? readCsvParents(options.csvPath) : [];
     const allRecords = [...studentRecords, ...employeeRecords, ...csvRecords];
 
-    const applied = await applyRecords(allRecords);
+    const applied = await applyRecords({
+      records: allRecords,
+      runId: run.id,
+      requestedDate: date,
+    });
 
     await prisma.appUserSyncRun.update({
       where: { id: run.id },
