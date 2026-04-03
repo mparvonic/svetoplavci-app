@@ -147,3 +147,17 @@ V `src/lib/coda.ts` existují i interní pomocné typy:
 
 Tyto typy slouží primárně jako technický most mezi Coda API a doménovými strukturami popsanými výše.
 
+---
+
+### 7. Pravidlo read-only pro údaje z API
+
+Pro interní adresář uživatelů platí závazné pravidlo:
+
+- údaje přenesené z Edookit API (`source_type = edookit_student` / `edookit_employee`) jsou **jen pro čtení**,
+- profilová data osoby (`display_name`, `first_name`, `middle_name`, `last_name`, `identifier`, `plus4u_id`) může přepisovat pouze sync z API,
+- ne-API zdroje (např. CSV import rodičů) nesmí tato API data přepsat, pokud už osoba API zdroj má.
+
+Technicky je pravidlo vynucené v `src/lib/user-sync.ts` při upsertu osoby:
+
+- API záznamy mohou profil aktualizovat,
+- CSV/manual záznamy profil aktualizují jen u osob bez API zdroje.

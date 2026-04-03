@@ -10,6 +10,7 @@ const CSV_ROLE_PARENT = "rodic";
 const CSV_ROLE_ADMIN = "admin";
 const API_ROLE_STUDENT = "zak";
 const API_ROLE_EMPLOYEE = "zamestnanec";
+const API_READ_ONLY_SOURCE_TYPES = new Set(["edookit_student", "edookit_employee"]);
 
 type SourceType = "edookit_student" | "edookit_employee" | "csv_parent";
 type SyncMode = "initial" | "daily" | "manual";
@@ -53,6 +54,10 @@ export interface SyncUsersResult {
 
 type EdookitStudent = Record<string, unknown>;
 type EdookitEmployee = Record<string, unknown>;
+
+function isApiReadOnlySourceType(sourceType: SourceType): boolean {
+  return API_READ_ONLY_SOURCE_TYPES.has(sourceType);
+}
 
 function currentDateIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -532,33 +537,68 @@ async function upsertNormalizedRecord(
 ): Promise<{ personId: string; identityId?: string }> {
   const payloadJson = toInputJsonValue(record.payload);
 
-  const person = await prisma.appPerson.upsert({
+  const personSelect = {
+    id: true,
+    nickname: true,
+    firstName: true,
+    lastName: true,
+    displayName: true,
+    identifier: true,
+    plus4uId: true,
+  } as const;
+
+  let person = await prisma.appPerson.findUnique({
     where: { dedupKey: record.dedupKey },
-    update: {
-      displayName: record.displayName,
-      firstName: record.firstName,
-      middleName: record.middleName,
-      lastName: record.lastName,
-      ...(record.identifier ? { identifier: record.identifier } : {}),
-      ...(record.plus4uId ? { plus4uId: record.plus4uId } : {}),
-    },
-    create: {
-      dedupKey: record.dedupKey,
-      displayName: record.displayName,
-      firstName: record.firstName,
-      middleName: record.middleName,
-      lastName: record.lastName,
-      identifier: record.identifier,
-      plus4uId: record.plus4uId,
-    },
-    select: {
-      id: true,
-      nickname: true,
-      firstName: true,
-      lastName: true,
-      displayName: true,
-    },
+    select: personSelect,
   });
+
+  if (!person) {
+    person = await prisma.appPerson.create({
+      data: {
+        dedupKey: record.dedupKey,
+        displayName: record.displayName,
+        firstName: record.firstName,
+        middleName: record.middleName,
+        lastName: record.lastName,
+        identifier: record.identifier,
+        plus4uId: record.plus4uId,
+      },
+      select: personSelect,
+    });
+  } else {
+    const hasApiReadOnlySource = await prisma.appPersonSourceRecord.findFirst({
+      where: {
+        personId: person.id,
+        sourceType: {
+          in: [...API_READ_ONLY_SOURCE_TYPES],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    // Data loaded from Edookit API are read-only for non-API sources.
+    const allowProfileOverwrite =
+      isApiReadOnlySourceType(record.sourceType) || !hasApiReadOnlySource;
+
+    if (allowProfileOverwrite) {
+      const nextData: Prisma.AppPersonUpdateInput = {
+        displayName: record.displayName,
+        firstName: record.firstName,
+        middleName: record.middleName,
+        lastName: record.lastName,
+      };
+      if (record.identifier) nextData.identifier = record.identifier;
+      if (record.plus4uId) nextData.plus4uId = record.plus4uId;
+
+      person = await prisma.appPerson.update({
+        where: { id: person.id },
+        data: nextData,
+        select: personSelect,
+      });
+    }
+  }
 
   await ensurePersonNickname(person);
 
