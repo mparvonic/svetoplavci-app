@@ -52,6 +52,14 @@ Tabulky:
 Pravidla nejsou natvrdo v kódu, ale v datech (policy model).  
 V1 seed obsahuje pravidla pro `denni`/`individualni`/`zahranici`/`unknown` a roli `host`.
 
+Validace je implementována databázově:
+
+- deferred constraint triggery na `app_group_membership`, `app_student_state`, `app_role_assignment`,
+- porušení se zapisuje do `app_membership_violation`,
+- režim validace:
+  - `monitor` pro změny ze sync zdrojů (`edookit*`, `auto`, `system`, `policy_change`),
+  - `strict` pro ostatní (typicky ruční změny), kde se při porušení vyhazuje DB chyba.
+
 ### Změnová historie stavu dítěte
 
 Tabulka: `app_student_state`
