@@ -1,23 +1,13 @@
 import NextAuth from "next-auth";
 import { authConfig } from "@/src/lib/auth.config";
+import type { NextRequest } from "next/server";
 
 const { auth } = NextAuth(authConfig);
 const isProtoRuntime = process.env.APP_RUNTIME_MODE === "proto";
 
-export default auth((req) => {
+const securedMiddleware = auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
-
-  // Proto režim: veřejný mock/prototyp bez auth a bez backendových závislostí.
-  if (isProtoRuntime) {
-    if (pathname === "/") {
-      return Response.redirect(new URL("/ui-redesign", req.nextUrl.origin));
-    }
-    if (pathname.startsWith("/ui-redesign")) {
-      return;
-    }
-    return Response.redirect(new URL("/ui-redesign", req.nextUrl.origin));
-  }
 
   // Veřejné cesty – bez kontroly
   if (pathname === "/" || pathname.startsWith("/auth/")) {
@@ -40,6 +30,22 @@ export default auth((req) => {
 
   // /kiosk/* a /portal/* – přístup pro všechny přihlášené (už ověřeno výše)
 });
+
+export default function middleware(req: NextRequest) {
+  // Proto režim: veřejný mock/prototyp bez auth a bez backendových závislostí.
+  if (isProtoRuntime) {
+    const { pathname } = req.nextUrl;
+    if (pathname === "/") {
+      return Response.redirect(new URL("/ui-redesign", req.nextUrl.origin));
+    }
+    if (pathname.startsWith("/ui-redesign")) {
+      return;
+    }
+    return Response.redirect(new URL("/ui-redesign", req.nextUrl.origin));
+  }
+
+  return securedMiddleware(req);
+}
 
 export const config = {
   matcher: [
