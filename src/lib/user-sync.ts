@@ -1401,8 +1401,14 @@ async function syncCsvParentChildRelations(): Promise<CsvParentChildRelationSync
     },
   });
 
-  const existingByKey = new Map(
-    existingRelations.map((row) => [`${row.parentPersonId}|${row.childPersonId}`, row] as const)
+  const existingByKey = new Map<
+    string,
+    (typeof existingRelations)[number]
+  >(
+    existingRelations.map((row) => [
+      `${row.parentPersonId}|${row.childPersonId}`,
+      row,
+    ])
   );
 
   let relationsCreated = 0;
