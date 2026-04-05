@@ -35,13 +35,14 @@ export default function middleware(req: NextRequest) {
   // Proto režim: veřejný mock/prototyp bez auth a bez backendových závislostí.
   if (isProtoRuntime) {
     const { pathname } = req.nextUrl;
+    const allowedProtoPaths = ["/ui-redesign", "/prototype", "/proto-shell"];
     if (pathname === "/") {
-      return Response.redirect(new URL("/ui-redesign", req.nextUrl.origin));
+      return Response.redirect(new URL("/prototype", req.nextUrl.origin));
     }
-    if (pathname.startsWith("/ui-redesign")) {
-      return;
+    if (allowedProtoPaths.some((basePath) => pathname.startsWith(basePath))) {
+      return undefined;
     }
-    return Response.redirect(new URL("/ui-redesign", req.nextUrl.origin));
+    return Response.redirect(new URL("/prototype", req.nextUrl.origin));
   }
 
   return (securedMiddleware as any)(req);
