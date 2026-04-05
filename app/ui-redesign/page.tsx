@@ -2,6 +2,7 @@
 
 import type { ComponentType, ReactNode } from "react";
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import {
   Anchor,
   BadgeCheck,
@@ -199,9 +200,21 @@ export default function UiRedesignPage() {
         <header className="overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-[0_24px_70px_rgba(5,32,74,0.09)]">
           <div className="grid gap-8 px-6 py-7 md:px-8 md:py-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
             <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#0A4DA6]/20 bg-[#0A4DA6]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A4DA6]">
-                <Anchor className="size-4" />
-                UI Redesign Pack
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="rounded-2xl border border-[#D9E4F2] bg-[#F8FBFF] px-4 py-2">
+                  <Image
+                    src="/svetoplavci_logo.svg"
+                    alt="Světoplavci"
+                    width={230}
+                    height={66}
+                    className="h-10 w-auto"
+                    priority
+                  />
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#0A4DA6]/20 bg-[#0A4DA6]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A4DA6]">
+                  <Anchor className="size-4" />
+                  UI Redesign Pack
+                </div>
               </div>
               <div className="space-y-3">
                 <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-[#05204A] md:text-5xl">
