@@ -21,7 +21,7 @@ import {
   PROTO_ROLES,
   type ProtoLodickaRow,
   type ProtoRoleId,
-} from "@/lib/mock/proto-shell";
+} from "@/src/lib/mock/proto-shell";
 
 type MockState = "ready" | "loading" | "error" | "empty" | "readonly";
 
