@@ -4,16 +4,26 @@ import type { ComponentType, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import {
   Anchor,
+  BadgeCheck,
   Bell,
   BookOpen,
   CalendarDays,
+  Circle,
+  CircleDashed,
   CheckSquare,
   ClipboardList,
   LayoutDashboard,
+  Link2,
   LogIn,
   MapPin,
+  Palette,
   PanelTop,
+  Quote,
+  Sparkles,
+  Square,
   SquareCheckBig,
+  Triangle,
+  Type,
   UserCircle2,
   UsersRound,
 } from "lucide-react";
@@ -228,6 +238,13 @@ export default function UiRedesignPage() {
           </div>
         </header>
 
+        <section className="grid gap-5 lg:grid-cols-4">
+          <ButtonKit />
+          <TypographyKit />
+          <ColorSchemeKit />
+          <VisualKit />
+        </section>
+
         <section className="grid gap-5 xl:grid-cols-2">
           {screens.map((screen) => (
             <ScreenCard key={screen.id} screen={screen} />
@@ -235,6 +252,155 @@ export default function UiRedesignPage() {
         </section>
       </section>
     </main>
+  );
+}
+
+function ButtonKit() {
+  return (
+    <article className="rounded-[24px] border border-[#D9E4F2] bg-white p-4 shadow-[0_10px_30px_rgba(5,32,74,0.06)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Sada tlačítek</p>
+      <div className="mt-3 grid gap-2">
+        <button type="button" className="rounded-2xl bg-[#002060] px-4 py-2 text-sm font-semibold text-white">
+          Primární akce
+        </button>
+        <button
+          type="button"
+          className="rounded-2xl border border-[#002060] bg-white px-4 py-2 text-sm font-semibold text-[#002060]"
+        >
+          Sekundární akce
+        </button>
+        <button type="button" className="rounded-2xl border border-[#DA0100] px-4 py-2 text-sm font-semibold text-[#DA0100]">
+          Destruktivní akce
+        </button>
+        <button
+          type="button"
+          disabled
+          className="rounded-2xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-500"
+        >
+          Disabled stav
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" className="rounded-xl bg-[#002060] px-3 py-1.5 text-xs font-semibold text-white">
+          XS
+        </button>
+        <button type="button" className="rounded-xl bg-[#002060] px-4 py-2 text-sm font-semibold text-white">
+          SM
+        </button>
+        <button type="button" className="rounded-xl bg-[#002060] px-5 py-2.5 text-base font-semibold text-white">
+          MD
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function TypographyKit() {
+  return (
+    <article className="rounded-[24px] border border-[#D9E4F2] bg-white p-4 shadow-[0_10px_30px_rgba(5,32,74,0.06)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Styly textů</p>
+      <h2 className="mt-3 text-2xl font-semibold text-[#05204A]">Nadpis stránky</h2>
+      <h3 className="mt-1 text-lg font-semibold text-[#1C355B]">Podnadpis sekce</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">
+        Běžný text pro vysvětlení kontextu, popis formuláře nebo instrukce k práci v aplikaci.
+      </p>
+      <p className="mt-2 flex items-start gap-2 rounded-xl border border-[#E1EAF6] bg-[#F8FBFF] px-3 py-2 text-sm text-slate-600">
+        <Quote className="mt-0.5 size-4 shrink-0 text-[#0A4DA6]" />
+        „Citace nebo zvýrazněné vyjádření uživatele/průvodce.“
+      </p>
+      <a href="#" className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[#0A4DA6] underline">
+        <Link2 className="size-4" />
+        Odkaz na detail
+      </a>
+    </article>
+  );
+}
+
+function ColorSchemeKit() {
+  const colors = [
+    { name: "Navy 900", hex: "#05204A", usage: "hlavní nadpisy, důraz" },
+    { name: "Blue 700", hex: "#0A4DA6", usage: "primární tlačítko, odkazy" },
+    { name: "Blue 950", hex: "#002060", usage: "brand CTA" },
+    { name: "Red 600", hex: "#DA0100", usage: "destruktivní akce, alert" },
+    { name: "Amber 400", hex: "#F6B94C", usage: "upozornění, akcent" },
+    { name: "Mint 600", hex: "#059669", usage: "úspěch, potvrzení" },
+    { name: "Slate 100", hex: "#F1F5F9", usage: "podklad sekcí" },
+    { name: "Blue Gray 200", hex: "#D9E4F2", usage: "border, děliče" },
+  ];
+
+  return (
+    <article className="rounded-[24px] border border-[#D9E4F2] bg-white p-4 shadow-[0_10px_30px_rgba(5,32,74,0.06)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Barevné schéma</p>
+      <div className="mt-3 grid gap-2">
+        {colors.map((color) => (
+          <div
+            key={color.name}
+            className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-xl border border-[#E1EAF6] bg-[#F8FBFF] p-2"
+          >
+            <span
+              className="size-8 rounded-lg border border-white shadow-sm"
+              style={{ backgroundColor: color.hex }}
+            />
+            <div>
+              <p className="text-xs font-semibold text-[#05204A]">{color.name}</p>
+              <p className="text-[11px] text-slate-500">{color.usage}</p>
+            </div>
+            <code className="text-[11px] font-semibold text-slate-600">{color.hex}</code>
+          </div>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+function VisualKit() {
+  return (
+    <article className="rounded-[24px] border border-[#D9E4F2] bg-white p-4 shadow-[0_10px_30px_rgba(5,32,74,0.06)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">
+        Piktogramy a prvky
+      </p>
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        {[
+          { Icon: Type, label: "Text" },
+          { Icon: BadgeCheck, label: "Stav" },
+          { Icon: CalendarDays, label: "Čas" },
+          { Icon: UsersRound, label: "Skupina" },
+          { Icon: BookOpen, label: "Lodičky" },
+          { Icon: ClipboardList, label: "Tabulka" },
+          { Icon: Sparkles, label: "AI" },
+          { Icon: Palette, label: "Design" },
+        ].map(({ Icon, label }) => (
+          <div key={label} className="rounded-xl border border-[#E1EAF6] bg-[#F8FBFF] p-2 text-center">
+            <Icon className="mx-auto size-4 text-[#0A4DA6]" />
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+              {label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-[#E1EAF6] bg-[#F8FBFF] p-2">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">Tvar</p>
+          <div className="flex items-center gap-2">
+            <Circle className="size-4 text-[#0A4DA6]" />
+            <Square className="size-4 text-[#DA0100]" />
+            <Triangle className="size-4 text-[#F6B94C]" />
+          </div>
+        </div>
+        <div className="rounded-xl border border-[#E1EAF6] bg-[#F8FBFF] p-2">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">Linka</p>
+          <div className="h-2 rounded-full bg-[linear-gradient(90deg,_#0A4DA6,_#DA0100)]" />
+          <CircleDashed className="mt-2 size-4 text-[#0A4DA6]" />
+        </div>
+        <div className="rounded-xl border border-[#E1EAF6] bg-[#F8FBFF] p-2">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+            Gradient
+          </p>
+          <div className="h-8 rounded-lg bg-[linear-gradient(135deg,_#05204A,_#0A4DA6_65%,_#DA0100)]" />
+        </div>
+      </div>
+    </article>
   );
 }
 
