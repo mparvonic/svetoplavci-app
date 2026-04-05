@@ -22,6 +22,7 @@ import {
   type ProtoLodickaRow,
   type ProtoRoleId,
 } from "@/src/lib/mock/proto-shell";
+import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 
 type MockState = "ready" | "loading" | "error" | "empty" | "readonly";
 
@@ -119,7 +120,7 @@ export default function ProtoShellPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 py-6">
-      <div className="max-w-screen-xl mx-auto px-4 space-y-6">
+      <div className={`${UI_CLASSES.pageContainer} mx-auto space-y-6`}>
         <Card className="border-slate-200">
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -129,7 +130,7 @@ export default function ProtoShellPage() {
                   Klikací kostra pro role, dashboard a referenční obrazovky (lodičky, akce).
                 </CardDescription>
               </div>
-              <Badge className="bg-[#002060] text-white">{MOCK_STATE_LABEL[mockState]}</Badge>
+              <Badge className={UI_CLASSES.primaryButton}>{MOCK_STATE_LABEL[mockState]}</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -139,7 +140,7 @@ export default function ProtoShellPage() {
                   key={item.id}
                   type="button"
                   variant={item.id === activeRole ? "default" : "outline"}
-                  className={item.id === activeRole ? "bg-[#002060] text-white hover:bg-[#001540]" : ""}
+                  className={item.id === activeRole ? UI_CLASSES.primaryButton : ""}
                   onClick={() => switchRole(item.id)}
                 >
                   {item.label}
@@ -159,7 +160,7 @@ export default function ProtoShellPage() {
               <Button type="button" size="sm" variant="outline" onClick={() => setMockState("readonly")}>
                 Read-only
               </Button>
-              <Button type="button" size="sm" className="bg-[#002060] text-white hover:bg-[#001540]" onClick={() => setMockState("ready")}>
+              <Button type="button" size="sm" className={UI_CLASSES.primaryButton} onClick={() => setMockState("ready")}>
                 Reset
               </Button>
             </div>
@@ -178,9 +179,7 @@ export default function ProtoShellPage() {
                   key={item.id}
                   type="button"
                   variant={item.id === activeSection ? "default" : "ghost"}
-                  className={`w-full justify-start ${
-                    item.id === activeSection ? "bg-[#002060] text-white hover:bg-[#001540]" : ""
-                  }`}
+                  className={`w-full justify-start ${item.id === activeSection ? UI_CLASSES.primaryButton : ""}`}
                   onClick={() => setActiveSection(item.id)}
                 >
                   <ArrowRight className="size-4" />
@@ -234,7 +233,7 @@ export default function ProtoShellPage() {
                       <Button
                         type="button"
                         size="sm"
-                        className="bg-[#002060] text-white hover:bg-[#001540]"
+                        className={UI_CLASSES.primaryButton}
                         onClick={() => setMockState("ready")}
                       >
                         Zkusit znovu
@@ -296,7 +295,7 @@ export default function ProtoShellPage() {
                                 <Button
                                   type="button"
                                   size="xs"
-                                  className="bg-[#002060] text-white hover:bg-[#001540]"
+                                  className={UI_CLASSES.primaryButton}
                                   disabled={mockState === "readonly" || row.stav === 4}
                                   onClick={() => shiftLodicka(row.id, 1)}
                                 >
@@ -407,7 +406,7 @@ export default function ProtoShellPage() {
                           <Button
                             type="button"
                             disabled={!canRegister || mockState === "readonly"}
-                            className="bg-[#002060] text-white hover:bg-[#001540]"
+                            className={UI_CLASSES.primaryButton}
                             onClick={() => toggleRegistration(event.id)}
                           >
                             {isRegistered ? "Odhlásit" : "Zapsat"}

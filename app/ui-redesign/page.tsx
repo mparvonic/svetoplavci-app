@@ -28,6 +28,14 @@ import {
   UserCircle2,
   UsersRound,
 } from "lucide-react";
+import {
+  DESIGN_COLORS,
+  DESIGN_PACK_META,
+  DESIGN_RULES,
+  getSmeckaTheme,
+  SMECKA_THEME_PRESETS,
+  UI_CLASSES,
+} from "@/src/lib/design-pack/ui";
 
 type ScreenId =
   | "signin"
@@ -115,17 +123,6 @@ const screens: ScreenDefinition[] = [
   },
 ];
 
-const uiRules = [
-  "Navigace vlevo, obsah vpravo, vždy jasně aktivní sekce.",
-  "Primární CTA je modré, destruktivní akce červené, sekundární akce outline.",
-  "Každý datový modul má stejnou strukturu: název, filtry, obsah, akce.",
-  "Stavy komponent sjednoceně: načítání, prázdno, chyba, read-only.",
-  "Tabulky mají fixní hlavičku a jednoznačné řádkové akce.",
-  "Formuláře jsou dělené do kroků nebo logických bloků; validace přímo u pole.",
-  "Role uživatele určují viditelnost sekcí, ne vizuální chaos.",
-  "Všechny datumy/časy v UI prezentovat lokálně v CET/CEST.",
-];
-
 type DemoRow = {
   id: string;
   lodicka: string;
@@ -194,9 +191,12 @@ const DND_DETI = [
 ];
 
 export default function UiRedesignPage() {
+  const [expandedScreenId, setExpandedScreenId] = useState<ScreenId | null>(null);
+  const expandedScreen = screens.find((item) => item.id === expandedScreenId) ?? null;
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(10,77,166,0.16),_transparent_32%),linear-gradient(180deg,_#f5f9ff_0%,_#eef4fb_45%,_#f8fbff_100%)] text-slate-900">
-      <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-8 px-4 py-8 md:px-8 lg:px-10">
+      <section className={`${UI_CLASSES.pageContainer} mx-auto flex w-full max-w-[1440px] flex-col gap-8 py-8 md:px-8 lg:px-10`}>
         <header className="overflow-hidden rounded-[30px] border border-white/70 bg-white shadow-[0_24px_70px_rgba(5,32,74,0.09)]">
           <div className="grid gap-8 px-6 py-7 md:px-8 md:py-8 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
             <div className="space-y-5">
@@ -214,6 +214,9 @@ export default function UiRedesignPage() {
                 <div className="inline-flex items-center gap-2 rounded-full border border-[#0A4DA6]/20 bg-[#0A4DA6]/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#0A4DA6]">
                   <Anchor className="size-4" />
                   UI Redesign Pack
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-[#D9E4F2] bg-white px-4 py-2 text-xs font-semibold text-slate-600">
+                  Verze {DESIGN_PACK_META.version}
                 </div>
               </div>
               <div className="space-y-3">
@@ -238,7 +241,7 @@ export default function UiRedesignPage() {
                 Pravidla UI
               </p>
               <div className="mt-4 grid gap-2">
-                {uiRules.map((rule) => (
+                {DESIGN_RULES.map((rule) => (
                   <div
                     key={rule}
                     className="rounded-2xl border border-[#D7E4F4] bg-white px-3 py-2 text-sm text-slate-600"
@@ -251,19 +254,49 @@ export default function UiRedesignPage() {
           </div>
         </header>
 
-        <section className="grid gap-5 lg:grid-cols-4">
+        <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-5">
           <ButtonKit />
           <TypographyKit />
           <ColorSchemeKit />
+          <ConditionalDesignKit />
           <VisualKit />
         </section>
 
         <section className="grid gap-5 xl:grid-cols-2">
           {screens.map((screen) => (
-            <ScreenCard key={screen.id} screen={screen} />
+            <ScreenCard
+              key={screen.id}
+              screen={screen}
+              onExpand={() => setExpandedScreenId(screen.id)}
+            />
           ))}
         </section>
       </section>
+
+      {expandedScreen && (
+        <div className="fixed inset-0 z-50 overflow-auto bg-slate-900/65 p-4 md:p-8">
+          <div className="mx-auto w-full max-w-[1680px] overflow-hidden rounded-[28px] border border-[#BFD2EA] bg-white shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#D9E4F2] bg-[#F7FAFF] px-5 py-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">
+                  Full screen náhled
+                </p>
+                <h2 className="text-lg font-semibold text-[#05204A]">{expandedScreen.title}</h2>
+              </div>
+              <button
+                type="button"
+                className="rounded-xl border border-[#D9E4F2] bg-white px-3 py-2 text-xs font-semibold text-slate-600"
+                onClick={() => setExpandedScreenId(null)}
+              >
+                Zavřít
+              </button>
+            </div>
+            <div className="p-4">
+              <ScreenPreview screenId={expandedScreen.id} full />
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
@@ -273,16 +306,16 @@ function ButtonKit() {
     <article className="rounded-[24px] border border-[#D9E4F2] bg-white p-4 shadow-[0_10px_30px_rgba(5,32,74,0.06)]">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Sada tlačítek</p>
       <div className="mt-3 grid gap-2">
-        <button type="button" className="rounded-2xl bg-[#002060] px-4 py-2 text-sm font-semibold text-white">
+        <button type="button" className={`rounded-2xl px-4 py-2 text-sm font-semibold ${UI_CLASSES.primaryButton}`}>
           Primární akce
         </button>
         <button
           type="button"
-          className="rounded-2xl border border-[#002060] bg-white px-4 py-2 text-sm font-semibold text-[#002060]"
+          className={`rounded-2xl px-4 py-2 text-sm font-semibold ${UI_CLASSES.secondaryButton}`}
         >
           Sekundární akce
         </button>
-        <button type="button" className="rounded-2xl border border-[#DA0100] px-4 py-2 text-sm font-semibold text-[#DA0100]">
+        <button type="button" className={`rounded-2xl px-4 py-2 text-sm font-semibold ${UI_CLASSES.dangerButton}`}>
           Destruktivní akce
         </button>
         <button
@@ -330,22 +363,11 @@ function TypographyKit() {
 }
 
 function ColorSchemeKit() {
-  const colors = [
-    { name: "Navy 900", hex: "#05204A", usage: "hlavní nadpisy, důraz" },
-    { name: "Blue 700", hex: "#0A4DA6", usage: "primární tlačítko, odkazy" },
-    { name: "Blue 950", hex: "#002060", usage: "brand CTA" },
-    { name: "Red 600", hex: "#DA0100", usage: "destruktivní akce, alert" },
-    { name: "Amber 400", hex: "#F6B94C", usage: "upozornění, akcent" },
-    { name: "Mint 600", hex: "#059669", usage: "úspěch, potvrzení" },
-    { name: "Slate 100", hex: "#F1F5F9", usage: "podklad sekcí" },
-    { name: "Blue Gray 200", hex: "#D9E4F2", usage: "border, děliče" },
-  ];
-
   return (
     <article className="rounded-[24px] border border-[#D9E4F2] bg-white p-4 shadow-[0_10px_30px_rgba(5,32,74,0.06)]">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Barevné schéma</p>
       <div className="mt-3 grid gap-2">
-        {colors.map((color) => (
+        {DESIGN_COLORS.map((color) => (
           <div
             key={color.name}
             className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-xl border border-[#E1EAF6] bg-[#F8FBFF] p-2"
@@ -361,6 +383,54 @@ function ColorSchemeKit() {
             <code className="text-[11px] font-semibold text-slate-600">{color.hex}</code>
           </div>
         ))}
+      </div>
+    </article>
+  );
+}
+
+function ConditionalDesignKit() {
+  const options = [...SMECKA_THEME_PRESETS.map((item) => item.label), "Volavky"];
+  const [selectedSmecka, setSelectedSmecka] = useState(options[0]);
+  const theme = getSmeckaTheme(selectedSmecka);
+
+  return (
+    <article className="rounded-[24px] border border-[#D9E4F2] bg-white p-4 shadow-[0_10px_30px_rgba(5,32,74,0.06)]">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">
+        Podmíněný design
+      </p>
+      <p className="mt-1 text-xs text-slate-500">Dynamický styl podle smečky / typu obsahu.</p>
+
+      <select
+        value={selectedSmecka}
+        onChange={(e) => setSelectedSmecka(e.target.value)}
+        className="mt-3 w-full rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] px-3 py-2 text-sm text-slate-700"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+
+      <div
+        className="mt-3 rounded-2xl border p-3"
+        style={{ borderColor: theme.border, backgroundColor: theme.accentSoft }}
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: theme.accent }}>
+          Motiv smečky
+        </p>
+        <h4 className="mt-1 text-base font-semibold text-[#05204A]">{selectedSmecka}</h4>
+        <div className="mt-3 flex items-center gap-2">
+          <span
+            className="rounded-xl px-3 py-1 text-xs font-semibold"
+            style={{ backgroundColor: theme.accent, color: theme.textOnAccent }}
+          >
+            Primární prvek
+          </span>
+          <span className="rounded-xl border px-3 py-1 text-xs font-semibold" style={{ borderColor: theme.accent, color: theme.accent }}>
+            Sekundární
+          </span>
+        </div>
       </div>
     </article>
   );
@@ -417,7 +487,13 @@ function VisualKit() {
   );
 }
 
-function ScreenCard({ screen }: { screen: ScreenDefinition }) {
+function ScreenCard({
+  screen,
+  onExpand,
+}: {
+  screen: ScreenDefinition;
+  onExpand: () => void;
+}) {
   const Icon = screen.icon;
 
   return (
@@ -436,18 +512,31 @@ function ScreenCard({ screen }: { screen: ScreenDefinition }) {
       </div>
 
       <div className="bg-[linear-gradient(180deg,_#f7fbff_0%,_#eef4fb_100%)] p-4">
-        {screen.id === "signin" && <SignInPreview />}
-        {screen.id === "dashboard" && <DashboardPreview />}
-        {screen.id === "user-card" && <UserCardPreview />}
-        {screen.id === "table" && <TablePreview />}
-        {screen.id === "action-form" && <ActionFormPreview />}
-        {screen.id === "schedule" && <SchedulePreview />}
-        {screen.id === "kiosk" && <KioskPreview />}
-        {screen.id === "dynamic-table" && <DynamicTablePreview />}
-        {screen.id === "group-dnd" && <GroupDragAndDropPreview />}
+        <ScreenPreview screenId={screen.id} />
+        <div className="mt-3 text-right">
+          <button
+            type="button"
+            className={`rounded-xl px-3 py-1.5 text-xs font-semibold ${UI_CLASSES.secondaryButton}`}
+            onClick={onExpand}
+          >
+            Otevřít ve full screen
+          </button>
+        </div>
       </div>
     </article>
   );
+}
+
+function ScreenPreview({ screenId, full = false }: { screenId: ScreenId; full?: boolean }) {
+  if (screenId === "signin") return <SignInPreview full={full} />;
+  if (screenId === "dashboard") return <DashboardPreview full={full} />;
+  if (screenId === "user-card") return <UserCardPreview full={full} />;
+  if (screenId === "table") return <TablePreview full={full} />;
+  if (screenId === "action-form") return <ActionFormPreview full={full} />;
+  if (screenId === "schedule") return <SchedulePreview full={full} />;
+  if (screenId === "kiosk") return <KioskPreview full={full} />;
+  if (screenId === "dynamic-table") return <DynamicTablePreview full={full} />;
+  return <GroupDragAndDropPreview full={full} />;
 }
 
 function BrowserFrame({ children }: { children: ReactNode }) {
@@ -466,10 +555,14 @@ function BrowserFrame({ children }: { children: ReactNode }) {
   );
 }
 
-function SignInPreview() {
+function SignInPreview({ full = false }: { full?: boolean } = {}) {
   return (
     <BrowserFrame>
-      <div className="grid min-h-[380px] bg-[linear-gradient(140deg,_#05204A_0%,_#0A4DA6_55%,_#DA0100_130%)] lg:grid-cols-[1.05fr_0.95fr]">
+      <div
+        className={`grid ${
+          full ? "min-h-[720px]" : "min-h-[380px]"
+        } bg-[linear-gradient(140deg,_#05204A_0%,_#0A4DA6_55%,_#DA0100_130%)] lg:grid-cols-[1.05fr_0.95fr]`}
+      >
         <div className="px-6 py-7 text-white">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">
             Přihlášení
@@ -509,10 +602,10 @@ function SignInPreview() {
   );
 }
 
-function DashboardPreview() {
+function DashboardPreview({ full = false }: { full?: boolean } = {}) {
   return (
     <BrowserFrame>
-      <div className="min-h-[380px] bg-[#F6FAFF]">
+      <div className={`${full ? "min-h-[720px]" : "min-h-[380px]"} bg-[#F6FAFF]`}>
         <TopBar title="Domovská obrazovka" />
         <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.3fr)_320px]">
           <div className="space-y-4">
@@ -541,10 +634,10 @@ function DashboardPreview() {
   );
 }
 
-function UserCardPreview() {
+function UserCardPreview({ full = false }: { full?: boolean } = {}) {
   return (
     <BrowserFrame>
-      <div className="min-h-[380px] bg-[#F6FAFF] p-4">
+      <div className={`${full ? "min-h-[720px]" : "min-h-[380px]"} bg-[#F6FAFF] p-4`}>
         <div className="mx-auto max-w-xl rounded-[24px] border border-[#D9E4F2] bg-white p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -585,10 +678,10 @@ function UserCardPreview() {
   );
 }
 
-function TablePreview() {
+function TablePreview({ full = false }: { full?: boolean } = {}) {
   return (
     <BrowserFrame>
-      <div className="min-h-[380px] bg-[#F6FAFF]">
+      <div className={`${full ? "min-h-[720px]" : "min-h-[380px]"} bg-[#F6FAFF]`}>
         <TopBar title="Tabulka lodiček" />
         <div className="space-y-3 p-4">
           <div className="grid gap-2 sm:grid-cols-4">
@@ -633,10 +726,10 @@ function TablePreview() {
   );
 }
 
-function ActionFormPreview() {
+function ActionFormPreview({ full = false }: { full?: boolean } = {}) {
   return (
     <BrowserFrame>
-      <div className="min-h-[380px] bg-[#F6FAFF]">
+      <div className={`${full ? "min-h-[720px]" : "min-h-[380px]"} bg-[#F6FAFF]`}>
         <TopBar title="Formulář akce" />
         <div className="grid gap-4 p-4 lg:grid-cols-[1.2fr_0.8fr]">
           <div className="rounded-[20px] border border-[#D9E4F2] bg-white p-4">
@@ -671,10 +764,10 @@ function ActionFormPreview() {
   );
 }
 
-function SchedulePreview() {
+function SchedulePreview({ full = false }: { full?: boolean } = {}) {
   return (
     <BrowserFrame>
-      <div className="min-h-[380px] bg-[#F6FAFF]">
+      <div className={`${full ? "min-h-[720px]" : "min-h-[380px]"} bg-[#F6FAFF]`}>
         <TopBar title="Rozvrh žáka" />
         <div className="space-y-3 p-4">
           <div className="rounded-[20px] border border-[#D9E4F2] bg-white p-3">
@@ -716,10 +809,14 @@ function SchedulePreview() {
   );
 }
 
-function KioskPreview() {
+function KioskPreview({ full = false }: { full?: boolean } = {}) {
   return (
     <BrowserFrame>
-      <div className="min-h-[380px] bg-[linear-gradient(180deg,_#05204A_0%,_#0A4DA6_80%)] p-5 text-white">
+      <div
+        className={`${
+          full ? "min-h-[720px]" : "min-h-[380px]"
+        } bg-[linear-gradient(180deg,_#05204A_0%,_#0A4DA6_80%)] p-5 text-white`}
+      >
         <div className="rounded-[22px] border border-white/10 bg-white/10 p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/60">Kiosk režim</p>
           <h3 className="mt-2 text-3xl font-semibold">Co chceš udělat?</h3>
@@ -735,7 +832,7 @@ function KioskPreview() {
   );
 }
 
-function DynamicTablePreview() {
+function DynamicTablePreview({ full = false }: { full?: boolean } = {}) {
   const [rows, setRows] = useState(TABLE_DEMO_ROWS);
   const [query, setQuery] = useState("");
   const [stavFilter, setStavFilter] = useState<"all" | "0" | "1" | "2" | "3" | "4">("all");
@@ -787,7 +884,7 @@ function DynamicTablePreview() {
 
   return (
     <BrowserFrame>
-      <div className="relative min-h-[420px] bg-[#F6FAFF]">
+      <div className={`relative ${full ? "min-h-[760px]" : "min-h-[420px]"} bg-[#F6FAFF]`}>
         <TopBar title="Dynamická tabulka lodiček" />
         <div className="space-y-3 p-4">
           <div className="grid gap-2 md:grid-cols-[1.2fr_0.6fr_auto_auto_auto]">
@@ -939,7 +1036,7 @@ function DynamicTablePreview() {
   );
 }
 
-function GroupDragAndDropPreview() {
+function GroupDragAndDropPreview({ full = false }: { full?: boolean } = {}) {
   const [available, setAvailable] = useState(DND_DETI.slice(0, 4));
   const [groupMembers, setGroupMembers] = useState(DND_DETI.slice(4));
 
@@ -966,7 +1063,7 @@ function GroupDragAndDropPreview() {
 
   return (
     <BrowserFrame>
-      <div className="min-h-[420px] bg-[#F6FAFF]">
+      <div className={`${full ? "min-h-[760px]" : "min-h-[420px]"} bg-[#F6FAFF]`}>
         <TopBar title="Výběr dětí do skupiny" />
         <div className="grid gap-4 p-4 md:grid-cols-2">
           <DropColumn
