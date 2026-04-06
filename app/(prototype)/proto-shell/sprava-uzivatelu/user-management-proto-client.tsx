@@ -34,6 +34,7 @@ import {
 } from "@/src/lib/mock/proto-user-management";
 import {
   MOCK_ADMIN_LOGIN_IDENTITIES,
+  type MockLoginIdentity,
   type MockIdentityLinkStatus,
 } from "@/src/lib/mock/admin-user-identities";
 import { UI_CLASSES } from "@/src/lib/design-pack/ui";
@@ -123,8 +124,8 @@ type PendingIdentityRow = {
   identityValue: string;
   source: string;
   updatedAt: string;
-  pendingCandidates: Array<{ name: string; roles: string; reason?: string }>;
-  approvedCandidates: Array<{ name: string; roles: string }>;
+  pendingCandidates: Array<{ userId: string; name: string; roles: string; reason?: string }>;
+  approvedCandidates: Array<{ userId: string; name: string; roles: string }>;
 };
 
 export default function UserManagementProtoClient({
@@ -152,6 +153,9 @@ export default function UserManagementProtoClient({
   const [statusFilter, setStatusFilter] = useState<ProtoUserStatus | "all">("all");
   const [selectedUserId, setSelectedUserId] = useState<string>(PROTO_MANAGED_USERS[0]?.id ?? "");
   const [lastAction, setLastAction] = useState<string>("");
+  const [mockIdentities, setMockIdentities] = useState<MockLoginIdentity[]>(
+    () => MOCK_ADMIN_LOGIN_IDENTITIES,
+  );
 
   const contextUsers = useMemo(
     () => PROTO_MANAGED_USERS.filter((user) => user.roles.includes(activeContextRole)),
@@ -194,7 +198,7 @@ export default function UserManagementProtoClient({
         const approvedIdentities = new Set<string>();
         const pendingIdentities = new Set<string>();
 
-        for (const identity of MOCK_ADMIN_LOGIN_IDENTITIES) {
+        for (const identity of mockIdentities) {
           for (const link of identity.links) {
             if (link.userId !== user.id) continue;
             if (link.status === "approved" && identity.isActive) {
@@ -216,12 +220,12 @@ export default function UserManagementProtoClient({
           pendingIdentities: [...pendingIdentities],
         };
       }),
-    [],
+    [mockIdentities],
   );
 
   const pendingIdentityRows = useMemo<PendingIdentityRow[]>(
     () =>
-      MOCK_ADMIN_LOGIN_IDENTITIES.flatMap((identity) => {
+      mockIdentities.flatMap((identity) => {
         const pendingLinks = identity.links.filter((link) => link.status === "pending");
         if (pendingLinks.length === 0) return [];
 
@@ -236,6 +240,7 @@ export default function UserManagementProtoClient({
             pendingCandidates: pendingLinks.map((link) => {
               const user = usersById.get(link.userId);
               return {
+                userId: link.userId,
                 name: user?.jmeno ?? link.userId,
                 roles: (user?.roles ?? []).map((role) => ROLE_LABELS.get(role) ?? role).join(", "),
                 reason: link.reason,
@@ -244,6 +249,7 @@ export default function UserManagementProtoClient({
             approvedCandidates: approvedLinks.map((link) => {
               const user = usersById.get(link.userId);
               return {
+                userId: link.userId,
                 name: user?.jmeno ?? link.userId,
                 roles: (user?.roles ?? []).map((role) => ROLE_LABELS.get(role) ?? role).join(", "),
               };
@@ -251,7 +257,7 @@ export default function UserManagementProtoClient({
           },
         ];
       }),
-    [usersById],
+    [mockIdentities, usersById],
   );
 
   const openConflictCount = useMemo(
@@ -298,6 +304,53 @@ export default function UserManagementProtoClient({
 
   function handleContextUserChange(value: string) {
     setSelectedContextUserId(value);
+  }
+
+  function handleApprovePending(identityId: string, userId: string) {
+    if (!isAdminContext) return;
+    const userName = usersById.get(userId)?.jmeno ?? userId;
+    setMockIdentities((prev) =>
+      prev.map((identity) => {
+        if (identity.id !== identityId) return identity;
+        return {
+          ...identity,
+          updatedAt: new Date().toISOString(),
+          links: identity.links.map((link) => {
+            if (link.userId === userId && link.status === "pending") {
+              return { ...link, status: "approved", reason: undefined };
+            }
+            return link;
+          }),
+        };
+      }),
+    );
+    setLastAction(`Mock: schválena pending vazba pro ${userName}`);
+  }
+
+  function handleRejectPending(identityId: string, userId: string) {
+    if (!isAdminContext) return;
+    const userName = usersById.get(userId)?.jmeno ?? userId;
+    setMockIdentities((prev) =>
+      prev.map((identity) => {
+        if (identity.id !== identityId) return identity;
+        return {
+          ...identity,
+          updatedAt: new Date().toISOString(),
+          links: identity.links.map((link) => {
+            if (link.userId === userId && link.status === "pending") {
+              return { ...link, status: "rejected", reason: "zamítnuto adminem v mock UI" };
+            }
+            return link;
+          }),
+        };
+      }),
+    );
+    setLastAction(`Mock: zamítnuta pending vazba pro ${userName}`);
+  }
+
+  function handleResetMockIdentities() {
+    setMockIdentities(MOCK_ADMIN_LOGIN_IDENTITIES);
+    setLastAction("Mock: login identity stavy vráceny do výchozího stavu");
   }
 
   return (
@@ -755,6 +808,16 @@ export default function UserManagementProtoClient({
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="mb-3 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={UI_CLASSES.secondaryButton}
+                    onClick={handleResetMockIdentities}
+                  >
+                    Reset mock stavů
+                  </Button>
+                </div>
                 <div className={UI_CLASSES.tableShell}>
                   <Table>
                     <TableHeader className={UI_CLASSES.tableHead}>
@@ -775,7 +838,7 @@ export default function UserManagementProtoClient({
                           <TableCell>
                             <div className="space-y-2">
                               {row.pendingCandidates.map((candidate) => (
-                                <div key={`${row.id}-pending-${candidate.name}`}>
+                                <div key={`${row.id}-pending-${candidate.userId}`}>
                                   <div className="flex items-center gap-2">
                                     <Badge className={IDENTITY_LINK_BADGES.pending}>pending</Badge>
                                     <span className="text-sm text-[#05204A]">{candidate.name}</span>
@@ -784,6 +847,27 @@ export default function UserManagementProtoClient({
                                   {candidate.reason && (
                                     <p className="text-xs text-[#A16207]">{candidate.reason}</p>
                                   )}
+                                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      className={UI_CLASSES.primaryButton}
+                                      disabled={!isAdminContext}
+                                      onClick={() => handleApprovePending(row.id, candidate.userId)}
+                                    >
+                                      Schválit
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      variant="outline"
+                                      className={UI_CLASSES.dangerButton}
+                                      disabled={!isAdminContext}
+                                      onClick={() => handleRejectPending(row.id, candidate.userId)}
+                                    >
+                                      Zamítnout
+                                    </Button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -794,7 +878,7 @@ export default function UserManagementProtoClient({
                             ) : (
                               <div className="space-y-2">
                                 {row.approvedCandidates.map((candidate) => (
-                                  <div key={`${row.id}-approved-${candidate.name}`}>
+                                  <div key={`${row.id}-approved-${candidate.userId}`}>
                                     <div className="flex items-center gap-2">
                                       <Badge className={IDENTITY_LINK_BADGES.approved}>approved</Badge>
                                       <span className="text-sm text-[#05204A]">{candidate.name}</span>
