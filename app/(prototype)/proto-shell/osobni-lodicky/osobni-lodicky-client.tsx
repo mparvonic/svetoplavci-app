@@ -1239,14 +1239,12 @@ function OsobniLodickyPrototypePageInner() {
 
           <Card className="min-w-0 border-[#D9E4F2]">
             <CardHeader className="pb-2">
-              <CardTitle className="text-[#05204A]">
-                {selectedPersonalRow
-                  ? getStudentDisplayName(selectedPersonalRow.student, activeRole)
-                  : "Historie osobní lodičky"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-[420px] overflow-auto">
-              <div className="mb-2 flex justify-end">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-[#05204A]">
+                  {selectedPersonalRow
+                    ? getStudentDisplayName(selectedPersonalRow.student, activeRole)
+                    : "Historie osobní lodičky"}
+                </CardTitle>
                 <Button
                   type="button"
                   size="sm"
@@ -1264,6 +1262,8 @@ function OsobniLodickyPrototypePageInner() {
                   Detail
                 </Button>
               </div>
+            </CardHeader>
+            <CardContent className="h-[420px] overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
