@@ -10,7 +10,8 @@
     "coda:columns": "node scripts/list-coda-columns.mjs",
     "photos:migrate-db": "node scripts/migrate-person-photos-to-db.mjs",
     "db:tunnel": "ssh -N -L 5433:localhost:5432 root@194.182.84.146",
-    "db:push": "prisma db push --env-file .env.local"
+    "db:push": "prisma db push --env-file .env.local",
+    "policy:guard": "node scripts/policy/enforce-promotion-policy.mjs"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",

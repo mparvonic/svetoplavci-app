@@ -10,8 +10,15 @@ Tento dokument popisuje kompletní vývojový proces: od nápadu po nasazení do
 |---|---|---|---|
 | **Lokál – vývoj** | `localhost:3000` | `feature/xxx` | Denní vývoj a úpravy |
 | **Lokál – prototyp** | `localhost:3000/prototype/...` | `feature/xxx` | Návrh UI před kódováním |
-| **Staging** | `app-test.svetoplavci.cz` | `staging` | Testování před nasazením |
+| **Proto** | `proto-app.svetoplavci.cz` | `proto` | Sdílené UX prototypy nad mock daty |
+| **Test (staging)** | `test-app.svetoplavci.cz` | `staging` | Integrační testování nad test daty |
 | **Produkce** | `app.svetoplavci.cz` | `main` | Ostrý provoz |
+
+Povinný standard přenosů je popsán v:
+
+- `docs/05-delivery/environment-promotion-policy.md`
+
+Každý přechod mezi prostředími musí mít promotion záznam v `docs/09-status/promotions/`.
 
 ---
 
@@ -72,7 +79,7 @@ git commit -m "feat: přidána tabulka lodičky pro průvodce"
 ```bash
 git push origin feature/nazev-featury
 # Na GitHubu: otevři Pull Request feature/nazev-featury → staging
-# Po merge se automaticky buildí a deployuje na app-test.svetoplavci.cz
+# Po merge se automaticky buildí a deployuje na test-app.svetoplavci.cz
 ```
 
 Před mergem do main:
@@ -105,7 +112,7 @@ GOOGLE_CLIENT_SECRET=...
 
 > Na lokále lze bezpečně používat produkční Coda API (jen čtení). Pro Postgres doporučuji Neon staging branch (viz níže).
 
-### Staging (app-test.svetoplavci.cz)
+### Staging (test-app.svetoplavci.cz)
 
 Staging běží na stejném VPS v Coolify jako produkce, ale jako oddělená aplikace:
 - Používá Docker image tag `:staging` z ghcr.io
@@ -146,7 +153,7 @@ Kdykoli chceš mít na staging čerstvá produkční data (např. před větší
 
 1. Coolify → **New Resource** → **Docker Image**
 2. Image: `ghcr.io/mparvonic/svetoplavci-app:staging`
-3. Domain: `app-test.svetoplavci.cz`
+3. Domain: `test-app.svetoplavci.cz`
 4. Environment variables: stejné jako produkce, jen s jiným `POSTGRES_PRISMA_URL` (Neon staging branch)
 5. Nastav **Webhook** pro automatický redeploy při novém `:staging` tagu
 
@@ -236,7 +243,7 @@ Používej konvenci:
 
 ## Checklist před nasazením do produkce
 
-- [ ] Featura otestována na staging (`app-test.svetoplavci.cz`)
+- [ ] Featura otestována na staging (`test-app.svetoplavci.cz`)
 - [ ] Přihlášení funguje (Google + magic link)
 - [ ] Data se načítají správně
 - [ ] Mobil: responzivita OK
@@ -260,7 +267,7 @@ Vývoj (localhost:3000, feature větev)
 PR: feature → staging
   │
   ▼
-Testování (app-test.svetoplavci.cz, kopie prod dat)
+Testování (test-app.svetoplavci.cz, kopie prod dat)
   │  "Vše funguje?"
   ▼
 PR: staging → main

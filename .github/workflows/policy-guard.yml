@@ -1,0 +1,29 @@
+name: Policy guard
+
+on:
+  pull_request:
+    branches: [proto, staging, main]
+
+concurrency:
+  group: policy-guard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Enforce environment promotion policy
+        env:
+          POLICY_BASE_REF: ${{ github.base_ref }}
+        run: node scripts/policy/enforce-promotion-policy.mjs --base "$POLICY_BASE_REF"
