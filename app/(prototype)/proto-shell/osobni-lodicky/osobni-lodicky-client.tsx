@@ -935,8 +935,8 @@ function OsobniLodickyPrototypePageInner() {
           )}
         </Card>
 
-        <section className="grid gap-4 xl:grid-cols-[0.32fr_0.43fr_0.25fr]">
-          <Card className="border-[#D9E4F2]">
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]">
+          <Card className="min-w-0 border-[#D9E4F2]">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1012,7 +1012,7 @@ function OsobniLodickyPrototypePageInner() {
             </CardContent>
           </Card>
 
-          <Card className="border-[#D9E4F2]">
+          <Card className="min-w-0 border-[#D9E4F2]">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1061,7 +1061,7 @@ function OsobniLodickyPrototypePageInner() {
             </CardContent>
           </Card>
 
-          <Card className="border-[#D9E4F2]">
+          <Card className="min-w-0 border-[#D9E4F2]">
             <CardHeader className="pb-2">
               <CardTitle className="text-[#05204A]">
                 {selectedPersonalRow
