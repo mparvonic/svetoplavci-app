@@ -1085,7 +1085,7 @@ function renderLeftPaneRows({
     let rowCounter = 0;
 
     return grouped.flatMap(([groupName, items]) => {
-      const rows: JSX.Element[] = [
+      const rows = [
         <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
           <TableCell colSpan={3} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
             {groupName} ({items.length})
@@ -1130,7 +1130,7 @@ function renderLeftPaneRows({
   let rowCounter = 0;
 
   return grouped.flatMap(([groupName, items]) => {
-    const rows: JSX.Element[] = [
+    const rows = [
       <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
         <TableCell colSpan={3} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
           {groupName} ({items.length})
@@ -1188,7 +1188,7 @@ function renderRightPaneRows({
   let rowCounter = 0;
 
   return grouped.flatMap(([groupName, items]) => {
-    const result: JSX.Element[] = [
+    const result = [
       <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
         <TableCell colSpan={4} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
           {groupName} ({items.length})
