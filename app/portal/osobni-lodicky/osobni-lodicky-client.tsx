@@ -1893,7 +1893,8 @@ function mapDbStavToProto(stav: string | null | undefined, hodnota: number | nul
   if (normalized.includes("castec")) return 3;
   if (normalized.includes("dopomoc")) return 2;
   if (normalized.includes("rozprac")) return 1;
-  if (normalized.includes("zahajen")) return 1;
+  if (normalized.includes("nezah")) return 0;
+  if (normalized.startsWith("zahaj")) return 1;
   return 0;
 }
 
