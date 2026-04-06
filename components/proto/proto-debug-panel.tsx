@@ -14,6 +14,7 @@ export type ProtoDebugEvent = {
   rowId?: string;
   hierarchy?: string;
   payload?: string;
+  undoActionId?: string;
 };
 
 export function createProtoDebugEvent(input: Omit<ProtoDebugEvent, "id" | "at">): ProtoDebugEvent {
@@ -28,9 +29,13 @@ export function createProtoDebugEvent(input: Omit<ProtoDebugEvent, "id" | "at">)
 export function ProtoDebugPanel({
   events,
   onClear,
+  onUndoAction,
+  canUndoAction,
 }: {
   events: ProtoDebugEvent[];
   onClear: () => void;
+  onUndoAction?: (undoActionId: string) => void;
+  canUndoAction?: (undoActionId: string) => boolean;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -95,6 +100,20 @@ export function ProtoDebugPanel({
                   {latest.payload}
                 </p>
               )}
+              {latest.undoActionId && onUndoAction && (
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => onUndoAction(latest.undoActionId as string)}
+                    disabled={canUndoAction ? !canUndoAction(latest.undoActionId) : false}
+                  >
+                    Vzít zpět
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
@@ -104,11 +123,27 @@ export function ProtoDebugPanel({
             )}
             {events.map((event) => (
               <div key={event.id} className="border-t border-[#EEF3FA] px-2 py-1.5 first:border-t-0">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-semibold text-[#05204A]">{event.elementId}</p>
-                  <p className="text-[10px] text-slate-500">{event.at.slice(11, 19)}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-semibold text-[#05204A]">{event.elementId}</p>
+                    <p className="text-[11px] text-slate-600">{event.action}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {event.undoActionId && onUndoAction && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() => onUndoAction(event.undoActionId as string)}
+                        disabled={canUndoAction ? !canUndoAction(event.undoActionId) : false}
+                      >
+                        Vzít zpět
+                      </Button>
+                    )}
+                    <p className="text-[10px] text-slate-500">{event.at.slice(11, 19)}</p>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-600">{event.action}</p>
               </div>
             ))}
           </div>

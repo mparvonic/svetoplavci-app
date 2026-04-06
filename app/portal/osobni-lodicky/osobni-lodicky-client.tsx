@@ -25,6 +25,7 @@ import {
   PROTO_OSOBNI_LODICKA_EVENTS,
   PROTO_OSOBNI_LODICKY,
   PROTO_STUDENTS,
+  PROTO_ROLE_OPTIONS,
   getActiveSemesterBounds,
   getActorsByRole,
   getParentChildren,
@@ -50,6 +51,15 @@ type ViewMode = "po_lodickach" | "po_lidech";
 type PaneSort = "nazev" | "garant" | "jmeno" | "rocnik" | "stav";
 type PeopleGroupKey = "smecka" | "rocnik" | "none";
 type LodickaGroupKey = "predmet" | "podpredmet" | "oblast" | "garant";
+
+type StatusUndoAction = {
+  actionId: string;
+  personalId: string;
+  createdEventId: string;
+  createdStatus: LodickaStav;
+  previousStatus: LodickaStav;
+  newlyInvalidatedIds: string[];
+};
 
 type SearchSuggestion = {
   id: string;
@@ -174,19 +184,28 @@ const LODICKA_STAV_FILTER_OPTIONS: string[] = ([
   4,
 ] as LodickaStav[]).map((value) => TEST_LODICKA_STAV_LABEL[value]);
 
-function OsobniLodickyPrototypePageInner() {
+function isProtoRoleId(value: string | null): value is ProtoRoleId {
+  return value === "garant" || value === "rodic" || value === "zak" || value === "spravce";
+}
+
+function OsobniLodickyPrototypePageInner({ adminToolsEnabled }: { adminToolsEnabled: boolean }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
+  const queryRole = searchParams.get("role");
 
   const todayIso = getTodayIsoForProto();
   const semesterBounds = getActiveSemesterBounds(todayIso);
 
-  const [activeRole, setActiveRole] = useState<ProtoRoleId>(DEFAULT_ROLE);
+  const initialRole: ProtoRoleId = adminToolsEnabled && isProtoRoleId(queryRole) ? queryRole : DEFAULT_ROLE;
+  const [activeRole, setActiveRole] = useState<ProtoRoleId>(initialRole);
   const queryUserId = searchParams.get("user") ?? "";
   const [datasetVersion, setDatasetVersion] = useState(0);
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
+  const initialRoleRef = useRef<ProtoRoleId>(initialRole);
+  const initialQueryUserIdRef = useRef(queryUserId);
+  const adminToolsEnabledRef = useRef(adminToolsEnabled);
   const usersForRoleRaw = useMemo(() => getActorsByRole(activeRole), [activeRole, datasetVersion]);
 
   const [selectedUserId, setSelectedUserId] = useState<string>(queryUserId);
@@ -201,6 +220,7 @@ function OsobniLodickyPrototypePageInner() {
   const [scopeMode, setScopeMode] = useState<ScopeMode>("moje");
   const [viewMode, setViewMode] = useState<ViewMode>("po_lodickach");
   const [viewDate, setViewDate] = useState<string>(semesterBounds.maxDate);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(false);
 
   const [peopleStupenFilter, setPeopleStupenFilter] = useState<string[]>([]);
@@ -231,11 +251,14 @@ function OsobniLodickyPrototypePageInner() {
   const [events, setEvents] = useState<ProtoOsobniLodickaEvent[]>(PROTO_OSOBNI_LODICKA_EVENTS);
   const [invalidatedEventIds, setInvalidatedEventIds] = useState<string[]>([]);
   const [debugEvents, setDebugEvents] = useState<ProtoDebugEvent[]>([]);
+  const [statusUndoActions, setStatusUndoActions] = useState<Record<string, StatusUndoAction>>({});
   const [viewportWidth, setViewportWidth] = useState<number>(0);
   const [panesHeight, setPanesHeight] = useState<number>(420);
   const panesSectionRef = useRef<HTMLElement | null>(null);
   const pushDebug = useCallback((event: Omit<ProtoDebugEvent, "id" | "at">) => {
-    setDebugEvents((prev) => [createProtoDebugEvent(event), ...prev].slice(0, 80));
+    const debugEvent = createProtoDebugEvent(event);
+    setDebugEvents((prev) => [debugEvent, ...prev].slice(0, 80));
+    return debugEvent;
   }, []);
 
   const isWideLayout = viewportWidth >= DESKTOP_BASE_WIDTH;
@@ -280,10 +303,22 @@ function OsobniLodickyPrototypePageInner() {
 
         if (cancelled) return;
 
-        setActiveRole(DEFAULT_ROLE);
-        setSelectedUserId(nextDataset.parentActorId);
+        const nextRole: ProtoRoleId = adminToolsEnabledRef.current ? initialRoleRef.current : DEFAULT_ROLE;
+        const usersForNextRole = getActorsByRole(nextRole);
+        const preferredQueryUserId = initialQueryUserIdRef.current;
+        const nextUserId =
+          (preferredQueryUserId &&
+            usersForNextRole.some((item) => item.id === preferredQueryUserId) &&
+            preferredQueryUserId) ||
+          (usersForNextRole.some((item) => item.id === nextDataset.parentActorId) ? nextDataset.parentActorId : "") ||
+          usersForNextRole[0]?.id ||
+          nextDataset.parentActorId;
+
+        setActiveRole(nextRole);
+        setSelectedUserId(nextUserId);
         setEvents([...PROTO_OSOBNI_LODICKA_EVENTS]);
         setInvalidatedEventIds([]);
+        setStatusUndoActions({});
         setDatasetVersion((prev) => prev + 1);
 
         pushDebug({
@@ -797,6 +832,35 @@ function OsobniLodickyPrototypePageInner() {
   const leftTableId = viewMode === "po_lodickach" ? "T221" : "T222";
   const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
 
+  function handleAdminRoleChange(nextRole: ProtoRoleId) {
+    if (!adminToolsEnabled) return;
+    const usersForNextRole = getActorsByRole(nextRole);
+    const nextUserId = usersForNextRole[0]?.id ?? "";
+    setActiveRole(nextRole);
+    setSelectedUserId(nextUserId);
+
+    pushDebug({
+      elementId: "TOOLS-ROLE",
+      label: "Nástroje: změna role",
+      action: "tools-change-role",
+      hierarchy: "OSOBNI_LODICKY > TOOLS",
+      payload: `role=${nextRole}; user=${nextUserId || "-"}`,
+    });
+  }
+
+  function handleAdminUserChange(nextUserId: string) {
+    if (!adminToolsEnabled) return;
+    setSelectedUserId(nextUserId);
+
+    pushDebug({
+      elementId: "TOOLS-USER",
+      label: "Nástroje: změna uživatele",
+      action: "tools-change-user",
+      hierarchy: "OSOBNI_LODICKY > TOOLS",
+      payload: `role=${activeRole}; user=${nextUserId || "-"}`,
+    });
+  }
+
   function clearAllFilters() {
     setPeopleStupenFilter([]);
     setPeopleRocnikFilter([]);
@@ -860,6 +924,7 @@ function OsobniLodickyPrototypePageInner() {
     if (isReadonly || !activeUser) return;
 
     const activeEvents = [...(eventsByPersonalActive.get(personalId) ?? [])];
+    const previousStatus = statusSnapshotByPersonal.get(personalId)?.stav ?? 0;
     const sameDateEvents = activeEvents.filter((event) => event.datumStavu === effectiveViewDate);
     const newerEvents = activeEvents.filter((event) => event.datumStavu > effectiveViewDate);
 
@@ -899,22 +964,48 @@ function OsobniLodickyPrototypePageInner() {
       ...sameDateEvents.map((event) => event.id),
       ...(invalidateNewer ? newerEvents.map((event) => event.id) : []),
     ];
-    if (toInvalidate.length > 0) {
-      setInvalidatedEventIds((prev) => uniqueValues([...prev, ...toInvalidate]));
+    const newlyInvalidatedIds = toInvalidate.filter((id) => !invalidatedEventIdSet.has(id));
+    if (newlyInvalidatedIds.length > 0) {
+      setInvalidatedEventIds((prev) => uniqueValues([...prev, ...newlyInvalidatedIds]));
     }
 
     setEvents((prev) => [...prev, event]);
     setSelectedPersonalId(personalId);
 
-    pushDebug({
+    const undoActionId = adminToolsEnabled ? `status:${event.id}` : undefined;
+    const debugEvent = pushDebug({
       elementId: `BTN-S${nextStatus}-${personalId}`,
       label: "Změna stavu osobní lodičky",
       action: "set-status",
       tableId: viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
       rowId: personalId,
       hierarchy: "PERSONAL_LODICKY > RIGHT_PANE > STATUS_BUTTONS",
-      payload: `stav=${nextStatus}; datum=${effectiveViewDate}; overwriteSameDate=${sameDateEvents.length > 0}; invalidateNewer=${invalidateNewer}`,
+      payload: `from=${previousStatus}; to=${nextStatus}; datum=${effectiveViewDate}; overwriteSameDate=${sameDateEvents.length > 0}; invalidateNewer=${invalidateNewer}`,
+      undoActionId,
     });
+
+    if (adminToolsEnabled && undoActionId) {
+      setStatusUndoActions((prev) => ({
+        ...prev,
+        [undoActionId]: {
+          actionId: undoActionId,
+          personalId,
+          createdEventId: event.id,
+          createdStatus: nextStatus,
+          previousStatus,
+          newlyInvalidatedIds,
+        },
+      }));
+      pushDebug({
+        elementId: `ADMIN-STATUS-${debugEvent.id}`,
+        label: "Admin audit: změna stavu",
+        action: "admin-status-change",
+        tableId: viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
+        rowId: personalId,
+        hierarchy: "OSOBNI_LODICKY > ADMIN_AUDIT",
+        payload: `undo=${undoActionId}; from=${previousStatus}; to=${nextStatus}`,
+      });
+    }
   }
 
   function openLodickaDetail(lodickaId: string, rowId: string, tableId: string) {
@@ -953,6 +1044,42 @@ function OsobniLodickyPrototypePageInner() {
       payload: eventId ? `personal=${personalId};event=${eventId}` : `personal=${personalId}`,
     });
   }
+
+  const canUndoDebugAction = useCallback(
+    (undoActionId: string) => Boolean(statusUndoActions[undoActionId]),
+    [statusUndoActions],
+  );
+
+  const undoDebugAction = useCallback(
+    (undoActionId: string) => {
+      if (!adminToolsEnabled) return;
+      const action = statusUndoActions[undoActionId];
+      if (!action) return;
+
+      const invalidatedSet = new Set(action.newlyInvalidatedIds);
+      setEvents((prev) => prev.filter((event) => event.id !== action.createdEventId));
+      if (invalidatedSet.size > 0) {
+        setInvalidatedEventIds((prev) => prev.filter((id) => !invalidatedSet.has(id)));
+      }
+      setSelectedPersonalId(action.personalId);
+      setStatusUndoActions((prev) => {
+        const next = { ...prev };
+        delete next[undoActionId];
+        return next;
+      });
+
+      pushDebug({
+        elementId: `UNDO-${action.createdEventId}`,
+        label: "Vzetí zpět změny stavu",
+        action: "undo-set-status",
+        tableId: viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
+        rowId: action.personalId,
+        hierarchy: "OSOBNI_LODICKY > ADMIN_AUDIT",
+        payload: `undo=${undoActionId}; from=${action.createdStatus}; to=${action.previousStatus}`,
+      });
+    },
+    [adminToolsEnabled, pushDebug, statusUndoActions, viewMode],
+  );
 
   const leftRows = renderLeftPaneRows({
     viewMode,
@@ -1036,6 +1163,67 @@ function OsobniLodickyPrototypePageInner() {
             Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal.
           </p>
         </header>
+
+        {adminToolsEnabled && (
+          <Card className="border-[#D9E4F2]">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-[#05204A]">Nástroje</CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="border-[#D9E4F2]"
+                  onClick={() => setToolsOpen((prev) => !prev)}
+                >
+                  {toolsOpen ? "Skrýt nástroje" : "Zobrazit nástroje"}
+                </Button>
+              </div>
+            </CardHeader>
+
+            {toolsOpen && (
+              <CardContent className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Role
+                  </span>
+                  <select
+                    value={activeRole}
+                    onChange={(event) => {
+                      const nextRole = event.target.value;
+                      if (!isProtoRoleId(nextRole)) return;
+                      handleAdminRoleChange(nextRole);
+                    }}
+                    className="w-full rounded-lg border border-[#D9E4F2] bg-white px-3 py-2 text-sm text-slate-700"
+                  >
+                    {PROTO_ROLE_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Uživatel
+                  </span>
+                  <select
+                    value={activeUserId}
+                    onChange={(event) => handleAdminUserChange(event.target.value)}
+                    className="w-full rounded-lg border border-[#D9E4F2] bg-white px-3 py-2 text-sm text-slate-700"
+                  >
+                    {usersForRoleRaw.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.jmeno}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </CardContent>
+            )}
+          </Card>
+        )}
 
         <Card className="border-[#D9E4F2]">
           <CardHeader className="pb-3">
@@ -1521,12 +1709,20 @@ function OsobniLodickyPrototypePageInner() {
         onClose={() => setDetailSheet({ type: "none" })}
       />
 
-      <ProtoDebugPanel events={debugEvents} onClear={() => setDebugEvents([])} />
+      <ProtoDebugPanel
+        events={debugEvents}
+        onClear={() => {
+          setDebugEvents([]);
+          setStatusUndoActions({});
+        }}
+        onUndoAction={adminToolsEnabled ? undoDebugAction : undefined}
+        canUndoAction={adminToolsEnabled ? canUndoDebugAction : undefined}
+      />
     </main>
   );
 }
 
-export default function OsobniLodickyPrototypePage() {
+export default function OsobniLodickyPrototypePage({ adminToolsEnabled = false }: { adminToolsEnabled?: boolean }) {
   return (
     <Suspense
       fallback={
@@ -1537,7 +1733,7 @@ export default function OsobniLodickyPrototypePage() {
         </main>
       }
     >
-      <OsobniLodickyPrototypePageInner />
+      <OsobniLodickyPrototypePageInner adminToolsEnabled={adminToolsEnabled} />
     </Suspense>
   );
 }
