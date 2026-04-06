@@ -3,7 +3,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import dotenv from "dotenv";
 
 function parseArgs(argv) {
   const args = {};
@@ -21,12 +20,32 @@ function parseArgs(argv) {
 function loadEnvFile(fileName) {
   const absolute = path.resolve(process.cwd(), fileName);
   if (!fs.existsSync(absolute)) return;
-  const parsed = dotenv.parse(fs.readFileSync(absolute, "utf8"));
+  const parsed = parseDotEnv(fs.readFileSync(absolute, "utf8"));
   for (const [key, value] of Object.entries(parsed)) {
     if (process.env[key] == null) {
       process.env[key] = value;
     }
   }
+}
+
+function parseDotEnv(content) {
+  const result = {};
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eqIndex = line.indexOf("=");
+    if (eqIndex <= 0) continue;
+
+    const key = line.slice(0, eqIndex).trim();
+    const valueRaw = line.slice(eqIndex + 1).trim();
+    const value =
+      (valueRaw.startsWith("\"") && valueRaw.endsWith("\"")) ||
+      (valueRaw.startsWith("'") && valueRaw.endsWith("'"))
+        ? valueRaw.slice(1, -1)
+        : valueRaw;
+    result[key] = value;
+  }
+  return result;
 }
 
 function splitCsv(value) {
