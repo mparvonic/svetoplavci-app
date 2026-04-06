@@ -7,6 +7,9 @@ import { getPostLoginDefaultPath } from "@/src/lib/post-login-path";
 
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // Jednoduché throttlování magic linků (na serveru, podle emailu) – 30 s mezi požadavky
 const magicLastSent = new Map<string, number>();
 
