@@ -6,7 +6,7 @@ import Image from "next/image";
 import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Sheet,
   SheetContent,
@@ -145,6 +145,7 @@ function OsobniLodickyPrototypePageInner() {
   const [detailSheet, setDetailSheet] = useState<DetailSheetState>({ type: "none" });
 
   const [events, setEvents] = useState<ProtoOsobniLodickaEvent[]>(PROTO_OSOBNI_LODICKA_EVENTS);
+  const [invalidatedEventIds, setInvalidatedEventIds] = useState<string[]>([]);
   const [debugEvents, setDebugEvents] = useState<ProtoDebugEvent[]>([]);
 
   useEffect(() => {
@@ -203,7 +204,9 @@ function OsobniLodickyPrototypePageInner() {
     [],
   );
 
-  const eventsByPersonal = useMemo(() => {
+  const invalidatedEventIdSet = useMemo(() => new Set(invalidatedEventIds), [invalidatedEventIds]);
+
+  const eventsByPersonalAll = useMemo(() => {
     const map = new Map<string, ProtoOsobniLodickaEvent[]>();
     events.forEach((event) => {
       const bucket = map.get(event.osobniLodickaId) ?? [];
@@ -221,11 +224,22 @@ function OsobniLodickyPrototypePageInner() {
     return map;
   }, [events]);
 
+  const eventsByPersonalActive = useMemo(() => {
+    const map = new Map<string, ProtoOsobniLodickaEvent[]>();
+    eventsByPersonalAll.forEach((bucket, personalId) => {
+      map.set(
+        personalId,
+        bucket.filter((event) => !invalidatedEventIdSet.has(event.id)),
+      );
+    });
+    return map;
+  }, [eventsByPersonalAll, invalidatedEventIdSet]);
+
   const statusSnapshotByPersonal = useMemo(() => {
     const map = new Map<string, { stav: LodickaStav; lastEvent: ProtoOsobniLodickaEvent | null }>();
 
     PROTO_OSOBNI_LODICKY.forEach((item) => {
-      const personalEvents = eventsByPersonal.get(item.id) ?? [];
+      const personalEvents = eventsByPersonalActive.get(item.id) ?? [];
       let selected: ProtoOsobniLodickaEvent | null = null;
       for (const event of personalEvents) {
         if (event.datumStavu <= effectiveViewDate) selected = event;
@@ -237,7 +251,7 @@ function OsobniLodickyPrototypePageInner() {
     });
 
     return map;
-  }, [effectiveViewDate, eventsByPersonal]);
+  }, [effectiveViewDate, eventsByPersonalActive]);
 
   const accessibleStudents = useMemo(() => {
     if (!activeUser) return [] as ProtoStudent[];
@@ -476,7 +490,7 @@ function OsobniLodickyPrototypePageInner() {
 
   const selectedPersonalRow = rightRows.find((row) => row.personal.id === selectedPersonalEffective) ?? null;
   const selectedPersonalHistory = (selectedPersonalEffective
-    ? [...(eventsByPersonal.get(selectedPersonalEffective) ?? [])]
+    ? [...(eventsByPersonalAll.get(selectedPersonalEffective) ?? [])]
     : []
   ).sort((a, b) => {
     if (a.datumStavu === b.datumStavu) return b.zapsanoAt.localeCompare(a.zapsanoAt);
@@ -666,6 +680,29 @@ function OsobniLodickyPrototypePageInner() {
   function updateStatus(personalId: string, nextStatus: LodickaStav) {
     if (isReadonly || !activeUser) return;
 
+    const activeEvents = [...(eventsByPersonalActive.get(personalId) ?? [])];
+    const sameDateEvents = activeEvents.filter((event) => event.datumStavu === effectiveViewDate);
+    const newerEvents = activeEvents.filter((event) => event.datumStavu > effectiveViewDate);
+
+    if (sameDateEvents.length > 0) {
+      const allowOverwrite = window.confirm(
+        `Pro datum ${formatDateCz(effectiveViewDate)} už existuje stav lodičky. Chceš ho přepsat?`,
+      );
+      if (!allowOverwrite) return;
+    }
+
+    let invalidateNewer = false;
+    if (newerEvents.length > 0) {
+      const proceedHistorical = window.confirm(
+        `Zapisuješ historický stav (${formatDateCz(effectiveViewDate)}), ale existuje ${newerEvents.length} novější záznam(ů). Pokračovat?`,
+      );
+      if (!proceedHistorical) return;
+
+      invalidateNewer = window.confirm(
+        "Chceš novější záznamy zneplatnit?\nOK = zneplatnit novější záznamy\nStorno = ponechat novější záznamy platné",
+      );
+    }
+
     const now = new Date();
     const hour = String(now.getHours()).padStart(2, "0");
     const minute = String(now.getMinutes()).padStart(2, "0");
@@ -678,6 +715,15 @@ function OsobniLodickyPrototypePageInner() {
       zapsalId: activeUser.id,
       poznamka: "Prototyp: ruční změna stavu.",
     };
+
+    const toInvalidate = [
+      ...sameDateEvents.map((event) => event.id),
+      ...(invalidateNewer ? newerEvents.map((event) => event.id) : []),
+    ];
+    if (toInvalidate.length > 0) {
+      setInvalidatedEventIds((prev) => uniqueValues([...prev, ...toInvalidate]));
+    }
+
     setEvents((prev) => [...prev, event]);
     setSelectedPersonalId(personalId);
 
@@ -688,7 +734,7 @@ function OsobniLodickyPrototypePageInner() {
       tableId: viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
       rowId: personalId,
       hierarchy: "PERSONAL_LODICKY > RIGHT_PANE > STATUS_BUTTONS",
-      payload: `stav=${nextStatus}; datum=${effectiveViewDate}`,
+      payload: `stav=${nextStatus}; datum=${effectiveViewDate}; overwriteSameDate=${sameDateEvents.length > 0}; invalidateNewer=${invalidateNewer}`,
     });
   }
 
@@ -1077,11 +1123,6 @@ function OsobniLodickyPrototypePageInner() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-[#05204A]">{viewMode === "po_lodickach" ? "Lodičky" : "Děti"}</CardTitle>
-                  <CardDescription>
-                    {viewMode === "po_lodickach"
-                      ? "Výběr lodičky určuje obsah pravého panelu."
-                      : "Výběr dítěte určuje obsah pravého panelu."}
-                  </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                   <SortSelect
@@ -1155,7 +1196,6 @@ function OsobniLodickyPrototypePageInner() {
                   <CardTitle className="text-[#05204A]">
                     {viewMode === "po_lodickach" ? "Děti pro vybranou lodičku" : "Lodičky vybraného dítěte"}
                   </CardTitle>
-                  <CardDescription>Stav měníš přímo v řádku (read-only role bez editace).</CardDescription>
                 </div>
                 <SortSelect
                   value={rightSort}
@@ -1204,9 +1244,6 @@ function OsobniLodickyPrototypePageInner() {
                   ? getStudentDisplayName(selectedPersonalRow.student, activeRole)
                   : "Historie osobní lodičky"}
               </CardTitle>
-              <CardDescription>
-                Zobrazuju pouze datum stavu a stav. Tlačítko Detail otevře kompletní metadata.
-              </CardDescription>
             </CardHeader>
             <CardContent className="h-[420px] overflow-auto">
               <div className="mb-2 flex justify-end">
@@ -1259,7 +1296,7 @@ function OsobniLodickyPrototypePageInner() {
 
       <DetailSheet
         state={detailSheet}
-        eventsByPersonal={eventsByPersonal}
+        eventsByPersonal={eventsByPersonalAll}
         activeRole={activeRole}
         onClose={() => setDetailSheet({ type: "none" })}
       />
@@ -1326,9 +1363,11 @@ function DetailSheet({
 
   const highlightedEventId = state.type === "personal" ? state.eventId : undefined;
   const detailWidthClass =
-    state.type === "personal"
-      ? "w-[90vw] max-w-[780px] sm:max-w-[780px]"
-      : "w-[86vw] max-w-[560px] sm:max-w-[560px]";
+    state.type === "student"
+      ? "w-[84vw] max-w-[460px] sm:max-w-[460px]"
+      : state.type === "personal"
+        ? "w-[92vw] max-w-[920px] sm:max-w-[920px]"
+        : "w-[88vw] max-w-[620px] sm:max-w-[620px]";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -1411,7 +1450,7 @@ function DetailSheet({
                 <InfoCell label="Kód lodičky" value={lodicka.kod} />
               </div>
 
-              <Table className="min-w-[860px]">
+              <Table className="min-w-[840px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Datum stavu</TableHead>
