@@ -1958,13 +1958,13 @@ function renderRightPaneRows({
                       <Button
                         type="button"
                         size="xs"
-                        variant={row.stav === statusButton.value ? "default" : "outline"}
+                        variant="outline"
                         disabled={readonly}
                         onClick={(event) => {
                           event.stopPropagation();
                           onSetStatus(row.personal.id, statusButton.value);
                         }}
-                        className={row.stav === statusButton.value ? "bg-[#002060] text-white" : ""}
+                        className={statusButtonClass(statusButton.value, row.stav === statusButton.value)}
                       >
                         {statusButton.label}
                       </Button>
@@ -2171,6 +2171,26 @@ function stavBadgeClass(stav: LodickaStav): string {
   if (stav === 2) return "bg-blue-100 text-blue-800";
   if (stav === 1) return "bg-amber-100 text-amber-800";
   return "bg-slate-100 text-slate-700";
+}
+
+function statusButtonClass(value: LodickaStav, isCurrent: boolean): string {
+  if (isCurrent) {
+    return "border-[#002060] bg-[#002060] text-white hover:bg-[#002060] hover:text-white";
+  }
+
+  if (value === 4) {
+    return "border-slate-300 text-slate-700 hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800";
+  }
+  if (value === 3) {
+    return "border-slate-300 text-slate-700 hover:border-orange-300 hover:bg-orange-100 hover:text-orange-800";
+  }
+  if (value === 2) {
+    return "border-slate-300 text-slate-700 hover:border-blue-300 hover:bg-blue-100 hover:text-blue-800";
+  }
+  if (value === 1) {
+    return "border-slate-300 text-slate-700 hover:border-amber-300 hover:bg-amber-100 hover:text-amber-800";
+  }
+  return "border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-800";
 }
 
 function groupBy<T>(items: T[], getKey: (item: T) => string): [string, T[]][] {
