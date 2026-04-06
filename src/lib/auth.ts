@@ -118,13 +118,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return "/auth/signin?error=NoRole";
     },
     async jwt({ token, user }) {
-      if (user?.email) {
-        const authUser = await resolveAuthUser(user.email);
-        if (authUser) {
-          token.role = authUser.role;
-          token.roles = authUser.roles;
-          token.jmeno = authUser.jmeno;
-        }
+      const email =
+        (typeof user?.email === "string" && user.email) ||
+        (typeof token.email === "string" && token.email) ||
+        null;
+
+      if (!email) return token;
+
+      const authUser = await resolveAuthUser(email);
+      if (authUser) {
+        token.role = authUser.role;
+        token.roles = authUser.roles;
+        token.jmeno = authUser.jmeno;
+      } else {
+        delete token.role;
+        delete token.roles;
+        delete token.jmeno;
       }
       return token;
     },

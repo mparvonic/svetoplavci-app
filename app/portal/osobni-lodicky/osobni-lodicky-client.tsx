@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { signOut } from "next-auth/react";
 import Image from "next/image";
 import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +150,13 @@ type LodickaHistoryRow = {
   createdAt: string | null;
 };
 
+type SessionUserContext = {
+  displayName: string;
+  email: string;
+  role: string;
+  roles: string[];
+};
+
 type ChildrenResponse = {
   parent: Parent;
   userEmail: string | null;
@@ -188,16 +196,56 @@ function isProtoRoleId(value: string | null): value is ProtoRoleId {
   return value === "garant" || value === "rodic" || value === "zak" || value === "spravce";
 }
 
-function OsobniLodickyPrototypePageInner({ adminToolsEnabled }: { adminToolsEnabled: boolean }) {
+const SESSION_ROLE_TO_PROTO_ROLE: Record<string, ProtoRoleId> = {
+  admin: "spravce",
+  zamestnanec: "spravce",
+  ucitel: "garant",
+  rodic: "rodic",
+  zak: "zak",
+  tester: "spravce",
+  proto: "spravce",
+};
+
+function getProtoRoleLabel(role: ProtoRoleId): string {
+  return PROTO_ROLE_OPTIONS.find((option) => option.id === role)?.label ?? role;
+}
+
+function mapSessionRolesToProto(roles: string[], fallbackRole: string): ProtoRoleId[] {
+  const mapped = new Set<ProtoRoleId>();
+  roles.forEach((role) => {
+    const next = SESSION_ROLE_TO_PROTO_ROLE[role];
+    if (next) mapped.add(next);
+  });
+  const fallback = SESSION_ROLE_TO_PROTO_ROLE[fallbackRole];
+  if (fallback) mapped.add(fallback);
+  if (mapped.size === 0) mapped.add(DEFAULT_ROLE);
+  return [...mapped];
+}
+
+function OsobniLodickyPrototypePageInner({
+  adminToolsEnabled,
+  sessionUser,
+}: {
+  adminToolsEnabled: boolean;
+  sessionUser: SessionUserContext;
+}) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
   const queryRole = searchParams.get("role");
+  const sessionRoleOptions = mapSessionRolesToProto(sessionUser.roles, sessionUser.role);
+  const preferredSessionRole: ProtoRoleId = sessionRoleOptions.includes("rodic")
+    ? "rodic"
+    : (sessionRoleOptions[0] ?? DEFAULT_ROLE);
+  const queryRoleCandidate = isProtoRoleId(queryRole) ? queryRole : null;
 
   const todayIso = getTodayIsoForProto();
   const semesterBounds = getActiveSemesterBounds(todayIso);
 
-  const initialRole: ProtoRoleId = adminToolsEnabled && isProtoRoleId(queryRole) ? queryRole : DEFAULT_ROLE;
+  const initialRole: ProtoRoleId =
+    queryRoleCandidate && (adminToolsEnabled || sessionRoleOptions.includes(queryRoleCandidate))
+      ? queryRoleCandidate
+      : preferredSessionRole;
   const [activeRole, setActiveRole] = useState<ProtoRoleId>(initialRole);
   const queryUserId = searchParams.get("user") ?? "";
   const [datasetVersion, setDatasetVersion] = useState(0);
@@ -205,7 +253,6 @@ function OsobniLodickyPrototypePageInner({ adminToolsEnabled }: { adminToolsEnab
   const [dbError, setDbError] = useState<string | null>(null);
   const initialRoleRef = useRef<ProtoRoleId>(initialRole);
   const initialQueryUserIdRef = useRef(queryUserId);
-  const adminToolsEnabledRef = useRef(adminToolsEnabled);
   const usersForRoleRaw = useMemo(() => getActorsByRole(activeRole), [activeRole, datasetVersion]);
 
   const [selectedUserId, setSelectedUserId] = useState<string>(queryUserId);
@@ -303,7 +350,7 @@ function OsobniLodickyPrototypePageInner({ adminToolsEnabled }: { adminToolsEnab
 
         if (cancelled) return;
 
-        const nextRole: ProtoRoleId = adminToolsEnabledRef.current ? initialRoleRef.current : DEFAULT_ROLE;
+        const nextRole: ProtoRoleId = initialRoleRef.current;
         const usersForNextRole = getActorsByRole(nextRole);
         const preferredQueryUserId = initialQueryUserIdRef.current;
         const nextUserId =
@@ -832,6 +879,24 @@ function OsobniLodickyPrototypePageInner({ adminToolsEnabled }: { adminToolsEnab
   const leftTableId = viewMode === "po_lodickach" ? "T221" : "T222";
   const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
 
+  function handleSessionRoleChange(nextRole: ProtoRoleId) {
+    if (!sessionRoleOptions.includes(nextRole)) return;
+    const usersForNextRole = getActorsByRole(nextRole);
+    const nextUserId = usersForNextRole.some((item) => item.id === activeUserId)
+      ? activeUserId
+      : (usersForNextRole[0]?.id ?? "");
+    setActiveRole(nextRole);
+    setSelectedUserId(nextUserId);
+
+    pushDebug({
+      elementId: "HDR-ROLE",
+      label: "Přepnutí role uživatele",
+      action: "switch-session-role",
+      hierarchy: "OSOBNI_LODICKY > HEADER",
+      payload: `role=${nextRole}; user=${nextUserId || "-"}`,
+    });
+  }
+
   function handleAdminRoleChange(nextRole: ProtoRoleId) {
     if (!adminToolsEnabled) return;
     const usersForNextRole = getActorsByRole(nextRole);
@@ -1156,12 +1221,53 @@ function OsobniLodickyPrototypePageInner({ adminToolsEnabled }: { adminToolsEnab
   return (
     <main className="min-h-screen bg-slate-50 pb-44">
       <section className="app-page-container space-y-4 py-6">
-        <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Osobní lodičky</p>
-          <h1 className="text-2xl font-semibold text-[#05204A]">Kompaktní pohled pro práci Garanta</h1>
-          <p className="text-sm text-slate-600">
-            Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal.
-          </p>
+        <header className="space-y-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Osobní lodičky</p>
+              <h1 className="text-2xl font-semibold text-[#05204A]">Kompaktní pohled pro práci Garanta</h1>
+              <p className="text-sm text-slate-600">
+                Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Badge className="bg-[#F2F7FF] text-[#0A4DA6] hover:bg-[#F2F7FF]">{sessionUser.displayName}</Badge>
+              {sessionUser.email && (
+                <Badge className="bg-[#F8FAFC] text-slate-700 hover:bg-[#F8FAFC]">{sessionUser.email}</Badge>
+              )}
+              <Badge className="bg-[#F8FAFC] text-slate-700 hover:bg-[#F8FAFC]">
+                Aktivní role: {getProtoRoleLabel(activeRole)}
+              </Badge>
+
+              {sessionRoleOptions.length > 1 && (
+                <div className="inline-flex rounded-xl border border-[#D9E4F2] bg-white p-1">
+                  {sessionRoleOptions.map((roleId) => (
+                    <button
+                      key={roleId}
+                      type="button"
+                      onClick={() => handleSessionRoleChange(roleId)}
+                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                        activeRole === roleId ? "bg-[#002060] text-white" : "text-slate-600 hover:bg-[#F3F7FF]"
+                      }`}
+                    >
+                      {getProtoRoleLabel(roleId)}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-[#D9E4F2]"
+                onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
+              >
+                Odhlásit se
+              </Button>
+            </div>
+          </div>
         </header>
 
         {adminToolsEnabled && (
@@ -1722,7 +1828,13 @@ function OsobniLodickyPrototypePageInner({ adminToolsEnabled }: { adminToolsEnab
   );
 }
 
-export default function OsobniLodickyPrototypePage({ adminToolsEnabled = false }: { adminToolsEnabled?: boolean }) {
+export default function OsobniLodickyPrototypePage({
+  adminToolsEnabled = false,
+  sessionUser,
+}: {
+  adminToolsEnabled?: boolean;
+  sessionUser: SessionUserContext;
+}) {
   return (
     <Suspense
       fallback={
@@ -1733,7 +1845,7 @@ export default function OsobniLodickyPrototypePage({ adminToolsEnabled = false }
         </main>
       }
     >
-      <OsobniLodickyPrototypePageInner adminToolsEnabled={adminToolsEnabled} />
+      <OsobniLodickyPrototypePageInner adminToolsEnabled={adminToolsEnabled} sessionUser={sessionUser} />
     </Suspense>
   );
 }
