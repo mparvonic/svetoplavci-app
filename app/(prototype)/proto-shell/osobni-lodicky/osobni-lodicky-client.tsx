@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, type ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { CalendarDays, ChevronDown, ChevronUp, Filter, Search } from "lucide-react";
@@ -326,7 +326,7 @@ function OsobniLodickyPrototypePageInner() {
 
       const items: LeftLodickaItem[] = filteredLodicky
         .map((lodicka) => ({
-          kind: "lodicka",
+          kind: "lodicka" as const,
           lodicka,
           count: map.get(lodicka.id) ?? 0,
         }))
@@ -342,7 +342,7 @@ function OsobniLodickyPrototypePageInner() {
 
     const items: LeftStudentItem[] = filteredStudents
       .map((student) => ({
-        kind: "student",
+        kind: "student" as const,
         student,
         count: map.get(student.id) ?? 0,
       }))
@@ -1538,7 +1538,7 @@ function renderLeftPaneRows({
     const grouped = groupBy(lodicky, (item) => buildLodickaGroupLabel(item.lodicka, lodickaGroupKeys));
 
     return grouped.flatMap(([groupName, groupItems]) => {
-      const rows: JSX.Element[] = [];
+      const rows: ReactElement[] = [];
       if (lodickaGroupKeys.length > 0) {
         rows.push(
           <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
@@ -1598,7 +1598,7 @@ function renderLeftPaneRows({
   );
 
   return grouped.flatMap(([groupName, groupItems]) => {
-    const rows: JSX.Element[] = [
+    const rows: ReactElement[] = [
       <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
         <TableCell colSpan={2} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
           {groupName} ({groupItems.length})
@@ -1686,7 +1686,7 @@ function renderRightPaneRows({
   let rowCounter = 0;
 
   return grouped.flatMap(([groupName, groupItems]) => {
-    const result: JSX.Element[] = [];
+    const result: ReactElement[] = [];
     const hasGroupHeader = viewMode === "po_lodickach" || lodickaGroupKeys.length > 0;
     if (hasGroupHeader) {
       result.push(
