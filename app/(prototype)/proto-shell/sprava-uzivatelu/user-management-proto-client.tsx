@@ -112,7 +112,7 @@ type UserLoginRow = {
   id: string;
   name: string;
   email: string;
-  roles: string[];
+  roles: ProtoAdminRole[];
   status: ProtoUserStatus;
   approvedIdentities: string[];
   pendingIdentities: string[];

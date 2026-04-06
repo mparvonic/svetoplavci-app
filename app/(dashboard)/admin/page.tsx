@@ -9,6 +9,7 @@ import {
 import {
   PROTO_ADMIN_ROLE_OPTIONS,
   PROTO_MANAGED_USERS,
+  type ProtoAdminRole,
   type ProtoUserStatus,
 } from "@/src/lib/mock/proto-user-management";
 
@@ -50,7 +51,7 @@ type UserLoginRow = {
   id: string;
   name: string;
   email: string;
-  roles: string[];
+  roles: ProtoAdminRole[];
   status: ProtoUserStatus;
   approvedIdentities: string[];
   pendingIdentities: string[];
