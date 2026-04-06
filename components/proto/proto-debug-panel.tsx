@@ -32,7 +32,7 @@ export function ProtoDebugPanel({
   events: ProtoDebugEvent[];
   onClear: () => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   const latest = useMemo(() => events[0] ?? null, [events]);
 

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarDays, Filter, Search } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, Filter, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -92,6 +92,7 @@ function OsobniLodickyPrototypePageInner() {
   const [searchInput, setSearchInput] = useState("");
   const [leftSort, setLeftSort] = useState<PaneSort>("nazev");
   const [rightSort, setRightSort] = useState<PaneSort>("jmeno");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [selectedLeftId, setSelectedLeftId] = useState<string | null>(null);
   const [selectedPersonalId, setSelectedPersonalId] = useState<string | null>(null);
@@ -475,20 +476,39 @@ function OsobniLodickyPrototypePageInner() {
       />
 
       <section className={`${UI_CLASSES.pageContainer} space-y-4 py-6`}>
-        <header className="space-y-2">
+        <header className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Osobní lodičky</p>
-          <h1 className="text-2xl font-semibold text-[#05204A]">Prototyp obrazovky pro roli Garant</h1>
-          <p className="text-sm text-slate-600">
-            Jedna obrazovka s minimem klikání: dva panely, fulltext s našeptávačem, víceúrovňové filtry,
-            změna stavů a detailní historie.
-          </p>
+          <h1 className="text-xl font-semibold text-[#05204A]">Kompaktní pracovní pohled (Garant)</h1>
         </header>
 
         <Card className="border-[#D9E4F2]">
-          <CardHeader>
-            <CardTitle className="text-[#05204A]">Řízení pohledu</CardTitle>
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-[#05204A]">Řízení pohledu</CardTitle>
+                <CardDescription>Výchozí rozložení je cílené na viewport 1440 × 900 (MacBook Air M1).</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-[#D9E4F2] text-[#05204A]"
+                onClick={() => {
+                  const next = !filtersOpen;
+                  setFiltersOpen(next);
+                  pushDebug({
+                    elementId: "BTN-FILTER-COLLAPSE",
+                    label: "Sbalení/rozbalení filtrů",
+                    action: next ? "expand-filters" : "collapse-filters",
+                    hierarchy: "PERSONAL_LODICKY > FILTER_PANEL",
+                  });
+                }}
+              >
+                {filtersOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                {filtersOpen ? "Sbalit filtry" : "Rozbalit filtry"}
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
               <SegmentControl
                 label="Základní volba"
@@ -606,70 +626,76 @@ function OsobniLodickyPrototypePageInner() {
               )}
             </div>
 
-            <div className="grid gap-4 xl:grid-cols-2">
-              <Card className="border-[#E3ECF9]">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base text-[#05204A]">Filtry po lidech</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-3">
-                  <MultiSelect
-                    label="Stupeň"
-                    options={options.stupne}
-                    value={peopleStupenFilter}
-                    onChange={setPeopleStupenFilter}
-                  />
-                  <MultiSelect
-                    label="Ročník"
-                    options={options.rocniky}
-                    value={peopleRocnikFilter}
-                    onChange={setPeopleRocnikFilter}
-                  />
-                  <MultiSelect
-                    label="Smečka"
-                    options={options.smecky}
-                    value={peopleSmeckaFilter}
-                    onChange={setPeopleSmeckaFilter}
-                  />
-                </CardContent>
-              </Card>
+            {filtersOpen && (
+              <div className="grid gap-3 xl:grid-cols-2">
+                <Card className="border-[#E3ECF9]">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base text-[#05204A]">Filtry po lidech</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 md:grid-cols-3">
+                    <MultiToggleSelect
+                      label="Stupeň"
+                      options={options.stupne}
+                      value={peopleStupenFilter}
+                      onChange={setPeopleStupenFilter}
+                    />
+                    <MultiToggleSelect
+                      label="Ročník"
+                      options={options.rocniky}
+                      value={peopleRocnikFilter}
+                      onChange={setPeopleRocnikFilter}
+                    />
+                    <MultiToggleSelect
+                      label="Smečka"
+                      options={options.smecky}
+                      value={peopleSmeckaFilter}
+                      onChange={setPeopleSmeckaFilter}
+                    />
+                  </CardContent>
+                </Card>
 
-              <Card className="border-[#E3ECF9]">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base text-[#05204A]">Filtry po lodičkách</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <MultiSelect
-                    label="Předmět"
-                    options={options.predmety}
-                    value={lodickyPredmetFilter}
-                    onChange={setLodickyPredmetFilter}
-                  />
-                  <MultiSelect
-                    label="Podpředmět"
-                    options={options.podpredmety}
-                    value={lodickyPodpredmetFilter}
-                    onChange={setLodickyPodpredmetFilter}
-                  />
-                  <MultiSelect
-                    label="Oblast"
-                    options={options.oblasti}
-                    value={lodickyOblastFilter}
-                    onChange={setLodickyOblastFilter}
-                  />
-                  <MultiSelect
-                    label="Garant"
-                    options={options.garanti}
-                    value={lodickyGarantFilter}
-                    onChange={setLodickyGarantFilter}
-                  />
-                </CardContent>
-              </Card>
-            </div>
+                <Card className="border-[#E3ECF9]">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base text-[#05204A]">Filtry po lodičkách</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <MultiToggleSelect
+                      label="Předmět"
+                      options={options.predmety}
+                      value={lodickyPredmetFilter}
+                      onChange={setLodickyPredmetFilter}
+                    />
+                    <MultiToggleSelect
+                      label="Podpředmět"
+                      options={options.podpredmety}
+                      value={lodickyPodpredmetFilter}
+                      onChange={setLodickyPodpredmetFilter}
+                    />
+                    <MultiToggleSelect
+                      label="Oblast"
+                      options={options.oblasti}
+                      value={lodickyOblastFilter}
+                      onChange={setLodickyOblastFilter}
+                    />
+                    <MultiToggleSelect
+                      label="Garant"
+                      options={options.garanti}
+                      value={lodickyGarantFilter}
+                      onChange={setLodickyGarantFilter}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <section className="grid gap-4 xl:grid-cols-[0.48fr_0.52fr]">
-          <Card className="border-[#D9E4F2]">
+        <section
+          className={`grid gap-3 xl:min-h-[380px] xl:grid-cols-[minmax(0,0.33fr)_minmax(0,0.41fr)_minmax(0,0.26fr)] ${
+            filtersOpen ? "xl:h-[calc(100dvh-500px)]" : "xl:h-[calc(100dvh-360px)]"
+          }`}
+        >
+          <Card className="border-[#D9E4F2] xl:h-full xl:min-h-0">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -699,7 +725,7 @@ function OsobniLodickyPrototypePageInner() {
                 />
               </div>
             </CardHeader>
-            <CardContent className="max-h-[560px] overflow-auto">
+            <CardContent className="overflow-auto xl:min-h-0 xl:flex-1">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -750,7 +776,7 @@ function OsobniLodickyPrototypePageInner() {
             </CardContent>
           </Card>
 
-          <Card className="border-[#D9E4F2]">
+          <Card className="border-[#D9E4F2] xl:h-full xl:min-h-0">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -778,7 +804,7 @@ function OsobniLodickyPrototypePageInner() {
                 />
               </div>
             </CardHeader>
-            <CardContent className="max-h-[560px] overflow-auto">
+            <CardContent className="overflow-auto xl:min-h-0 xl:flex-1">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -831,64 +857,62 @@ function OsobniLodickyPrototypePageInner() {
               </Table>
             </CardContent>
           </Card>
-        </section>
 
-        <Card className="border-[#D9E4F2]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[#05204A]">Pomocné okno: detail historie osobní lodičky</CardTitle>
-            <CardDescription>
-              Po kliknutí na řádek v pravém panelu se zde zobrazí změny stavu (datum stavu, kdo změnil, kdy zapsáno).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {!selectedPersonalRow && <p className="text-sm text-slate-500">Není vybraná osobní lodička.</p>}
+          <Card className="border-[#D9E4F2] xl:h-full xl:min-h-0">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-[#05204A]">Pomocné okno: historie</CardTitle>
+              <CardDescription>Vybraný řádek v pravém panelu: detail změn stavu osobní lodičky.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 overflow-auto xl:min-h-0 xl:flex-1">
+              {!selectedPersonalRow && <p className="text-sm text-slate-500">Není vybraná osobní lodička.</p>}
 
-            {selectedPersonalRow && (
-              <div className="grid gap-3 md:grid-cols-3">
-                <InfoCell label="Žák" value={selectedPersonalRow.student.jmeno} />
-                <InfoCell label="Lodička" value={selectedPersonalRow.lodicka.nazev} />
-                <InfoCell
-                  label="Aktuální stav"
-                  value={`${selectedPersonalRow.stav} - ${LODICKA_STAV_LABEL[selectedPersonalRow.stav]}`}
-                />
-              </div>
-            )}
+              {selectedPersonalRow && (
+                <div className="grid gap-2">
+                  <InfoCell label="Žák" value={selectedPersonalRow.student.jmeno} />
+                  <InfoCell label="Lodička" value={selectedPersonalRow.lodicka.nazev} />
+                  <InfoCell
+                    label="Aktuální stav"
+                    value={`${selectedPersonalRow.stav} - ${LODICKA_STAV_LABEL[selectedPersonalRow.stav]}`}
+                  />
+                </div>
+              )}
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Datum stavu</TableHead>
-                  <TableHead>Zapsáno</TableHead>
-                  <TableHead>Stav</TableHead>
-                  <TableHead>Zapsal</TableHead>
-                  <TableHead>Poznámka</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {selectedPersonalHistory.length === 0 && (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="py-6 text-center text-slate-500">
-                      Pro vybranou položku zatím nejsou eventy.
-                    </TableCell>
+                    <TableHead>Datum stavu</TableHead>
+                    <TableHead>Zapsáno</TableHead>
+                    <TableHead>Stav</TableHead>
+                    <TableHead>Zapsal</TableHead>
+                    <TableHead>Poznámka</TableHead>
                   </TableRow>
-                )}
-                {selectedPersonalHistory.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell>{event.datumStavu}</TableCell>
-                    <TableCell>{event.zapsanoAt}</TableCell>
-                    <TableCell>
-                      <Badge className={stavBadgeClass(event.stav)}>
-                        {event.stav} - {LODICKA_STAV_LABEL[event.stav]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{getActorLabel(event.zapsalId)}</TableCell>
-                    <TableCell>{event.poznamka ?? "-"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {selectedPersonalHistory.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-6 text-center text-slate-500">
+                        Pro vybranou položku zatím nejsou eventy.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {selectedPersonalHistory.map((event) => (
+                    <TableRow key={event.id}>
+                      <TableCell>{event.datumStavu}</TableCell>
+                      <TableCell>{event.zapsanoAt}</TableCell>
+                      <TableCell>
+                        <Badge className={stavBadgeClass(event.stav)}>
+                          {event.stav} - {LODICKA_STAV_LABEL[event.stav]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{getActorLabel(event.zapsalId)}</TableCell>
+                      <TableCell>{event.poznamka ?? "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </section>
       </section>
 
       <ProtoDebugPanel events={debugEvents} onClear={() => setDebugEvents([])} />
@@ -919,7 +943,7 @@ function normalizeRole(input: string | null): ProtoRoleId {
   return DEFAULT_ROLE;
 }
 
-function MultiSelect({
+function MultiToggleSelect({
   label,
   options,
   value,
@@ -930,28 +954,41 @@ function MultiSelect({
   value: string[];
   onChange: (next: string[]) => void;
 }) {
+  const selectedSet = new Set(value);
+
   return (
-    <label className="block">
+    <div>
       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </span>
-      <select
-        multiple
-        size={4}
-        value={value}
-        onChange={(e) => {
-          const selected = Array.from(e.target.selectedOptions).map((option) => option.value);
-          onChange(selected);
-        }}
-        className="h-[108px] w-full rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] px-2 py-1.5 text-sm text-slate-700"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    </label>
+      <div className="max-h-[130px] overflow-auto rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-1.5">
+        <div className="flex flex-wrap gap-1.5">
+          {options.map((option) => {
+            const isSelected = selectedSet.has(option);
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  if (isSelected) {
+                    onChange(value.filter((item) => item !== option));
+                    return;
+                  }
+                  onChange([...value, option]);
+                }}
+                className={`rounded-lg border px-2 py-1 text-xs font-medium transition ${
+                  isSelected
+                    ? "border-[#0A4DA6] bg-[#0A4DA6] text-white"
+                    : "border-[#CFE0F7] bg-white text-slate-700 hover:bg-[#F2F7FF]"
+                }`}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 

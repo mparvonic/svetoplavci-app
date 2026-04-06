@@ -1,10 +1,11 @@
 export const DESIGN_PACK_META = {
   name: "Svetoplavci Design Pack",
-  version: "2026-04-05.3",
-  updatedAt: "2026-04-05",
+  version: "2026-04-06.2",
+  updatedAt: "2026-04-06",
 };
 
 export const DESIGN_RULES = [
+  "Standardní desktop layout navrhujeme pro MacBook Air M1: viewport 1440 × 900 px.",
   "Navigace vlevo, obsah vpravo, vždy jasně aktivní sekce.",
   "Primární CTA je modré, destruktivní akce červené, sekundární akce outline.",
   "Každý datový modul má stejnou strukturu: název, filtry, obsah, akce.",
