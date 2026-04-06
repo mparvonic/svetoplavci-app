@@ -205,7 +205,7 @@ function ProtoShellPageInner() {
             <CardHeader>
               <CardTitle className="text-[#05204A]">Rychlá navigace</CardTitle>
               <CardDescription>
-                Primární pracovní stránka pro tuto fázi je Osobní lodičky.
+                Primární pracovní stránky pro tuto fázi jsou Osobní lodičky a Správa uživatelů.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -223,6 +223,24 @@ function ProtoShellPageInner() {
               >
                 <Link href={`/proto-shell/osobni-lodicky?role=${activeRole}&user=${activeUserId}`}>
                   Otevřít stránku Osobní lodičky
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className={UI_CLASSES.secondaryButton}
+                onClick={() =>
+                  pushDebug({
+                    elementId: "BTN-NAV-USERS",
+                    label: "Přejít na správu uživatelů",
+                    action: "navigate",
+                    hierarchy: "PROTO_SHELL > QUICK_NAV",
+                  })
+                }
+              >
+                <Link href="/proto-shell/sprava-uzivatelu">
+                  Otevřít stránku Správa uživatelů
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>

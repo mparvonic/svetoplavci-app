@@ -415,6 +415,7 @@ export const PROTO_OSOBNI_LODICKA_EVENTS: ProtoOsobniLodickaEvent[] = PROTO_OSOB
 export const PROTO_QUICK_NAV = [
   { id: "nav-dashboard", label: "Proto shell", href: "/proto-shell" },
   { id: "nav-lodicky", label: "Osobní lodičky", href: "/proto-shell/osobni-lodicky" },
+  { id: "nav-users", label: "Správa uživatelů", href: "/proto-shell/sprava-uzivatelu" },
   { id: "nav-ui", label: "UI redesign", href: "/ui-redesign" },
 ] as const;
 

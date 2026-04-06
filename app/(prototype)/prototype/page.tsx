@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, LayoutPanelTop, Paintbrush } from "lucide-react";
+import { ArrowRight, LayoutPanelTop, Paintbrush, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UI_CLASSES } from "@/src/lib/design-pack/ui";
@@ -19,6 +19,13 @@ const PROTOTYPE_PAGES = [
     description: "Vizuální storyboard a redesign koncept pro hlavní obrazovky.",
     href: "/ui-redesign",
     icon: Paintbrush,
+  },
+  {
+    id: "user-management",
+    title: "Správa uživatelů",
+    description: "Admin-only prototyp pro role, pozvánky a audit změn uživatelských účtů.",
+    href: "/proto-shell/sprava-uzivatelu",
+    icon: UserCog,
   },
 ];
 
