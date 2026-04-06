@@ -1035,7 +1035,7 @@ function OsobniLodickyPrototypePageInner() {
                 )}
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+              <div className="grid gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
                 <Card className="border-[#E3ECF9]">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base text-[#05204A]">Filtry po dětech</CardTitle>
@@ -1117,7 +1117,7 @@ function OsobniLodickyPrototypePageInner() {
           )}
         </Card>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]">
+        <section className="grid gap-4 min-[1180px]:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]">
           <Card className="min-w-0 border-[#D9E4F2]">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
