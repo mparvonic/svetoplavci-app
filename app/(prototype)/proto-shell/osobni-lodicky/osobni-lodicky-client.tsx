@@ -50,8 +50,18 @@ type LodickaGroupKey = "predmet" | "podpredmet" | "oblast" | "garant";
 type SearchSuggestion = {
   id: string;
   label: string;
-  type: "smecka" | "student" | "lodicka" | "oblast" | "predmet";
+  type:
+    | "smecka"
+    | "student"
+    | "lodicka"
+    | "oblast"
+    | "predmet"
+    | "podpredmet"
+    | "garant"
+    | "rocnik"
+    | "stupen";
   value: string;
+  token?: string;
 };
 
 type PersonalWithSnapshot = {
@@ -126,6 +136,7 @@ function OsobniLodickyPrototypePageInner() {
   const [peopleGroupBy, setPeopleGroupBy] = useState<PeopleGroupKey>("smecka");
 
   const [searchInput, setSearchInput] = useState("");
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [leftSort, setLeftSort] = useState<PaneSort>("nazev");
   const [rightSort, setRightSort] = useState<PaneSort>("jmeno");
 
@@ -146,6 +157,7 @@ function OsobniLodickyPrototypePageInner() {
 
   const activeUser = usersForRoleRaw.find((item) => item.id === activeUserId) ?? usersForRoleRaw[0] ?? null;
   const effectiveViewDate = clampDate(viewDate, semesterBounds.minDate, semesterBounds.maxDate);
+  const hasHistoricalViewDate = effectiveViewDate !== todayIso;
   const effectiveScope: ScopeMode = activeRole === "garant" || activeRole === "spravce" ? scopeMode : "moje";
   const isReadonly = activeRole === "rodic" || activeRole === "zak";
   const showGarantControls = effectiveScope !== "moje";
@@ -158,6 +170,32 @@ function OsobniLodickyPrototypePageInner() {
       })),
     [activeRole, usersForRoleRaw],
   );
+
+  const filterOptions = useMemo(() => {
+    const rocniky = [...new Set(PROTO_STUDENTS.map((student) => String(student.rocnik)))].sort(
+      (a, b) => Number(a) - Number(b),
+    );
+
+    const garanti = [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => getGuideDisplayName(lodicka.garantId)))].sort(
+      (a, b) => a.localeCompare(b, "cs"),
+    );
+
+    return {
+      stupne: ["1", "2"],
+      rocniky,
+      smecky: [...new Set(PROTO_STUDENTS.map((student) => student.smecka))].sort((a, b) => a.localeCompare(b, "cs")),
+      predmety: [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => lodicka.predmet))].sort((a, b) =>
+        a.localeCompare(b, "cs"),
+      ),
+      podpredmety: [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => lodicka.podpředmět ?? "-"))].sort((a, b) =>
+        a.localeCompare(b, "cs"),
+      ),
+      oblasti: [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => lodicka.oblast))].sort((a, b) =>
+        a.localeCompare(b, "cs"),
+      ),
+      garanti,
+    };
+  }, []);
 
   const studentsById = useMemo(() => new Map(PROTO_STUDENTS.map((student) => [student.id, student])), []);
   const lodickyById = useMemo(
@@ -215,78 +253,136 @@ function OsobniLodickyPrototypePageInner() {
     return PROTO_STUDENTS;
   }, [activeRole, activeUser]);
 
-  const filteredStudents = useMemo(() => {
-    const needle = searchInput.trim().toLowerCase();
+  const searchPlan = useMemo(
+    () =>
+      buildSmartSearchPlan(searchInput, {
+        stupne: filterOptions.stupne,
+        rocniky: filterOptions.rocniky,
+        smecky: filterOptions.smecky,
+        predmety: filterOptions.predmety,
+        podpredmety: filterOptions.podpredmety,
+        oblasti: filterOptions.oblasti,
+        garanti: showGarantControls ? filterOptions.garanti : [],
+      }),
+    [filterOptions, searchInput, showGarantControls],
+  );
 
+  const effectivePeopleStupenFilter = useMemo(
+    () => uniqueValues([...peopleStupenFilter, ...searchPlan.people.stupen]),
+    [peopleStupenFilter, searchPlan.people.stupen],
+  );
+  const effectivePeopleRocnikFilter = useMemo(
+    () => uniqueValues([...peopleRocnikFilter, ...searchPlan.people.rocnik]),
+    [peopleRocnikFilter, searchPlan.people.rocnik],
+  );
+  const effectivePeopleSmeckaFilter = useMemo(
+    () => uniqueValues([...peopleSmeckaFilter, ...searchPlan.people.smecka]),
+    [peopleSmeckaFilter, searchPlan.people.smecka],
+  );
+
+  const effectiveLodickyPredmetFilter = useMemo(
+    () => uniqueValues([...lodickyPredmetFilter, ...searchPlan.lodicky.predmet]),
+    [lodickyPredmetFilter, searchPlan.lodicky.predmet],
+  );
+  const effectiveLodickyPodpredmetFilter = useMemo(
+    () => uniqueValues([...lodickyPodpredmetFilter, ...searchPlan.lodicky.podpredmet]),
+    [lodickyPodpredmetFilter, searchPlan.lodicky.podpredmet],
+  );
+  const effectiveLodickyOblastFilter = useMemo(
+    () => uniqueValues([...lodickyOblastFilter, ...searchPlan.lodicky.oblast]),
+    [lodickyOblastFilter, searchPlan.lodicky.oblast],
+  );
+  const effectiveLodickyGarantFilter = useMemo(
+    () => uniqueValues([...lodickyGarantFilter, ...searchPlan.lodicky.garant]),
+    [lodickyGarantFilter, searchPlan.lodicky.garant],
+  );
+
+  const filteredStudents = useMemo(() => {
+    const tokens = searchPlan.freeTokens;
     return accessibleStudents.filter((student) => {
-      if (peopleStupenFilter.length > 0 && !peopleStupenFilter.includes(String(student.stupen))) {
+      if (
+        effectivePeopleStupenFilter.length > 0 &&
+        !effectivePeopleStupenFilter.includes(String(student.stupen))
+      ) {
         return false;
       }
-      if (peopleRocnikFilter.length > 0 && !peopleRocnikFilter.includes(String(student.rocnik))) {
+      if (
+        effectivePeopleRocnikFilter.length > 0 &&
+        !effectivePeopleRocnikFilter.includes(String(student.rocnik))
+      ) {
         return false;
       }
-      if (peopleSmeckaFilter.length > 0 && !peopleSmeckaFilter.includes(student.smecka)) {
+      if (
+        effectivePeopleSmeckaFilter.length > 0 &&
+        !effectivePeopleSmeckaFilter.includes(student.smecka)
+      ) {
         return false;
       }
-      if (needle && viewMode === "po_lidech") {
-        const searchSpace = [
-          student.jmeno.toLowerCase(),
-          student.prezdivka.toLowerCase(),
-          getFirstName(student.jmeno).toLowerCase(),
-        ];
-        if (!searchSpace.some((value) => value.includes(needle))) return false;
+      if (tokens.length > 0 && viewMode === "po_lidech") {
+        const haystack = normalizeSearch(
+          `${student.jmeno} ${student.prezdivka} ${getFirstName(student.jmeno)} ${student.smecka} ${student.rocnik}`,
+        );
+        if (!tokens.every((token) => haystack.includes(token))) return false;
       }
       return true;
     });
   }, [
     accessibleStudents,
-    peopleRocnikFilter,
-    peopleSmeckaFilter,
-    peopleStupenFilter,
-    searchInput,
+    effectivePeopleRocnikFilter,
+    effectivePeopleSmeckaFilter,
+    effectivePeopleStupenFilter,
+    searchPlan.freeTokens,
     viewMode,
   ]);
 
   const filteredLodicky = useMemo(() => {
-    const needle = searchInput.trim().toLowerCase();
+    const tokens = searchPlan.freeTokens;
     return PROTO_LODICKY_CATALOG.filter((lodicka) => {
       if (effectiveScope === "moje" && activeRole === "garant" && activeUserId) {
         if (lodicka.garantId !== activeUserId) return false;
       }
-      if (lodickyPredmetFilter.length > 0 && !lodickyPredmetFilter.includes(lodicka.predmet)) {
-        return false;
-      }
       if (
-        lodickyPodpredmetFilter.length > 0 &&
-        !lodickyPodpredmetFilter.includes(lodicka.podpředmět ?? "-")
+        effectiveLodickyPredmetFilter.length > 0 &&
+        !effectiveLodickyPredmetFilter.includes(lodicka.predmet)
       ) {
         return false;
       }
-      if (lodickyOblastFilter.length > 0 && !lodickyOblastFilter.includes(lodicka.oblast)) {
+      if (
+        effectiveLodickyPodpredmetFilter.length > 0 &&
+        !effectiveLodickyPodpredmetFilter.includes(lodicka.podpředmět ?? "-")
+      ) {
+        return false;
+      }
+      if (
+        effectiveLodickyOblastFilter.length > 0 &&
+        !effectiveLodickyOblastFilter.includes(lodicka.oblast)
+      ) {
         return false;
       }
       if (
         showGarantControls &&
-        lodickyGarantFilter.length > 0 &&
-        !lodickyGarantFilter.includes(getGuideDisplayName(lodicka.garantId))
+        effectiveLodickyGarantFilter.length > 0 &&
+        !effectiveLodickyGarantFilter.includes(getGuideDisplayName(lodicka.garantId))
       ) {
         return false;
       }
-      if (needle && viewMode === "po_lodickach") {
-        const searchSpace = `${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast} ${lodicka.predmet}`.toLowerCase();
-        if (!searchSpace.includes(needle)) return false;
+      if (tokens.length > 0 && viewMode === "po_lodickach") {
+        const haystack = normalizeSearch(
+          `${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast} ${lodicka.predmet} ${lodicka.podpředmět ?? ""} ${getGuideDisplayName(lodicka.garantId)}`,
+        );
+        if (!tokens.every((token) => haystack.includes(token))) return false;
       }
       return true;
     });
   }, [
     activeRole,
     activeUserId,
+    effectiveLodickyGarantFilter,
+    effectiveLodickyOblastFilter,
+    effectiveLodickyPodpredmetFilter,
+    effectiveLodickyPredmetFilter,
     effectiveScope,
-    lodickyGarantFilter,
-    lodickyOblastFilter,
-    lodickyPodpredmetFilter,
-    lodickyPredmetFilter,
-    searchInput,
+    searchPlan.freeTokens,
     showGarantControls,
     viewMode,
   ]);
@@ -401,87 +497,79 @@ function OsobniLodickyPrototypePageInner() {
   ]);
 
   const suggestions = useMemo(() => {
-    const needle = searchInput.trim().toLowerCase();
-    if (!needle) return [] as SearchSuggestion[];
+    if (!searchInput.trim()) return [] as SearchSuggestion[];
     const output: SearchSuggestion[] = [];
+    const seen = new Set<string>();
+    const tokens = tokenizeSearch(searchInput);
 
+    const filterMatchers: Array<{
+      type: SearchSuggestion["type"];
+      label: string;
+      options: string[];
+    }> = [
+      { type: "smecka", label: "Smečka", options: filterOptions.smecky },
+      { type: "rocnik", label: "Ročník", options: filterOptions.rocniky },
+      { type: "stupen", label: "Stupeň", options: filterOptions.stupne },
+      { type: "predmet", label: "Předmět", options: filterOptions.predmety },
+      { type: "podpredmet", label: "Podpředmět", options: filterOptions.podpredmety },
+      { type: "oblast", label: "Oblast", options: filterOptions.oblasti },
+      ...(showGarantControls
+        ? [{ type: "garant" as const, label: "Garant", options: filterOptions.garanti }]
+        : []),
+    ];
+
+    tokens.forEach((token) => {
+      filterMatchers.forEach((matcher) => {
+        matcher.options
+          .filter((option) => normalizeSearch(option).includes(token))
+          .slice(0, 2)
+          .forEach((option) => {
+            const id = `${matcher.type}-${option}-${token}`;
+            if (seen.has(id)) return;
+            seen.add(id);
+            output.push({
+              id,
+              label: `${matcher.label}: ${matcher.type === "rocnik" ? formatRocnikLabel(Number(option)) : matcher.type === "stupen" ? `${option}. stupeň` : option}`,
+              type: matcher.type,
+              value: option,
+              token,
+            });
+          });
+      });
+    });
+
+    const queryNeedle = normalizeSearch(searchInput);
     if (viewMode === "po_lidech") {
-      const smecky = [...new Set(filteredStudents.map((student) => student.smecka))];
-      smecky.forEach((smecka) => {
-        if (smecka.toLowerCase().includes(needle)) {
-          output.push({ id: `smecka-${smecka}`, label: `Smečka: ${smecka}`, type: "smecka", value: smecka });
-        }
-      });
-
-      filteredStudents.forEach((student) => {
-        const display = getStudentDisplayName(student, activeRole);
-        const haystack = `${display} ${student.jmeno} ${student.prezdivka}`.toLowerCase();
-        if (haystack.includes(needle)) {
-          output.push({
-            id: `student-${student.id}`,
-            label: `Žák: ${display}`,
-            type: "student",
-            value: display,
-          });
-        }
-      });
+      filteredStudents
+        .filter((student) =>
+          normalizeSearch(`${student.jmeno} ${student.prezdivka} ${getFirstName(student.jmeno)}`).includes(queryNeedle),
+        )
+        .slice(0, 3)
+        .forEach((student) => {
+          const display = getStudentDisplayName(student, activeRole);
+          const id = `student-${student.id}`;
+          if (seen.has(id)) return;
+          seen.add(id);
+          output.push({ id, label: `Dítě: ${display}`, type: "student", value: display });
+        });
     } else {
-      filteredLodicky.forEach((lodicka) => {
-        if (lodicka.nazev.toLowerCase().includes(needle)) {
-          output.push({
-            id: `lodicka-${lodicka.id}`,
-            label: `Lodička: ${lodicka.nazev}`,
-            type: "lodicka",
-            value: lodicka.nazev,
-          });
-        }
-        if (lodicka.oblast.toLowerCase().includes(needle)) {
-          output.push({
-            id: `oblast-${lodicka.id}`,
-            label: `Oblast: ${lodicka.oblast}`,
-            type: "oblast",
-            value: lodicka.oblast,
-          });
-        }
-        if (lodicka.predmet.toLowerCase().includes(needle)) {
-          output.push({
-            id: `predmet-${lodicka.id}`,
-            label: `Předmět: ${lodicka.predmet}`,
-            type: "predmet",
-            value: lodicka.predmet,
-          });
-        }
-      });
+      filteredLodicky
+        .filter((lodicka) =>
+          normalizeSearch(`${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast}`).includes(queryNeedle),
+        )
+        .slice(0, 3)
+        .forEach((lodicka) => {
+          const id = `lodicka-${lodicka.id}`;
+          if (seen.has(id)) return;
+          seen.add(id);
+          output.push({ id, label: `Lodička: ${lodicka.nazev}`, type: "lodicka", value: lodicka.nazev });
+        });
     }
 
-    return output.slice(0, 8);
-  }, [activeRole, filteredLodicky, filteredStudents, searchInput, viewMode]);
+    return output.slice(0, 10);
+  }, [activeRole, filterOptions, filteredLodicky, filteredStudents, searchInput, showGarantControls, viewMode]);
 
-  const options = useMemo(() => {
-    const rocniky = [...new Set(PROTO_STUDENTS.map((student) => String(student.rocnik)))].sort(
-      (a, b) => Number(a) - Number(b),
-    );
-
-    const garanti = [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => getGuideDisplayName(lodicka.garantId)))].sort(
-      (a, b) => a.localeCompare(b, "cs"),
-    );
-
-    return {
-      stupne: ["1", "2"],
-      rocniky,
-      smecky: [...new Set(PROTO_STUDENTS.map((student) => student.smecka))].sort((a, b) => a.localeCompare(b, "cs")),
-      predmety: [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => lodicka.predmet))].sort((a, b) =>
-        a.localeCompare(b, "cs"),
-      ),
-      podpredmety: [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => lodicka.podpředmět ?? "-"))].sort((a, b) =>
-        a.localeCompare(b, "cs"),
-      ),
-      oblasti: [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => lodicka.oblast))].sort((a, b) =>
-        a.localeCompare(b, "cs"),
-      ),
-      garanti,
-    };
-  }, []);
+  const options = filterOptions;
 
   const leftTableId = viewMode === "po_lodickach" ? "T221" : "T222";
   const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
@@ -527,6 +615,7 @@ function OsobniLodickyPrototypePageInner() {
     setLodickyOblastFilter([]);
     setLodickyGarantFilter([]);
     setSearchInput("");
+    setSuggestionsOpen(false);
 
     pushDebug({
       elementId: "BTN-CLEAR-FILTERS",
@@ -539,16 +628,29 @@ function OsobniLodickyPrototypePageInner() {
   function applySuggestion(suggestion: SearchSuggestion, index: number) {
     if (suggestion.type === "smecka") {
       setPeopleSmeckaFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
-      setSearchInput("");
+      setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
+    } else if (suggestion.type === "rocnik") {
+      setPeopleRocnikFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
+      setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
+    } else if (suggestion.type === "stupen") {
+      setPeopleStupenFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
+      setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
     } else if (suggestion.type === "oblast") {
       setLodickyOblastFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
-      setSearchInput("");
+      setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
     } else if (suggestion.type === "predmet") {
       setLodickyPredmetFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
-      setSearchInput("");
+      setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
+    } else if (suggestion.type === "podpredmet") {
+      setLodickyPodpredmetFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
+      setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
+    } else if (suggestion.type === "garant") {
+      setLodickyGarantFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
+      setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
     } else {
       setSearchInput(suggestion.value);
     }
+    setSuggestionsOpen(false);
 
     pushDebug({
       elementId: `SRCH-SUG-${index + 1}`,
@@ -785,8 +887,12 @@ function OsobniLodickyPrototypePageInner() {
                   <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                     Datum pohledu
                   </span>
-                  <div className="flex items-center gap-2 rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] px-3 py-2">
-                    <CalendarDays className="size-4 text-[#0A4DA6]" />
+                  <div
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
+                      hasHistoricalViewDate ? "border-[#DA0100] bg-[#FFF3F3]" : "border-[#D9E4F2] bg-[#F8FBFF]"
+                    }`}
+                  >
+                    <CalendarDays className={`size-4 ${hasHistoricalViewDate ? "text-[#DA0100]" : "text-[#0A4DA6]"}`} />
                     <input
                       type="date"
                       min={semesterBounds.minDate}
@@ -803,12 +909,19 @@ function OsobniLodickyPrototypePageInner() {
                           payload: `date=${clamped}`,
                         });
                       }}
-                      className="w-full bg-transparent text-sm text-slate-700 outline-none"
+                      className={`w-full bg-transparent text-sm outline-none ${
+                        hasHistoricalViewDate ? "text-[#B42318]" : "text-slate-700"
+                      }`}
                     />
                   </div>
                   <span className="mt-1 block text-[11px] text-slate-500">
                     Aktivní pololetí: {formatDateCz(semesterBounds.minDate)} až {formatDateCz(semesterBounds.maxDate)}
                   </span>
+                  {hasHistoricalViewDate && (
+                    <span className="mt-1 block text-[11px] font-medium text-[#B42318]">
+                      Zobrazuješ historické datum.
+                    </span>
+                  )}
                 </label>
               </div>
 
@@ -817,16 +930,22 @@ function OsobniLodickyPrototypePageInner() {
                   <Search className="size-4 text-[#0A4DA6]" />
                   <input
                     value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
+                    onFocus={() => setSuggestionsOpen(true)}
+                    onChange={(e) => {
+                      setSearchInput(e.target.value);
+                      setSuggestionsOpen(true);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && suggestions.length > 0) {
                         e.preventDefault();
                         applySuggestion(suggestions[0], 0);
+                        return;
                       }
+                      if (e.key === "Escape") setSuggestionsOpen(false);
                     }}
                     placeholder={
                       viewMode === "po_lidech"
-                        ? "Vyhledat žáka nebo smečku (např. Indi)"
+                        ? "Vyhledat dítě nebo smečku (např. Fénix)"
                         : "Vyhledat lodičku, oblast nebo předmět"
                     }
                     className="w-full text-sm text-slate-700 outline-none"
@@ -837,12 +956,13 @@ function OsobniLodickyPrototypePageInner() {
                   </Badge>
                 </div>
 
-                {suggestions.length > 0 && (
+                {suggestionsOpen && suggestions.length > 0 && (
                   <div className="absolute top-[calc(100%+6px)] z-20 w-full rounded-xl border border-[#D9E4F2] bg-white p-1 shadow-xl">
                     {suggestions.map((suggestion, index) => (
                       <button
                         key={suggestion.id}
                         type="button"
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => applySuggestion(suggestion, index)}
                         className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-[#F4F8FF]"
                       >
@@ -862,21 +982,21 @@ function OsobniLodickyPrototypePageInner() {
                     <MultiToggleSelect
                       label="Stupeň"
                       options={options.stupne}
-                      value={peopleStupenFilter}
+                      value={effectivePeopleStupenFilter}
                       onChange={setPeopleStupenFilter}
                       renderOptionLabel={(option) => `${option}. stupeň`}
                     />
                     <MultiToggleSelect
                       label="Ročník"
                       options={options.rocniky}
-                      value={peopleRocnikFilter}
+                      value={effectivePeopleRocnikFilter}
                       onChange={setPeopleRocnikFilter}
                       renderOptionLabel={(option) => `${option}. ročník`}
                     />
                     <MultiToggleSelect
                       label="Smečka"
                       options={options.smecky}
-                      value={peopleSmeckaFilter}
+                      value={effectivePeopleSmeckaFilter}
                       onChange={setPeopleSmeckaFilter}
                     />
                   </CardContent>
@@ -890,26 +1010,26 @@ function OsobniLodickyPrototypePageInner() {
                     <MultiToggleSelect
                       label="Předmět"
                       options={options.predmety}
-                      value={lodickyPredmetFilter}
+                      value={effectiveLodickyPredmetFilter}
                       onChange={setLodickyPredmetFilter}
                     />
                     <MultiToggleSelect
                       label="Podpředmět"
                       options={options.podpredmety}
-                      value={lodickyPodpredmetFilter}
+                      value={effectiveLodickyPodpredmetFilter}
                       onChange={setLodickyPodpredmetFilter}
                     />
                     <MultiToggleSelect
                       label="Oblast"
                       options={options.oblasti}
-                      value={lodickyOblastFilter}
+                      value={effectiveLodickyOblastFilter}
                       onChange={setLodickyOblastFilter}
                     />
                     {showGarantControls && (
                       <MultiToggleSelect
                         label="Garant"
                         options={options.garanti}
-                        value={lodickyGarantFilter}
+                        value={effectiveLodickyGarantFilter}
                         onChange={setLodickyGarantFilter}
                       />
                     )}
@@ -1185,8 +1305,8 @@ function DetailSheet({
   const highlightedEventId = state.type === "personal" ? state.eventId : undefined;
   const detailWidthClass =
     state.type === "personal"
-      ? "w-[92vw] max-w-[980px] sm:max-w-[980px]"
-      : "w-[90vw] max-w-[760px] sm:max-w-[760px]";
+      ? "w-[90vw] max-w-[860px] sm:max-w-[860px]"
+      : "w-[88vw] max-w-[680px] sm:max-w-[680px]";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -1575,13 +1695,13 @@ function renderLeftPaneRows({
             }
           >
             <TableCell className="font-medium text-[#05204A]">
-              <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5">
                 <span>{item.lodicka.nazev}</span>
                 <Button
                   type="button"
                   size="xs"
                   variant="ghost"
-                  className="h-6 w-6 p-0 text-slate-500 hover:text-[#0A4DA6]"
+                  className="h-5 w-5 p-0 text-slate-500 hover:text-[#0A4DA6]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenLodickaDetail(item.lodicka.id, String(rowCounter), tableId);
@@ -1639,13 +1759,13 @@ function renderLeftPaneRows({
           }
         >
           <TableCell className="font-medium text-[#05204A]">
-            <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5">
               <span>{displayName}</span>
               <Button
                 type="button"
                 size="xs"
                 variant="ghost"
-                className="h-6 w-6 p-0 text-slate-500 hover:text-[#0A4DA6]"
+                className="h-5 w-5 p-0 text-slate-500 hover:text-[#0A4DA6]"
                 onClick={(event) => {
                   event.stopPropagation();
                   onOpenStudentDetail(item.student.id, String(rowCounter), tableId);
@@ -1734,14 +1854,14 @@ function renderRightPaneRows({
           }
         >
           <TableCell className="font-medium text-[#05204A]">
-            <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5">
               <span>{rowLabel}</span>
               {viewMode === "po_lodickach" ? (
                 <Button
                   type="button"
                   size="xs"
                   variant="ghost"
-                  className="h-6 w-6 p-0 text-slate-500 hover:text-[#0A4DA6]"
+                  className="h-5 w-5 p-0 text-slate-500 hover:text-[#0A4DA6]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenStudentDetail(row.student.id, String(rowCounter), tableId);
@@ -1754,7 +1874,7 @@ function renderRightPaneRows({
                   type="button"
                   size="xs"
                   variant="ghost"
-                  className="h-6 w-6 p-0 text-slate-500 hover:text-[#0A4DA6]"
+                  className="h-5 w-5 p-0 text-slate-500 hover:text-[#0A4DA6]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenLodickaDetail(row.lodicka.id, String(rowCounter), tableId);
@@ -1802,6 +1922,122 @@ function renderRightPaneRows({
 
     return result;
   });
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function tokenizeSearch(value: string): string[] {
+  return normalizeSearch(value)
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+function uniqueValues(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+function findUniqueFilterMatch(token: string, options: string[]) {
+  const matches = options.filter((option) => normalizeSearch(option).includes(token));
+  if (matches.length !== 1) return null;
+  const value = matches[0];
+  if (!value) return null;
+  const normalized = normalizeSearch(value);
+  const score = normalized === token ? 3 : normalized.startsWith(token) ? 2 : 1;
+  return { value, score };
+}
+
+function buildSmartSearchPlan(
+  input: string,
+  options: {
+    stupne: string[];
+    rocniky: string[];
+    smecky: string[];
+    predmety: string[];
+    podpredmety: string[];
+    oblasti: string[];
+    garanti: string[];
+  },
+) {
+  const tokens = tokenizeSearch(input);
+  const plan = {
+    people: { stupen: [] as string[], rocnik: [] as string[], smecka: [] as string[] },
+    lodicky: {
+      predmet: [] as string[],
+      podpredmet: [] as string[],
+      oblast: [] as string[],
+      garant: [] as string[],
+    },
+    freeTokens: [] as string[],
+  };
+
+  tokens.forEach((token) => {
+    const candidates: Array<{ score: number; apply: () => void }> = [];
+
+    const smecka = findUniqueFilterMatch(token, options.smecky);
+    if (smecka) candidates.push({ score: smecka.score, apply: () => plan.people.smecka.push(smecka.value) });
+
+    const rocnik = findUniqueFilterMatch(token, options.rocniky);
+    if (rocnik) candidates.push({ score: rocnik.score, apply: () => plan.people.rocnik.push(rocnik.value) });
+
+    const stupen = findUniqueFilterMatch(token, options.stupne);
+    if (stupen) candidates.push({ score: stupen.score, apply: () => plan.people.stupen.push(stupen.value) });
+
+    const predmet = findUniqueFilterMatch(token, options.predmety);
+    if (predmet) candidates.push({ score: predmet.score, apply: () => plan.lodicky.predmet.push(predmet.value) });
+
+    const podpredmet = findUniqueFilterMatch(token, options.podpredmety);
+    if (podpredmet) {
+      candidates.push({ score: podpredmet.score + 1, apply: () => plan.lodicky.podpredmet.push(podpredmet.value) });
+    }
+
+    const oblast = findUniqueFilterMatch(token, options.oblasti);
+    if (oblast) candidates.push({ score: oblast.score, apply: () => plan.lodicky.oblast.push(oblast.value) });
+
+    const garant = findUniqueFilterMatch(token, options.garanti);
+    if (garant) candidates.push({ score: garant.score, apply: () => plan.lodicky.garant.push(garant.value) });
+
+    if (candidates.length === 0) {
+      plan.freeTokens.push(token);
+      return;
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+    const best = candidates[0];
+    const second = candidates[1];
+    if (best && (!second || best.score > second.score)) {
+      best.apply();
+    } else {
+      plan.freeTokens.push(token);
+    }
+  });
+
+  plan.people.stupen = uniqueValues(plan.people.stupen);
+  plan.people.rocnik = uniqueValues(plan.people.rocnik);
+  plan.people.smecka = uniqueValues(plan.people.smecka);
+  plan.lodicky.predmet = uniqueValues(plan.lodicky.predmet);
+  plan.lodicky.podpredmet = uniqueValues(plan.lodicky.podpredmet);
+  plan.lodicky.oblast = uniqueValues(plan.lodicky.oblast);
+  plan.lodicky.garant = uniqueValues(plan.lodicky.garant);
+
+  return plan;
+}
+
+function removeTokenFromSearch(searchInput: string, token: string): string {
+  const normalizedToken = normalizeSearch(token);
+  if (!normalizedToken) return searchInput;
+  const parts = searchInput
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  const kept = parts.filter((part) => normalizeSearch(part) !== normalizedToken);
+  return kept.join(" ");
 }
 
 function getGuideDisplayName(actorId: string): string {
