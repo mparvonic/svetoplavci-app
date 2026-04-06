@@ -188,6 +188,9 @@ function OsobniLodickyPrototypePageInner() {
   const [viewportWidth, setViewportWidth] = useState<number>(0);
   const [panesHeight, setPanesHeight] = useState<number>(420);
   const panesSectionRef = useRef<HTMLElement | null>(null);
+  const pushDebug = useCallback((event: Omit<ProtoDebugEvent, "id" | "at">) => {
+    setDebugEvents((prev) => [createProtoDebugEvent(event), ...prev].slice(0, 80));
+  }, []);
 
   const isWideLayout = viewportWidth >= DESKTOP_BASE_WIDTH;
   const paneCardStyle = isWideLayout ? { maxHeight: `${panesHeight}px` } : undefined;
@@ -738,10 +741,6 @@ function OsobniLodickyPrototypePageInner() {
 
   const leftTableId = viewMode === "po_lodickach" ? "T221" : "T222";
   const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
-
-  function pushDebug(event: Omit<ProtoDebugEvent, "id" | "at">) {
-    setDebugEvents((prev) => [createProtoDebugEvent(event), ...prev].slice(0, 80));
-  }
 
   function handleRoleChange(value: string) {
     const nextRole = normalizeRole(value);
