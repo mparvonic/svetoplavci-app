@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState, type ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { CalendarDays, ChevronDown, ChevronUp, Filter, Search } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ProtoDebugPanel, createProtoDebugEvent, type ProtoDebugEvent } from "@/components/proto/proto-debug-panel";
 import { ProtoEdgePanel } from "@/components/proto/proto-edge-panel";
@@ -43,7 +44,7 @@ import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 type ScopeMode = "moje" | "vsechny";
 type ViewMode = "po_lodickach" | "po_lidech";
 type PaneSort = "nazev" | "garant" | "jmeno" | "rocnik" | "stav";
-type PeopleGroupKey = "smecka" | "rocnik";
+type PeopleGroupKey = "smecka" | "rocnik" | "none";
 type LodickaGroupKey = "predmet" | "podpredmet" | "oblast" | "garant";
 
 type SearchSuggestion = {
@@ -76,11 +77,11 @@ const RIGHT_TABLE_LODICKY = "T321";
 const RIGHT_TABLE_LIDE = "T322";
 
 const STATUS_BUTTONS: Array<{ value: LodickaStav; label: string }> = [
-  { value: 0, label: "Nez." },
-  { value: 1, label: "Roz." },
-  { value: 2, label: "Dop." },
-  { value: 3, label: "Čás." },
-  { value: 4, label: "Sam." },
+  { value: 0, label: "0" },
+  { value: 1, label: "1" },
+  { value: 2, label: "2" },
+  { value: 3, label: "3" },
+  { value: 4, label: "4" },
 ];
 
 function OsobniLodickyPrototypePageInner() {
@@ -692,7 +693,7 @@ function OsobniLodickyPrototypePageInner() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Osobní lodičky</p>
           <h1 className="text-2xl font-semibold text-[#05204A]">Kompaktní pohled pro práci Garanta</h1>
           <p className="text-sm text-slate-600">
-            Dvě tabulky + pomocné okno na jedné obrazovce, minimum klikání, detail přes `(i)` a modal.
+            Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal.
           </p>
         </header>
 
@@ -761,7 +762,7 @@ function OsobniLodickyPrototypePageInner() {
                   label="Pohled"
                   options={[
                     { id: "po_lodickach", label: "Po lodičkách" },
-                    { id: "po_lidech", label: "Po lidech" },
+                    { id: "po_lidech", label: "Po dětech" },
                   ]}
                   value={viewMode}
                   onChange={(value) => {
@@ -855,7 +856,7 @@ function OsobniLodickyPrototypePageInner() {
               <div className="grid gap-4 xl:grid-cols-2">
                 <Card className="border-[#E3ECF9]">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base text-[#05204A]">Filtry po lidech</CardTitle>
+                    <CardTitle className="text-base text-[#05204A]">Filtry po dětech</CardTitle>
                   </CardHeader>
                   <CardContent className="grid gap-3">
                     <MultiToggleSelect
@@ -934,12 +935,12 @@ function OsobniLodickyPrototypePageInner() {
           )}
         </Card>
 
-        <section className="grid gap-4 xl:grid-cols-[0.49fr_0.51fr]">
+        <section className="grid gap-4 xl:grid-cols-[0.32fr_0.43fr_0.25fr]">
           <Card className="border-[#D9E4F2]">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-[#05204A]">{viewMode === "po_lodickach" ? "Lodičky" : "Lidé"}</CardTitle>
+                  <CardTitle className="text-[#05204A]">{viewMode === "po_lodickach" ? "Lodičky" : "Děti"}</CardTitle>
                   <CardDescription>
                     {viewMode === "po_lodickach"
                       ? "Výběr lodičky určuje obsah pravého panelu."
@@ -972,6 +973,7 @@ function OsobniLodickyPrototypePageInner() {
                       options={[
                         { id: "smecka", label: "Smečky" },
                         { id: "rocnik", label: "Ročníky" },
+                        { id: "none", label: "Neseskupovat" },
                       ]}
                     />
                   )}
@@ -1015,7 +1017,7 @@ function OsobniLodickyPrototypePageInner() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-[#05204A]">
-                    {viewMode === "po_lodickach" ? "Lidé pro vybranou lodičku" : "Lodičky vybraného dítěte"}
+                    {viewMode === "po_lodickach" ? "Děti pro vybranou lodičku" : "Lodičky vybraného dítěte"}
                   </CardTitle>
                   <CardDescription>Stav měníš přímo v řádku (read-only role bez editace).</CardDescription>
                 </div>
@@ -1058,57 +1060,59 @@ function OsobniLodickyPrototypePageInner() {
               </Table>
             </CardContent>
           </Card>
-        </section>
 
-        <Card className="border-[#D9E4F2]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[#05204A]">
-              {selectedPersonalRow
-                ? getStudentDisplayName(selectedPersonalRow.student, activeRole)
-                : "Historie osobní lodičky"}
-            </CardTitle>
-            <CardDescription>Zobrazuju pouze datum stavu a stav. Tlačítko Detail otevře kompletní metadata.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Datum stavu</TableHead>
-                  <TableHead>Stav</TableHead>
-                  <TableHead className="text-right">Detail</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {selectedPersonalHistory.length === 0 && (
+          <Card className="border-[#D9E4F2]">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-[#05204A]">
+                {selectedPersonalRow
+                  ? getStudentDisplayName(selectedPersonalRow.student, activeRole)
+                  : "Historie osobní lodičky"}
+              </CardTitle>
+              <CardDescription>
+                Zobrazuju pouze datum stavu a stav. Tlačítko Detail otevře kompletní metadata.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="h-[420px] overflow-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={3} className="py-6 text-center text-slate-500">
-                      Pro vybranou položku zatím nejsou eventy.
-                    </TableCell>
+                    <TableHead>Datum stavu</TableHead>
+                    <TableHead>Stav</TableHead>
+                    <TableHead className="text-right">Detail</TableHead>
                   </TableRow>
-                )}
-                {selectedPersonalHistory.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell>{formatDateCz(event.datumStavu)}</TableCell>
-                    <TableCell>
-                      <Badge className={stavBadgeClass(event.stav)}>{LODICKA_STAV_LABEL[event.stav]}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="border-[#D9E4F2]"
-                        onClick={() => openPersonalDetail(event.osobniLodickaId, event.id)}
-                      >
-                        Detail
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {selectedPersonalHistory.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={3} className="py-6 text-center text-slate-500">
+                        Pro vybranou položku zatím nejsou eventy.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {selectedPersonalHistory.map((event) => (
+                    <TableRow key={event.id}>
+                      <TableCell>{formatDateCz(event.datumStavu)}</TableCell>
+                      <TableCell>
+                        <Badge className={stavBadgeClass(event.stav)}>{LODICKA_STAV_LABEL[event.stav]}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-[#D9E4F2]"
+                          onClick={() => openPersonalDetail(event.osobniLodickaId, event.id)}
+                        >
+                          Detail
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </section>
       </section>
 
       <DetailSheet
@@ -1182,7 +1186,7 @@ function DetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full max-w-[760px] overflow-y-auto">
+      <SheetContent side="right" className="w-[96vw] max-w-[1200px] sm:max-w-[1200px] overflow-y-auto">
         {state.type === "student" && student && (
           <>
             <SheetHeader>
@@ -1573,12 +1577,13 @@ function renderLeftPaneRows({
                   type="button"
                   size="xs"
                   variant="ghost"
+                  className="h-6 w-6 p-0 text-slate-500 hover:text-[#0A4DA6]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenLodickaDetail(item.lodicka.id, String(rowCounter), tableId);
                   }}
                 >
-                  (i)
+                  <Info className="size-3.5" />
                 </Button>
               </div>
             </TableCell>
@@ -1593,18 +1598,23 @@ function renderLeftPaneRows({
   }
 
   const students = items.filter((item): item is LeftStudentItem => item.kind === "student");
-  const grouped = groupBy(students, (item) =>
-    peopleGroupBy === "rocnik" ? formatRocnikLabel(item.student.rocnik) : item.student.smecka,
-  );
+  const grouped = groupBy(students, (item) => {
+    if (peopleGroupBy === "none") return "__all__";
+    if (peopleGroupBy === "rocnik") return formatRocnikLabel(item.student.rocnik);
+    return item.student.smecka;
+  });
 
   return grouped.flatMap(([groupName, groupItems]) => {
-    const rows: ReactElement[] = [
-      <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
-        <TableCell colSpan={2} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
-          {groupName} ({groupItems.length})
-        </TableCell>
-      </TableRow>,
-    ];
+    const rows: ReactElement[] = [];
+    if (peopleGroupBy !== "none") {
+      rows.push(
+        <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
+          <TableCell colSpan={2} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
+            {groupName} ({groupItems.length})
+          </TableCell>
+        </TableRow>,
+      );
+    }
 
     groupItems.forEach((item) => {
       rowCounter += 1;
@@ -1631,12 +1641,13 @@ function renderLeftPaneRows({
                 type="button"
                 size="xs"
                 variant="ghost"
+                className="h-6 w-6 p-0 text-slate-500 hover:text-[#0A4DA6]"
                 onClick={(event) => {
                   event.stopPropagation();
                   onOpenStudentDetail(item.student.id, String(rowCounter), tableId);
                 }}
               >
-                (i)
+                <Info className="size-3.5" />
               </Button>
             </div>
           </TableCell>
@@ -1678,7 +1689,8 @@ function renderRightPaneRows({
 }) {
   const grouped = groupBy(rows, (row) => {
     if (viewMode === "po_lodickach") {
-      return peopleGroupBy === "rocnik" ? formatRocnikLabel(row.student.rocnik) : row.student.smecka;
+      if (peopleGroupBy === "rocnik") return formatRocnikLabel(row.student.rocnik);
+      return row.student.smecka;
     }
     return buildLodickaGroupLabel(row.lodicka, lodickaGroupKeys);
   });
@@ -1687,7 +1699,7 @@ function renderRightPaneRows({
 
   return grouped.flatMap(([groupName, groupItems]) => {
     const result: ReactElement[] = [];
-    const hasGroupHeader = viewMode === "po_lodickach" || lodickaGroupKeys.length > 0;
+    const hasGroupHeader = viewMode === "po_lodickach" || (viewMode === "po_lidech" && lodickaGroupKeys.length > 0);
     if (hasGroupHeader) {
       result.push(
         <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
@@ -1725,24 +1737,26 @@ function renderRightPaneRows({
                   type="button"
                   size="xs"
                   variant="ghost"
+                  className="h-6 w-6 p-0 text-slate-500 hover:text-[#0A4DA6]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenStudentDetail(row.student.id, String(rowCounter), tableId);
                   }}
                 >
-                  (i)
+                  <Info className="size-3.5" />
                 </Button>
               ) : (
                 <Button
                   type="button"
                   size="xs"
                   variant="ghost"
+                  className="h-6 w-6 p-0 text-slate-500 hover:text-[#0A4DA6]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenLodickaDetail(row.lodicka.id, String(rowCounter), tableId);
                   }}
                 >
-                  (i)
+                  <Info className="size-3.5" />
                 </Button>
               )}
             </div>
@@ -1751,24 +1765,32 @@ function renderRightPaneRows({
             <Badge className={stavBadgeClass(row.stav)}>{LODICKA_STAV_LABEL[row.stav]}</Badge>
           </TableCell>
           <TableCell className="text-right">
-            <div className="inline-flex gap-1">
-              {STATUS_BUTTONS.map((statusButton) => (
-                <Button
-                  key={statusButton.value}
-                  type="button"
-                  size="xs"
-                  variant={row.stav === statusButton.value ? "default" : "outline"}
-                  disabled={readonly}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onSetStatus(row.personal.id, statusButton.value);
-                  }}
-                  className={row.stav === statusButton.value ? "bg-[#002060] text-white" : ""}
-                >
-                  {statusButton.label}
-                </Button>
-              ))}
-            </div>
+            <TooltipProvider delayDuration={450}>
+              <div className="inline-flex gap-1">
+                {STATUS_BUTTONS.map((statusButton) => (
+                  <Tooltip key={statusButton.value}>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant={row.stav === statusButton.value ? "default" : "outline"}
+                        disabled={readonly}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSetStatus(row.personal.id, statusButton.value);
+                        }}
+                        className={row.stav === statusButton.value ? "bg-[#002060] text-white" : ""}
+                      >
+                        {statusButton.label}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" sideOffset={8}>
+                      {LODICKA_STAV_LABEL[statusButton.value]}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            </TooltipProvider>
           </TableCell>
         </TableRow>,
       );
