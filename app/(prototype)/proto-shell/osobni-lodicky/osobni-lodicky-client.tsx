@@ -1183,10 +1183,14 @@ function DetailSheet({
       : [];
 
   const highlightedEventId = state.type === "personal" ? state.eventId : undefined;
+  const detailWidthClass =
+    state.type === "personal"
+      ? "w-[92vw] max-w-[980px] sm:max-w-[980px]"
+      : "w-[90vw] max-w-[760px] sm:max-w-[760px]";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-[96vw] max-w-[1200px] sm:max-w-[1200px] overflow-y-auto">
+      <SheetContent side="right" className={`${detailWidthClass} overflow-y-auto`}>
         {state.type === "student" && student && (
           <>
             <SheetHeader>
@@ -1265,7 +1269,7 @@ function DetailSheet({
                 <InfoCell label="Kód lodičky" value={lodicka.kod} />
               </div>
 
-              <Table>
+              <Table className="min-w-[860px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Datum stavu</TableHead>
