@@ -277,8 +277,9 @@ function OsobniLodickyPrototypePageInner() {
         podpredmety: filterOptions.podpredmety,
         oblasti: filterOptions.oblasti,
         garanti: showGarantControls ? filterOptions.garanti : [],
+        studentHaystacks: accessibleStudents.map((student) => buildStudentSearchHaystack(student)),
       }),
-    [filterOptions, searchInput, showGarantControls],
+    [accessibleStudents, filterOptions, searchInput, showGarantControls],
   );
 
   const effectivePeopleStupenFilter = useMemo(
@@ -2060,6 +2061,7 @@ function buildSmartSearchPlan(
     podpredmety: string[];
     oblasti: string[];
     garanti: string[];
+    studentHaystacks: string[];
   },
 ) {
   const tokens = tokenizeSearch(input);
@@ -2097,8 +2099,11 @@ function buildSmartSearchPlan(
     const oblast = findUniqueFilterMatch(token, options.oblasti);
     if (oblast) candidates.push({ score: oblast.score, apply: () => plan.lodicky.oblast.push(oblast.value) });
 
+    const hasStudentNameMatch = options.studentHaystacks.some((haystack) => haystack.includes(token));
     const garant = findUniqueFilterMatch(token, options.garanti);
-    if (garant) candidates.push({ score: garant.score, apply: () => plan.lodicky.garant.push(garant.value) });
+    if (garant && !hasStudentNameMatch) {
+      candidates.push({ score: garant.score, apply: () => plan.lodicky.garant.push(garant.value) });
+    }
 
     if (candidates.length === 0) {
       plan.freeTokens.push(token);
