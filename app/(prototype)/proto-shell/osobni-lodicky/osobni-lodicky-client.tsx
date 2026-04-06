@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState, type ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -319,8 +319,10 @@ function OsobniLodickyPrototypePageInner() {
         return false;
       }
       if (tokens.length > 0 && viewMode === "po_lidech") {
+        const firstName = getFirstName(student.jmeno);
+        const lastName = getLastName(student.jmeno);
         const haystack = normalizeSearch(
-          `${student.jmeno} ${student.prezdivka} ${getFirstName(student.jmeno)} ${student.smecka} ${student.rocnik}`,
+          `${student.jmeno} ${firstName} ${lastName} ${student.prezdivka} ${student.smecka} ${student.rocnik}`,
         );
         if (!tokens.every((token) => haystack.includes(token))) return false;
       }
@@ -950,6 +952,20 @@ function OsobniLodickyPrototypePageInner() {
                     }
                     className="w-full text-sm text-slate-700 outline-none"
                   />
+                  {searchInput.trim().length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchInput("");
+                        setSuggestionsOpen(false);
+                      }}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                      aria-label="Vymazat vyhledávání"
+                      title="Vymazat vyhledávání"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
                   <Badge className="bg-[#F2F7FF] text-[#0A4DA6] hover:bg-[#F2F7FF]">
                     <Filter className="mr-1 size-3.5" />
                     fulltext
@@ -973,7 +989,7 @@ function OsobniLodickyPrototypePageInner() {
                 )}
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
                 <Card className="border-[#E3ECF9]">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base text-[#05204A]">Filtry po dětech</CardTitle>
@@ -1193,18 +1209,35 @@ function OsobniLodickyPrototypePageInner() {
               </CardDescription>
             </CardHeader>
             <CardContent className="h-[420px] overflow-auto">
+              <div className="mb-2 flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="border-[#D9E4F2]"
+                  disabled={!selectedPersonalRow}
+                  onClick={() => {
+                    if (!selectedPersonalRow) return;
+                    openPersonalDetail(
+                      selectedPersonalRow.personal.id,
+                      selectedPersonalHistory[0]?.id,
+                    );
+                  }}
+                >
+                  Detail
+                </Button>
+              </div>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Datum stavu</TableHead>
                     <TableHead>Stav</TableHead>
-                    <TableHead className="text-right">Detail</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {selectedPersonalHistory.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="py-6 text-center text-slate-500">
+                      <TableCell colSpan={2} className="py-6 text-center text-slate-500">
                         Pro vybranou položku zatím nejsou eventy.
                       </TableCell>
                     </TableRow>
@@ -1214,17 +1247,6 @@ function OsobniLodickyPrototypePageInner() {
                       <TableCell>{formatDateCz(event.datumStavu)}</TableCell>
                       <TableCell>
                         <Badge className={stavBadgeClass(event.stav)}>{LODICKA_STAV_LABEL[event.stav]}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="border-[#D9E4F2]"
-                          onClick={() => openPersonalDetail(event.osobniLodickaId, event.id)}
-                        >
-                          Detail
-                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1305,8 +1327,8 @@ function DetailSheet({
   const highlightedEventId = state.type === "personal" ? state.eventId : undefined;
   const detailWidthClass =
     state.type === "personal"
-      ? "w-[90vw] max-w-[860px] sm:max-w-[860px]"
-      : "w-[88vw] max-w-[680px] sm:max-w-[680px]";
+      ? "w-[90vw] max-w-[780px] sm:max-w-[780px]"
+      : "w-[86vw] max-w-[560px] sm:max-w-[560px]";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -2074,6 +2096,11 @@ function getStudentDisplayName(student: ProtoStudent, activeRole: ProtoRoleId): 
 
 function getFirstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName;
+}
+
+function getLastName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  return parts[parts.length - 1] ?? fullName;
 }
 
 function toNickname(fullName: string): string {
