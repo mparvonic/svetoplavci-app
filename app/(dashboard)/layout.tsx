@@ -1,6 +1,7 @@
 import { InactivitySignOut } from "./inactivity-signout";
 import { signOutAction } from "./actions";
 import { Button } from "@/components/ui/button";
+import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 
 export default function DashboardLayout({
   children,
@@ -21,7 +22,7 @@ export default function DashboardLayout({
           </form>
         </header>
         <main className="flex-1 overflow-auto px-4 py-6">
-          <div className="mx-auto w-full max-w-6xl space-y-6">{children}</div>
+          <div className={`${UI_CLASSES.pageContainer} space-y-6`}>{children}</div>
         </main>
       </div>
     </InactivitySignOut>

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 
 import { redirect } from "next/navigation";
 
@@ -28,7 +29,7 @@ export default async function SignInPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#002060] via-[#002060] to-[#DA0100] p-4 text-white">
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-between gap-8 py-8">
+      <div className={`${UI_CLASSES.pageContainer} flex flex-1 flex-col items-center justify-between gap-8 py-8`}>
         <div className="flex w-full items-start justify-between gap-4">
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-[0.2em] text-white/70">Školní aplikace</p>

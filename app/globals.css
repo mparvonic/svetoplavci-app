@@ -49,6 +49,8 @@
 
 :root {
   --radius: 0.625rem;
+  --app-container-base: 1180px;
+  --app-container-max: 1440px;
   --background: #ffffff;
   --foreground: #002060;
   --card: #ffffff;
@@ -122,6 +124,19 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .app-page-container {
+    width: 100%;
+    max-width: clamp(
+      var(--app-container-base),
+      calc(var(--app-container-base) + (100vw - 1280px)),
+      var(--app-container-max)
+    );
+    margin-inline: auto;
+    padding-inline: 1rem;
   }
 }
 

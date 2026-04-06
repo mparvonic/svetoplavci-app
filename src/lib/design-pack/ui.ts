@@ -1,11 +1,12 @@
 export const DESIGN_PACK_META = {
   name: "Svetoplavci Design Pack",
-  version: "2026-04-06.1",
+  version: "2026-04-06.2",
   updatedAt: "2026-04-06",
 };
 
 export const DESIGN_RULES = [
-  "Standardní layout navrhujeme pro notebook MacBook Air M1: výchozí šířka viewportu 1440 px.",
+  "Standardní layout navrhujeme pro notebook MacBook Air M1: baseline kontejneru 1180 px.",
+  "Kontejner je responzivní: podle šířky okna roste až do 1440 px.",
   "Navigace vlevo, obsah vpravo, vždy jasně aktivní sekce.",
   "Primární CTA je modré, destruktivní akce červené, sekundární akce outline.",
   "Každý datový modul má stejnou strukturu: název, filtry, obsah, akce.",
@@ -28,7 +29,7 @@ export const DESIGN_COLORS = [
 ] as const;
 
 export const UI_CLASSES = {
-  pageContainer: "max-w-screen-xl mx-auto px-4",
+  pageContainer: "app-page-container",
   sectionTitle: "text-[#002060] font-semibold",
   primaryButton: "bg-[#002060] text-white hover:bg-[#001540]",
   secondaryButton:

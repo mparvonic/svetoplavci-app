@@ -42,9 +42,23 @@ Obsahuje:
 - Nepoužívat ad-hoc barvy a ad-hoc styly pro standardní prvky.
 - Pro tlačítka, tabulky, nadpisy a badge preferovat `UI_CLASSES`.
 - Pokud `UI_CLASSES` nestačí, rozšířit design pack a teprve pak použít nový vzor.
+- Šířka hlavního kontejneru je globální pravidlo pro všechny stránky:
+  - baseline `1180 px`,
+  - dynamický růst podle viewportu až do `1440 px`,
+  - používat pouze `UI_CLASSES.pageContainer` (třída `app-page-container`).
 
 ## Kontrola
 
 - UI změny nejdřív ověřit na `ui-redesign` (referenční stránka).
+- UI změny paralelně ověřit ve Storybooku (`npm run storybook`).
 - Poté promítnout do `proto-shell`.
 - Teprve následně do live modulů.
+
+### Automatická pojistka
+
+- CI vždy spouští `npm run design-pack:check-sync`.
+- Kontrola vyžaduje, aby:
+  - `ui-redesign` importoval design pack přímo ze `src/lib/design-pack/ui.ts`,
+  - `ui-redesign` i Storybook reference vykreslovaly `DESIGN_PACK_META.version`,
+  - pravidla, barvy a `UI_CLASSES` byly renderované dynamicky (`map`), ne ručně.
+- Důsledek: změna tokenu nebo pravidla v design packu se automaticky projeví na obou referenčních plochách.

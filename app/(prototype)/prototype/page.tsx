@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, LayoutPanelTop, Paintbrush } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 
 const PROTOTYPE_PAGES = [
   {
@@ -24,7 +25,7 @@ const PROTOTYPE_PAGES = [
 export default function PrototypeIndexPage() {
   return (
     <main className="min-h-screen bg-slate-50 py-8">
-      <div className="max-w-screen-xl mx-auto px-4 space-y-6">
+      <div className={`${UI_CLASSES.pageContainer} space-y-6`}>
         <header>
           <h1 className="text-2xl font-semibold text-[#002060]">Prototype playground</h1>
           <p className="mt-1 text-sm text-slate-600">

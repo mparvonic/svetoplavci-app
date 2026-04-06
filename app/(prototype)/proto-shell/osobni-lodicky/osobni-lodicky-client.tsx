@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, type ReactElement } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "lucide-react";
@@ -85,6 +85,9 @@ type LeftItem = LeftLodickaItem | LeftStudentItem;
 const DEFAULT_ROLE: ProtoRoleId = "garant";
 const RIGHT_TABLE_LODICKY = "T321";
 const RIGHT_TABLE_LIDE = "T322";
+const DESKTOP_BASE_WIDTH = 1180;
+const PANES_BOTTOM_GAP = 24;
+const PANES_MIN_HEIGHT = 360;
 
 const STATUS_BUTTONS: Array<{ value: LodickaStav; label: string }> = [
   { value: 0, label: "0" },
@@ -147,6 +150,12 @@ function OsobniLodickyPrototypePageInner() {
   const [events, setEvents] = useState<ProtoOsobniLodickaEvent[]>(PROTO_OSOBNI_LODICKA_EVENTS);
   const [invalidatedEventIds, setInvalidatedEventIds] = useState<string[]>([]);
   const [debugEvents, setDebugEvents] = useState<ProtoDebugEvent[]>([]);
+  const [viewportWidth, setViewportWidth] = useState<number>(0);
+  const [panesHeight, setPanesHeight] = useState<number>(420);
+  const panesSectionRef = useRef<HTMLElement | null>(null);
+
+  const isWideLayout = viewportWidth >= DESKTOP_BASE_WIDTH;
+  const paneCardStyle = isWideLayout ? { maxHeight: `${panesHeight}px` } : undefined;
 
   useEffect(() => {
     if (!activeUserId) return;
@@ -155,6 +164,30 @@ function OsobniLodickyPrototypePageInner() {
     params.set("user", activeUserId);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [activeRole, activeUserId, pathname, router]);
+
+  useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+    updateViewportWidth();
+    window.addEventListener("resize", updateViewportWidth);
+    return () => window.removeEventListener("resize", updateViewportWidth);
+  }, []);
+
+  const recomputePanesHeight = useCallback(() => {
+    if (!panesSectionRef.current) return;
+    const top = panesSectionRef.current.getBoundingClientRect().top;
+    const available = Math.floor(window.innerHeight - top - PANES_BOTTOM_GAP);
+    setPanesHeight(Math.max(PANES_MIN_HEIGHT, available));
+  }, []);
+
+  useEffect(() => {
+    recomputePanesHeight();
+    const raf = window.requestAnimationFrame(recomputePanesHeight);
+    window.addEventListener("resize", recomputePanesHeight);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", recomputePanesHeight);
+    };
+  }, [filtersCollapsed, recomputePanesHeight]);
 
   const activeUser = usersForRoleRaw.find((item) => item.id === activeUserId) ?? usersForRoleRaw[0] ?? null;
   const effectiveViewDate = clampDate(viewDate, semesterBounds.minDate, semesterBounds.maxDate);
@@ -1128,8 +1161,14 @@ function OsobniLodickyPrototypePageInner() {
           )}
         </Card>
 
-        <section className="grid gap-4 min-[1180px]:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]">
-          <Card className="min-w-0 border-[#D9E4F2]">
+        <section
+          ref={panesSectionRef}
+          className="grid min-h-0 gap-4 min-[1180px]:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]"
+        >
+          <Card
+            className="min-w-0 border-[#D9E4F2] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
+            style={paneCardStyle}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1168,7 +1207,7 @@ function OsobniLodickyPrototypePageInner() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="h-[420px] overflow-auto">
+            <CardContent className="overflow-auto min-[1180px]:min-h-0 min-[1180px]:flex-1">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1200,7 +1239,10 @@ function OsobniLodickyPrototypePageInner() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0 border-[#D9E4F2]">
+          <Card
+            className="min-w-0 border-[#D9E4F2] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
+            style={paneCardStyle}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1237,7 +1279,7 @@ function OsobniLodickyPrototypePageInner() {
                 )}
               </div>
             </CardHeader>
-            <CardContent className="h-[420px] overflow-auto">
+            <CardContent className="overflow-auto min-[1180px]:min-h-0 min-[1180px]:flex-1">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1260,7 +1302,10 @@ function OsobniLodickyPrototypePageInner() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0 border-[#D9E4F2]">
+          <Card
+            className="min-w-0 border-[#D9E4F2] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
+            style={paneCardStyle}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-[#05204A]">
@@ -1286,7 +1331,7 @@ function OsobniLodickyPrototypePageInner() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="h-[420px] overflow-auto">
+            <CardContent className="overflow-auto min-[1180px]:min-h-0 min-[1180px]:flex-1">
               <Table>
                 <TableHeader>
                   <TableRow>
