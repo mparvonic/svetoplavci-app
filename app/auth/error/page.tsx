@@ -18,6 +18,14 @@ export default async function AuthErrorPage({
     title = "Přístup zamítnut";
     message =
       "Váš e‑mail nebyl nalezen mezi oprávněnými uživateli. Zkontrolujte, zda používáte stejnou adresu jako v systému Edookit. Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy na adrese kancelar@svetoplavci.cz.";
+  } else if (code === "NoEnvRole") {
+    title = "Přístup do prostředí zamítnut";
+    message =
+      "Váš účet nemá roli potřebnou pro toto prostředí aplikace. Pokud potřebujete přístup, obraťte se na správce aplikace.";
+  } else if (code === "ProtoEmailDenied") {
+    title = "Přístup do proto-app zamítnut";
+    message =
+      "Do prostředí proto-app mají přístup jen účty z domény svetoplavci.cz a adresa miroslav.parvonic@gmail.com.";
   }
 
   return (
@@ -38,4 +46,3 @@ export default async function AuthErrorPage({
     </div>
   );
 }
-

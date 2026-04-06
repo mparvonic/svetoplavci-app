@@ -3,9 +3,35 @@ import { authConfig } from "@/src/lib/auth.config";
 
 const { auth } = NextAuth(authConfig);
 
+function collectUserRoles(session: { user?: { roles?: unknown; role?: unknown } } | null): string[] {
+  if (!session?.user) return [];
+  if (Array.isArray(session.user.roles) && session.user.roles.length > 0) {
+    return session.user.roles.map((r) => String(r));
+  }
+  if (typeof session.user.role === "string" && session.user.role) {
+    return [session.user.role];
+  }
+  return [];
+}
+
+function hasRole(roles: string[], allowed: string[]): boolean {
+  return roles.some((role) => allowed.includes(role));
+}
+
+function isAllowedProtoEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  return (
+    normalized.endsWith("@svetoplavci.cz") ||
+    normalized === "miroslav.parvonic@gmail.com"
+  );
+}
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
+  const host = (req.headers.get("host") ?? "").split(":")[0].toLowerCase();
+  const userEmail = session?.user?.email?.toLowerCase();
 
   // Veřejné cesty – bez kontroly
   if (pathname === "/" || pathname.startsWith("/auth/")) {
@@ -19,9 +45,21 @@ export default auth((req) => {
     return Response.redirect(signInUrl);
   }
 
+  const roles = collectUserRoles(session);
+
+  // test-app: přístup jen pro tester/admin
+  if (host === "test-app.svetoplavci.cz" && !hasRole(roles, ["tester", "admin"])) {
+    return Response.redirect(new URL("/auth/error?error=NoEnvRole", req.nextUrl.origin));
+  }
+
+  // proto-app: přístup jen pro povolené e-maily
+  if (host === "proto-app.svetoplavci.cz" && !isAllowedProtoEmail(userEmail)) {
+    return Response.redirect(new URL("/auth/error?error=ProtoEmailDenied", req.nextUrl.origin));
+  }
+
   // /admin/* – pouze role admin
   if (pathname.startsWith("/admin")) {
-    if (session.user.role !== "admin") {
+    if (!hasRole(roles, ["admin"])) {
       return Response.redirect(new URL("/", req.nextUrl.origin));
     }
   }
