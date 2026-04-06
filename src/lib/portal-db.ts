@@ -8,6 +8,9 @@ export interface PortalParent {
 export interface PortalChild {
   id: string;
   name: string;
+  rocnik: number | null;
+  stupen: 1 | 2 | null;
+  smecka: string | null;
 }
 
 export interface PortalLodickaRow {
@@ -28,6 +31,10 @@ type ParentChildRow = {
   has_rodic_role: boolean;
   child_id: string | null;
   child_name: string | null;
+  child_grade_num: number | null;
+  child_rocnik_code: string | null;
+  child_stupen_code: string | null;
+  child_smecka_name: string | null;
 };
 
 type LodickaQueryRow = {
@@ -58,6 +65,11 @@ function normalizeText(value: string | null | undefined, fallback: string): stri
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
+function normalizeOptionalText(value: string | null | undefined): string | null {
+  const trimmed = (value ?? "").trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function toIso(value: Date | string | null): string | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -67,9 +79,46 @@ function toIso(value: Date | string | null): string | null {
 function dedupeChildren(children: PortalChild[]): PortalChild[] {
   const unique = new Map<string, PortalChild>();
   for (const child of children) {
-    if (!unique.has(child.id)) unique.set(child.id, child);
+    const existing = unique.get(child.id);
+    if (!existing) {
+      unique.set(child.id, child);
+      continue;
+    }
+
+    unique.set(child.id, {
+      id: existing.id,
+      name: existing.name,
+      rocnik: existing.rocnik ?? child.rocnik,
+      stupen: existing.stupen ?? child.stupen,
+      smecka: existing.smecka ?? child.smecka,
+    });
   }
   return [...unique.values()].sort((a, b) => a.name.localeCompare(b.name, "cs"));
+}
+
+function parseRocnik(value: number | string | null | undefined): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const rounded = Math.round(value);
+    return rounded >= 1 && rounded <= 9 ? rounded : null;
+  }
+
+  if (typeof value === "string") {
+    const match = value.match(/\d+/);
+    if (!match) return null;
+    const parsed = Number(match[0]);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed >= 1 && parsed <= 9 ? parsed : null;
+  }
+
+  return null;
+}
+
+function parseStupen(value: string | null | undefined, rocnik: number | null): 1 | 2 | null {
+  const normalized = (value ?? "").trim().toLowerCase();
+  if (normalized === "1" || normalized.startsWith("1.")) return 1;
+  if (normalized === "2" || normalized.startsWith("2.")) return 2;
+  if (rocnik === null) return null;
+  return rocnik <= 5 ? 1 : 2;
 }
 
 function pickParentCandidate(candidates: ParentCandidate[]): ParentCandidate | null {
@@ -100,7 +149,11 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
           AND ra.is_active = true
       ) AS has_rodic_role,
       c.id AS child_id,
-      c.display_name AS child_name
+      c.display_name AS child_name,
+      ss.current_grade_num AS child_grade_num,
+      grp_rocnik.code AS child_rocnik_code,
+      grp_stupen.code AS child_stupen_code,
+      grp_smecka.name AS child_smecka_name
     FROM app_login_identity li
     JOIN app_login_person_link lpl
       ON lpl.identity_id = li.id
@@ -115,6 +168,50 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
     LEFT JOIN app_person c
       ON c.id = rel.child_person_id
       AND c.is_active = true
+    LEFT JOIN LATERAL (
+      SELECT s.current_grade_num
+      FROM app_student_state s
+      WHERE s.person_id = c.id
+        AND (s.effective_to IS NULL OR s.effective_to::date >= CURRENT_DATE)
+      ORDER BY s.effective_from DESC, s.created_at DESC
+      LIMIT 1
+    ) ss ON true
+    LEFT JOIN LATERAL (
+      SELECT g.code
+      FROM app_group_membership gm
+      JOIN app_group g ON g.id = gm.group_id
+      WHERE gm.person_id = c.id
+        AND gm.group_kind = 'rocnik'
+        AND gm.valid_from <= NOW()
+        AND (gm.valid_to IS NULL OR gm.valid_to >= NOW())
+        AND g.is_active = true
+      ORDER BY gm.valid_from DESC, gm.created_at DESC
+      LIMIT 1
+    ) grp_rocnik ON true
+    LEFT JOIN LATERAL (
+      SELECT g.code
+      FROM app_group_membership gm
+      JOIN app_group g ON g.id = gm.group_id
+      WHERE gm.person_id = c.id
+        AND gm.group_kind = 'stupen'
+        AND gm.valid_from <= NOW()
+        AND (gm.valid_to IS NULL OR gm.valid_to >= NOW())
+        AND g.is_active = true
+      ORDER BY gm.valid_from DESC, gm.created_at DESC
+      LIMIT 1
+    ) grp_stupen ON true
+    LEFT JOIN LATERAL (
+      SELECT g.name
+      FROM app_group_membership gm
+      JOIN app_group g ON g.id = gm.group_id
+      WHERE gm.person_id = c.id
+        AND gm.group_kind = 'smecka'
+        AND gm.valid_from <= NOW()
+        AND (gm.valid_to IS NULL OR gm.valid_to >= NOW())
+        AND g.is_active = true
+      ORDER BY gm.valid_from DESC, gm.created_at DESC
+      LIMIT 1
+    ) grp_smecka ON true
     WHERE li.identity_type = 'email'
       AND li.normalized_value = ${normalizedEmail}
       AND li.is_active = true
@@ -135,9 +232,13 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
       };
 
     if (row.child_id && row.child_name) {
+      const rocnik = parseRocnik(row.child_grade_num ?? row.child_rocnik_code);
       candidate.children.push({
         id: row.child_id,
         name: row.child_name,
+        rocnik,
+        stupen: parseStupen(row.child_stupen_code, rocnik),
+        smecka: normalizeOptionalText(row.child_smecka_name),
       });
     }
 

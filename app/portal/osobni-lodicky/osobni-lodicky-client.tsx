@@ -17,6 +17,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ProtoDebugPanel, createProtoDebugEvent, type ProtoDebugEvent } from "@/components/proto/proto-debug-panel";
+import { ProtoEdgePanel } from "@/components/proto/proto-edge-panel";
 import {
   LODICKA_STAV_LABEL,
   PROTO_ACTORS,
@@ -24,6 +25,8 @@ import {
   PROTO_LODICKY_CATALOG,
   PROTO_OSOBNI_LODICKA_EVENTS,
   PROTO_OSOBNI_LODICKY,
+  PROTO_QUICK_NAV,
+  PROTO_ROLE_OPTIONS,
   PROTO_STUDENTS,
   getActiveSemesterBounds,
   getActorsByRole,
@@ -38,6 +41,7 @@ import {
   type ProtoRoleId,
   type ProtoStudent,
 } from "@/src/lib/mock/proto-lodicky-playground";
+import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 
 type ScopeMode = "moje" | "vsechny";
 type ViewMode = "po_lodickach" | "po_lidech";
@@ -83,6 +87,9 @@ type LeftItem = LeftLodickaItem | LeftStudentItem;
 type Child = {
   id: string;
   name: string;
+  rocnik: number | null;
+  stupen: 1 | 2 | null;
+  smecka: string | null;
 };
 
 type Parent = {
@@ -143,6 +150,10 @@ function OsobniLodickyPrototypePageInner() {
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   const usersForRoleRaw = useMemo(() => getActorsByRole(activeRole), [activeRole, datasetVersion]);
+  const roleOptions = useMemo(
+    () => PROTO_ROLE_OPTIONS.filter((role) => getActorsByRole(role.id).length > 0),
+    [datasetVersion],
+  );
 
   const [selectedUserId, setSelectedUserId] = useState<string>(queryUserId);
   const activeUserId = useMemo(
@@ -976,7 +987,7 @@ function OsobniLodickyPrototypePageInner() {
   if (dbLoading) {
     return (
       <main className="min-h-screen bg-slate-50">
-        <section className="app-page-container py-6">
+        <section className={`${UI_CLASSES.pageContainer} py-6`}>
           <p className="text-sm text-slate-600">Načítám osobní lodičky…</p>
         </section>
       </main>
@@ -986,7 +997,7 @@ function OsobniLodickyPrototypePageInner() {
   if (dbError) {
     return (
       <main className="min-h-screen bg-slate-50">
-        <section className="app-page-container py-6">
+        <section className={`${UI_CLASSES.pageContainer} py-6`}>
           <div className="rounded-md border border-[#DA0100]/30 bg-[#FFF4F4] p-4 text-sm text-[#A12A2A]">
             {dbError}
           </div>
@@ -997,7 +1008,18 @@ function OsobniLodickyPrototypePageInner() {
 
   return (
     <main className="min-h-screen bg-slate-50 pb-44">
-      <section className="app-page-container space-y-4 py-6">
+      <ProtoEdgePanel
+        roleOptions={roleOptions}
+        activeRole={activeRole}
+        activeUserId={activeUserId}
+        usersForRole={usersForRole}
+        onRoleChange={handleRoleChange}
+        onUserChange={handleUserChange}
+        navItems={PROTO_QUICK_NAV}
+        query={{ role: activeRole, user: activeUserId }}
+      />
+
+      <section className={`${UI_CLASSES.pageContainer} space-y-4 py-6`}>
         <header className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Osobní lodičky</p>
           <h1 className="text-2xl font-semibold text-[#05204A]">Kompaktní pohled pro práci Garanta</h1>
@@ -1494,7 +1516,7 @@ export default function OsobniLodickyPrototypePage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-50">
-          <section className="app-page-container py-6">
+          <section className={`${UI_CLASSES.pageContainer} py-6`}>
             <p className="text-sm text-slate-600">Načítám osobní lodičky…</p>
           </section>
         </main>
@@ -1703,17 +1725,16 @@ function buildProtoDatasetFromDb(
   const parentName = childrenData.parent.name?.trim() || "Rodič";
   const parentEmail = (childrenData.userEmail ?? `${parentActorId}@svetoplavci.local`).trim().toLowerCase();
 
-  const smecky = ["Krakeni", "Indiáni", "Pavouci", "Lišky", "Orli", "Vlci", "Delfíni", "Fénixové"];
-  const students: ProtoStudent[] = childrenData.children.map((child, index) => {
-    const rocnik = Math.max(1, Math.min(9, (index % 9) + 1));
-    const stupen: 1 | 2 = rocnik <= 5 ? 1 : 2;
+  const students: ProtoStudent[] = childrenData.children.map((child) => {
+    const rocnik = normalizeChildRocnik(child.rocnik);
+    const stupen = normalizeChildStupen(child.stupen, rocnik);
     return {
       id: child.id,
       jmeno: child.name,
       prezdivka: toNickname(child.name),
       stupen,
       rocnik,
-      smecka: smecky[index % smecky.length] ?? "Krakeni",
+      smecka: normalizeChildSmecka(child.smecka),
     };
   });
 
@@ -1825,6 +1846,24 @@ function slugify(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function normalizeChildRocnik(value: number | null): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 1;
+  const rounded = Math.round(value);
+  if (rounded < 1) return 1;
+  if (rounded > 9) return 9;
+  return rounded;
+}
+
+function normalizeChildStupen(value: 1 | 2 | null, rocnik: number): 1 | 2 {
+  if (value === 1 || value === 2) return value;
+  return rocnik <= 5 ? 1 : 2;
+}
+
+function normalizeChildSmecka(value: string | null): string {
+  const trimmed = (value ?? "").trim();
+  return trimmed.length > 0 ? trimmed : "Bez smečky";
 }
 
 function normalizeRole(input: string | null): ProtoRoleId {
