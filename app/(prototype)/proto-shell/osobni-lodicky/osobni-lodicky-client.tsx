@@ -1209,9 +1209,21 @@ function OsobniLodickyPrototypePageInner() {
                       : [
                           { id: "nazev", label: "Lodička" },
                           { id: "stav", label: "Stav" },
-                        ]
+                      ]
                   }
                 />
+                {viewMode === "po_lodickach" && (
+                  <InlineSelect
+                    label="Seskupit děti"
+                    value={peopleGroupBy}
+                    onChange={(value) => setPeopleGroupBy(value as PeopleGroupKey)}
+                    options={[
+                      { id: "smecka", label: "Smečky" },
+                      { id: "rocnik", label: "Ročníky" },
+                      { id: "none", label: "Neseskupovat" },
+                    ]}
+                  />
+                )}
               </div>
             </CardHeader>
             <CardContent className="h-[420px] overflow-auto">
