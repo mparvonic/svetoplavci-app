@@ -22,6 +22,8 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
   const host = (req.headers.get("host") ?? "").split(":")[0].toLowerCase();
+  const isTestHost = host === "test-app.svetoplavci.cz";
+  const testPortalEntryPath = "/portal/osobni-lodicky";
 
   // Veřejné cesty – bez kontroly
   if (pathname === "/" || pathname.startsWith("/auth/")) {
@@ -38,7 +40,7 @@ export default auth((req) => {
   const roles = collectUserRoles(session);
 
   // test-app: přístup jen pro tester/admin
-  if (host === "test-app.svetoplavci.cz" && !hasRole(roles, ["tester", "admin"])) {
+  if (isTestHost && !hasRole(roles, ["tester", "admin"])) {
     return Response.redirect(new URL("/auth/error?error=NoEnvRole", req.nextUrl.origin));
   }
 
@@ -52,6 +54,16 @@ export default auth((req) => {
     if (!hasRole(roles, ["admin"])) {
       return Response.redirect(new URL("/", req.nextUrl.origin));
     }
+  }
+
+  // test-app: tvrdě zamknout navigaci jen na osobní lodičky
+  if (
+    isTestHost &&
+    pathname !== testPortalEntryPath &&
+    pathname !== "/" &&
+    !pathname.startsWith("/auth/")
+  ) {
+    return Response.redirect(new URL(testPortalEntryPath, req.nextUrl.origin));
   }
 
   // /kiosk/* a /portal/* – přístup pro všechny přihlášené (už ověřeno výše)
