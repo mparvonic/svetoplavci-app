@@ -1538,7 +1538,7 @@ function renderLeftPaneRows({
     const grouped = groupBy(lodicky, (item) => buildLodickaGroupLabel(item.lodicka, lodickaGroupKeys));
 
     return grouped.flatMap(([groupName, groupItems]) => {
-      const rows: React.JSX.Element[] = [];
+      const rows: JSX.Element[] = [];
       if (lodickaGroupKeys.length > 0) {
         rows.push(
           <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
@@ -1598,7 +1598,7 @@ function renderLeftPaneRows({
   );
 
   return grouped.flatMap(([groupName, groupItems]) => {
-    const rows: React.JSX.Element[] = [
+    const rows: JSX.Element[] = [
       <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
         <TableCell colSpan={2} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
           {groupName} ({groupItems.length})
@@ -1686,7 +1686,7 @@ function renderRightPaneRows({
   let rowCounter = 0;
 
   return grouped.flatMap(([groupName, groupItems]) => {
-    const result: React.JSX.Element[] = [];
+    const result: JSX.Element[] = [];
     const hasGroupHeader = viewMode === "po_lodickach" || lodickaGroupKeys.length > 0;
     if (hasGroupHeader) {
       result.push(
