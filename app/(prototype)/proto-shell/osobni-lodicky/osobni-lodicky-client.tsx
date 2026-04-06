@@ -2175,7 +2175,7 @@ function stavBadgeClass(stav: LodickaStav): string {
 
 function statusButtonClass(value: LodickaStav, isCurrent: boolean): string {
   if (isCurrent) {
-    return "border-[#002060] bg-[#002060] text-white hover:bg-[#002060] hover:text-white";
+    return "!border-[#002060] !bg-[#002060] !text-white !hover:border-[#002060] !hover:bg-[#002060] !hover:text-white";
   }
 
   if (value === 4) {
