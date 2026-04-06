@@ -15,14 +15,40 @@ export interface PortalChild {
 
 export interface PortalLodickaRow {
   id: string;
+  lodickaId: string;
+  kodLodicky: string | null;
+  kodOsobniLodicky: string | null;
   predmet: string;
   podpredmet: string;
   oblast: string;
   nazevLodicky: string;
+  typ: string | null;
+  stupen: string | null;
+  rocnikOd: number | null;
+  rocnikDo: number | null;
+  garantPersonId: string | null;
+  garantName: string | null;
   stav: string;
   uspech: string;
   poznamka: string;
   datumStavu: string | null;
+  history: PortalLodickaHistoryRow[];
+}
+
+export interface PortalLodickaHistoryRow {
+  id: string;
+  stav: string;
+  hodnota: number | null;
+  datumStavu: string | null;
+  poznamka: string | null;
+  uspech: string | null;
+  changedByPersonId: string | null;
+  changedByLabel: string | null;
+  sourceCreatedByLabel: string | null;
+  sourceModifiedByLabel: string | null;
+  sourceCreatedAt: string | null;
+  sourceModifiedAt: string | null;
+  createdAt: string | null;
 }
 
 type ParentChildRow = {
@@ -39,14 +65,24 @@ type ParentChildRow = {
 
 type LodickaQueryRow = {
   id: string;
+  lodicka_id: string;
+  kod_lodicky: string | null;
+  kod_osobni_lodicky: string | null;
   predmet: string;
   podpredmet: string | null;
   oblast: string;
   nazev_lodicky: string;
+  typ: string | null;
+  stupen: string | null;
+  rocnik_od: number | null;
+  rocnik_do: number | null;
+  garant_person_id: string | null;
+  garant_name: string | null;
   stav: string | null;
   uspech: string | null;
   poznamka: string | null;
   datum_stavu: Date | string | null;
+  history_json: unknown;
 };
 
 type ParentCandidate = {
@@ -74,6 +110,57 @@ function toIso(value: Date | string | null): string | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function toHistoryRows(value: unknown): PortalLodickaHistoryRow[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item): PortalLodickaHistoryRow | null => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+
+      const id = typeof row.id === "string" ? row.id : "";
+      if (!id) return null;
+
+      const stav =
+        typeof row.stavLabel === "string" && row.stavLabel.trim()
+          ? row.stavLabel.trim()
+          : typeof row.stav === "string" && row.stav.trim()
+            ? row.stav.trim()
+            : "Nezahájeno";
+
+      return {
+        id,
+        stav,
+        hodnota: typeof row.hodnota === "number" && Number.isFinite(row.hodnota) ? row.hodnota : null,
+        datumStavu: toIso(
+          row.datumStavu instanceof Date || typeof row.datumStavu === "string" ? row.datumStavu : null,
+        ),
+        poznamka: typeof row.poznamka === "string" ? row.poznamka : null,
+        uspech: typeof row.uspech === "string" ? row.uspech : null,
+        changedByPersonId: typeof row.changedByPersonId === "string" ? row.changedByPersonId : null,
+        changedByLabel: typeof row.changedByLabel === "string" ? row.changedByLabel : null,
+        sourceCreatedByLabel:
+          typeof row.sourceCreatedByLabel === "string" ? row.sourceCreatedByLabel : null,
+        sourceModifiedByLabel:
+          typeof row.sourceModifiedByLabel === "string" ? row.sourceModifiedByLabel : null,
+        sourceCreatedAt: toIso(
+          row.sourceCreatedAt instanceof Date || typeof row.sourceCreatedAt === "string"
+            ? row.sourceCreatedAt
+            : null,
+        ),
+        sourceModifiedAt: toIso(
+          row.sourceModifiedAt instanceof Date || typeof row.sourceModifiedAt === "string"
+            ? row.sourceModifiedAt
+            : null,
+        ),
+        createdAt: toIso(
+          row.createdAt instanceof Date || typeof row.createdAt === "string" ? row.createdAt : null,
+        ),
+      };
+    })
+    .filter((row): row is PortalLodickaHistoryRow => row !== null);
 }
 
 function dedupeChildren(children: PortalChild[]): PortalChild[] {
@@ -276,14 +363,24 @@ export async function getPortalChildLodickyByEmail(email: string, childId: strin
   const rows = await prisma.$queryRaw<LodickaQueryRow[]>`
     SELECT
       ol.id AS id,
+      l.id AS lodicka_id,
+      l.kod AS kod_lodicky,
+      ol.kod_osobni_lodicky AS kod_osobni_lodicky,
       pr.nazev AS predmet,
       pp.nazev AS podpredmet,
       ob.nazev AS oblast,
       l.nazev AS nazev_lodicky,
+      l.typ::text AS typ,
+      l.stupen::text AS stupen,
+      l.rocnik_od AS rocnik_od,
+      l.rocnik_do AS rocnik_do,
+      l.garant_person_id AS garant_person_id,
+      gp.display_name AS garant_name,
       ol.current_stav_label AS stav,
       ol.uspech AS uspech,
       ol.poznamka AS poznamka,
-      ol.datum_stavu AS datum_stavu
+      ol.datum_stavu AS datum_stavu,
+      ev.history_json AS history_json
     FROM app_m01_osobni_sada_lodicek os
     JOIN app_m01_osobni_lodicka ol
       ON ol.osobni_sada_id = os.id
@@ -297,6 +394,31 @@ export async function getPortalChildLodickyByEmail(email: string, childId: strin
       ON pp.id = l.podpredmet_id
     JOIN app_m01_oblast ob
       ON ob.id = l.oblast_id
+    LEFT JOIN app_person gp
+      ON gp.id = l.garant_person_id
+    LEFT JOIN LATERAL (
+      SELECT json_agg(
+        json_build_object(
+          'id', e.id,
+          'stavLabel', e.stav_label,
+          'hodnota', e.hodnota,
+          'datumStavu', e.datum_stavu,
+          'poznamka', e.poznamka,
+          'uspech', e.uspech,
+          'changedByPersonId', e.changed_by_person_id,
+          'changedByLabel', e.changed_by_label,
+          'sourceCreatedByLabel', e.source_created_by_label,
+          'sourceModifiedByLabel', e.source_modified_by_label,
+          'sourceCreatedAt', e.source_created_at,
+          'sourceModifiedAt', e.source_modified_at,
+          'createdAt', e.created_at
+        )
+        ORDER BY e.datum_stavu ASC, e.created_at ASC
+      ) AS history_json
+      FROM app_m01_osobni_lodicka_event e
+      WHERE e.osobni_lodicka_id = ol.id
+        AND COALESCE(e.is_invalidated, false) = false
+    ) ev ON true
     WHERE os.person_id = ${child.id}
       AND os.status = 'ACTIVE'
     ORDER BY pr.nazev ASC, pp.nazev ASC NULLS FIRST, ob.nazev ASC, l.nazev ASC
@@ -304,14 +426,24 @@ export async function getPortalChildLodickyByEmail(email: string, childId: strin
 
   const lodicky: PortalLodickaRow[] = rows.map((row) => ({
     id: row.id,
+    lodickaId: row.lodicka_id,
+    kodLodicky: normalizeOptionalText(row.kod_lodicky),
+    kodOsobniLodicky: normalizeOptionalText(row.kod_osobni_lodicky),
     predmet: normalizeText(row.predmet, "—"),
     podpredmet: normalizeText(row.podpredmet, "—"),
     oblast: normalizeText(row.oblast, "—"),
     nazevLodicky: normalizeText(row.nazev_lodicky, "—"),
+    typ: normalizeOptionalText(row.typ),
+    stupen: normalizeOptionalText(row.stupen),
+    rocnikOd: typeof row.rocnik_od === "number" ? row.rocnik_od : null,
+    rocnikDo: typeof row.rocnik_do === "number" ? row.rocnik_do : null,
+    garantPersonId: normalizeOptionalText(row.garant_person_id),
+    garantName: normalizeOptionalText(row.garant_name),
     stav: normalizeText(row.stav, "Nezahájeno"),
     uspech: normalizeText(row.uspech, "—"),
     poznamka: normalizeText(row.poznamka, "—"),
     datumStavu: toIso(row.datum_stavu),
+    history: toHistoryRows(row.history_json),
   }));
 
   return {

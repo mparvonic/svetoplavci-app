@@ -17,7 +17,6 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ProtoDebugPanel, createProtoDebugEvent, type ProtoDebugEvent } from "@/components/proto/proto-debug-panel";
-import { ProtoEdgePanel } from "@/components/proto/proto-edge-panel";
 import {
   LODICKA_STAV_LABEL,
   PROTO_ACTORS,
@@ -25,8 +24,6 @@ import {
   PROTO_LODICKY_CATALOG,
   PROTO_OSOBNI_LODICKA_EVENTS,
   PROTO_OSOBNI_LODICKY,
-  PROTO_QUICK_NAV,
-  PROTO_ROLE_OPTIONS,
   PROTO_STUDENTS,
   getActiveSemesterBounds,
   getActorsByRole,
@@ -41,7 +38,6 @@ import {
   type ProtoRoleId,
   type ProtoStudent,
 } from "@/src/lib/mock/proto-lodicky-playground";
-import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 
 type ScopeMode = "moje" | "vsechny";
 type ViewMode = "po_lodickach" | "po_lidech";
@@ -99,14 +95,40 @@ type Parent = {
 
 type LodickaRow = {
   id: string;
+  lodickaId: string;
+  kodLodicky: string | null;
+  kodOsobniLodicky: string | null;
   predmet: string;
   podpredmet: string;
   oblast: string;
   nazevLodicky: string;
+  typ: string | null;
+  stupen: string | null;
+  rocnikOd: number | null;
+  rocnikDo: number | null;
+  garantPersonId: string | null;
+  garantName: string | null;
   stav: string;
   uspech: string;
   poznamka: string;
   datumStavu: string | null;
+  history: LodickaHistoryRow[];
+};
+
+type LodickaHistoryRow = {
+  id: string;
+  stav: string;
+  hodnota: number | null;
+  datumStavu: string | null;
+  poznamka: string | null;
+  uspech: string | null;
+  changedByPersonId: string | null;
+  changedByLabel: string | null;
+  sourceCreatedByLabel: string | null;
+  sourceModifiedByLabel: string | null;
+  sourceCreatedAt: string | null;
+  sourceModifiedAt: string | null;
+  createdAt: string | null;
 };
 
 type ChildrenResponse = {
@@ -150,10 +172,6 @@ function OsobniLodickyPrototypePageInner() {
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   const usersForRoleRaw = useMemo(() => getActorsByRole(activeRole), [activeRole, datasetVersion]);
-  const roleOptions = useMemo(
-    () => PROTO_ROLE_OPTIONS.filter((role) => getActorsByRole(role.id).length > 0),
-    [datasetVersion],
-  );
 
   const [selectedUserId, setSelectedUserId] = useState<string>(queryUserId);
   const activeUserId = useMemo(
@@ -311,15 +329,6 @@ function OsobniLodickyPrototypePageInner() {
   const effectiveScope: ScopeMode = activeRole === "garant" || activeRole === "spravce" ? scopeMode : "moje";
   const isReadonly = activeRole === "rodic" || activeRole === "zak";
   const showGarantControls = effectiveScope !== "moje";
-
-  const usersForRole = useMemo(
-    () =>
-      usersForRoleRaw.map((actor) => ({
-        ...actor,
-        jmeno: getActorDisplayForSelector(actor, activeRole),
-      })),
-    [activeRole, usersForRoleRaw],
-  );
 
   const filterOptions = useMemo(() => {
     const rocniky = [...new Set(PROTO_STUDENTS.map((student) => String(student.rocnik)))].sort(
@@ -753,34 +762,6 @@ function OsobniLodickyPrototypePageInner() {
   const leftTableId = viewMode === "po_lodickach" ? "T221" : "T222";
   const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
 
-  function handleRoleChange(value: string) {
-    const nextRole = normalizeRole(value);
-    const nextUsers = getActorsByRole(nextRole);
-    setActiveRole(nextRole);
-    setSelectedUserId(nextUsers[0]?.id ?? "");
-    if (nextRole === "rodic" || nextRole === "zak") {
-      setScopeMode("moje");
-    }
-    pushDebug({
-      elementId: "SEL-R001",
-      label: "Přepínač role",
-      action: "change-role",
-      hierarchy: "EDGE_PANEL > SELECT_ROLE",
-      payload: `role=${nextRole}`,
-    });
-  }
-
-  function handleUserChange(value: string) {
-    setSelectedUserId(value);
-    pushDebug({
-      elementId: "SEL-U001",
-      label: "Přepínač uživatele",
-      action: "change-user",
-      hierarchy: "EDGE_PANEL > SELECT_USER",
-      payload: `user=${value}`,
-    });
-  }
-
   function clearAllFilters() {
     setPeopleStupenFilter([]);
     setPeopleRocnikFilter([]);
@@ -987,7 +968,7 @@ function OsobniLodickyPrototypePageInner() {
   if (dbLoading) {
     return (
       <main className="min-h-screen bg-slate-50">
-        <section className={`${UI_CLASSES.pageContainer} py-6`}>
+        <section className="app-page-container py-6">
           <p className="text-sm text-slate-600">Načítám osobní lodičky…</p>
         </section>
       </main>
@@ -997,7 +978,7 @@ function OsobniLodickyPrototypePageInner() {
   if (dbError) {
     return (
       <main className="min-h-screen bg-slate-50">
-        <section className={`${UI_CLASSES.pageContainer} py-6`}>
+        <section className="app-page-container py-6">
           <div className="rounded-md border border-[#DA0100]/30 bg-[#FFF4F4] p-4 text-sm text-[#A12A2A]">
             {dbError}
           </div>
@@ -1008,18 +989,7 @@ function OsobniLodickyPrototypePageInner() {
 
   return (
     <main className="min-h-screen bg-slate-50 pb-44">
-      <ProtoEdgePanel
-        roleOptions={roleOptions}
-        activeRole={activeRole}
-        activeUserId={activeUserId}
-        usersForRole={usersForRole}
-        onRoleChange={handleRoleChange}
-        onUserChange={handleUserChange}
-        navItems={PROTO_QUICK_NAV}
-        query={{ role: activeRole, user: activeUserId }}
-      />
-
-      <section className={`${UI_CLASSES.pageContainer} space-y-4 py-6`}>
+      <section className="app-page-container space-y-4 py-6">
         <header className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Osobní lodičky</p>
           <h1 className="text-2xl font-semibold text-[#05204A]">Kompaktní pohled pro práci Garanta</h1>
@@ -1516,7 +1486,7 @@ export default function OsobniLodickyPrototypePage() {
     <Suspense
       fallback={
         <main className="min-h-screen bg-slate-50">
-          <section className={`${UI_CLASSES.pageContainer} py-6`}>
+          <section className="app-page-container py-6">
             <p className="text-sm text-slate-600">Načítám osobní lodičky…</p>
           </section>
         </main>
@@ -1618,21 +1588,10 @@ function DetailSheet({
                 <InfoCell label="Podpředmět" value={lodicka.podpředmět ?? "-"} />
                 <InfoCell label="Oblast" value={lodicka.oblast} />
                 <InfoCell label="Garant" value={getGuideDisplayName(lodicka.garantId)} />
-                <InfoCell label="Ročníky plnění" value={`${lodicka.odRocniku}. až ${lodicka.doRocniku}. ročník`} />
-                <InfoCell label="Typ" value={lodicka.typ === "hromadna" ? "Hromadná" : "Individuální"} />
+                <InfoCell label="Ročníky plnění" value={formatLodickaRocnikRange(lodicka.odRocniku, lodicka.doRocniku)} />
+                <InfoCell label="Typ" value={formatLodickaTyp(lodicka.typ)} />
               </div>
 
-              <div className="rounded-xl border border-[#D9E4F2] bg-white p-3">
-                <p className="text-sm font-semibold text-[#05204A]">Vazba na RVP / OVU</p>
-                <div className="mt-2 space-y-2">
-                  {getMockRvpBindings(lodicka).map((ovu) => (
-                    <div key={ovu.kod} className="rounded-lg border border-[#E3ECF9] bg-[#F8FBFF] p-2">
-                      <p className="text-xs font-semibold text-[#0A4DA6]">{ovu.kod}</p>
-                      <p className="text-sm text-slate-700">{ovu.text}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           </>
         )}
@@ -1723,7 +1682,7 @@ function buildProtoDatasetFromDb(
 ): ProtoDatasetFromDb {
   const parentActorId = `u-rodic-${slugify(childrenData.parent.id || childrenData.parent.name || "db")}`;
   const parentName = childrenData.parent.name?.trim() || "Rodič";
-  const parentEmail = (childrenData.userEmail ?? `${parentActorId}@svetoplavci.local`).trim().toLowerCase();
+  const parentEmail = (childrenData.userEmail ?? "").trim().toLowerCase();
 
   const students: ProtoStudent[] = childrenData.children.map((child) => {
     const rocnik = normalizeChildRocnik(child.rocnik);
@@ -1738,14 +1697,36 @@ function buildProtoDatasetFromDb(
     };
   });
 
-  const actors: ProtoActor[] = [
-    {
-      id: parentActorId,
-      jmeno: parentName,
-      email: parentEmail,
-      roles: ["rodic"],
-    },
-  ];
+  const actorsMap = new Map<string, ProtoActor>();
+  const parentActor: ProtoActor = {
+    id: parentActorId,
+    jmeno: parentName,
+    email: parentEmail,
+    roles: ["rodic"],
+  };
+  actorsMap.set(parentActor.id, parentActor);
+
+  function ensureActor(id: string, name: string, role: ProtoRoleId) {
+    const trimmedId = id.trim();
+    if (!trimmedId) return;
+    const trimmedName = name.trim() || trimmedId;
+    const existing = actorsMap.get(trimmedId);
+    if (existing) {
+      if (!existing.roles.includes(role)) {
+        existing.roles = [...existing.roles, role];
+      }
+      if (!existing.jmeno.trim()) {
+        existing.jmeno = trimmedName;
+      }
+      return;
+    }
+    actorsMap.set(trimmedId, {
+      id: trimmedId,
+      jmeno: trimmedName,
+      email: "",
+      roles: [role],
+    });
+  }
 
   const parentLinks: ProtoParentChildLink[] = students.map((student) => ({
     parentId: parentActorId,
@@ -1753,42 +1734,46 @@ function buildProtoDatasetFromDb(
   }));
 
   const studentsById = new Map(students.map((student) => [student.id, student]));
-  const catalogByKey = new Map<string, ProtoLodickaCatalogItem>();
+  const catalogById = new Map<string, ProtoLodickaCatalogItem>();
   const osobniLodicky: ProtoOsobniLodicka[] = [];
   const events: ProtoOsobniLodickaEvent[] = [];
   const personalSeen = new Set<string>();
   let rowsCount = 0;
 
-  for (const [childId, rows] of Object.entries(rowsByChild)) {
+  for (const [childId, childRows] of Object.entries(rowsByChild)) {
     const student = studentsById.get(childId);
-    const studentStupen = student?.stupen ?? 1;
-    const studentRocnik = student?.rocnik ?? 1;
+    const studentStupen = student?.stupen ?? null;
+    const studentRocnik = student?.rocnik ?? null;
 
-    rows.forEach((row, index) => {
+    childRows.forEach((row, index) => {
       rowsCount += 1;
 
-      const key = `${row.predmet}|${row.podpredmet}|${row.oblast}|${row.nazevLodicky}`;
-      let lodicka = catalogByKey.get(key);
+      const lodickaId = row.lodickaId.trim() || row.id;
+      const garantActorId = row.garantPersonId?.trim() || "";
+      if (garantActorId && row.garantName) {
+        ensureActor(garantActorId, row.garantName, "garant");
+      }
+
+      let lodicka = catalogById.get(lodickaId);
       if (!lodicka) {
-        const order = catalogByKey.size + 1;
         lodicka = {
-          id: `lod-${slugify(`${key}-${order}`)}`,
-          kod: `L-${String(order).padStart(3, "0")}`,
+          id: lodickaId,
+          kod: normalizeLodickaCode(row.kodLodicky, row.kodOsobniLodicky),
           nazev: row.nazevLodicky,
           popis: row.poznamka && row.poznamka !== "—" ? row.poznamka : row.nazevLodicky,
           predmet: row.predmet,
           podpředmět: row.podpredmet === "—" ? undefined : row.podpredmet,
           oblast: row.oblast,
-          stupen: studentStupen,
-          odRocniku: Math.max(1, studentRocnik - 1),
-          doRocniku: Math.min(9, studentRocnik + 1),
-          garantId: parentActorId,
-          typ: "individualni",
+          stupen: mapLodickaStupen(row.stupen, studentStupen),
+          odRocniku: normalizeGradeBound(row.rocnikOd, studentRocnik),
+          doRocniku: normalizeGradeBound(row.rocnikDo, studentRocnik),
+          garantId: garantActorId || "db-unknown-actor",
+          typ: mapLodickaTyp(row.typ),
         };
-        catalogByKey.set(key, lodicka);
+        catalogById.set(lodickaId, lodicka);
       }
 
-      const personalId = `os-${childId}-${lodicka.id}`;
+      const personalId = row.id;
       if (!personalSeen.has(personalId)) {
         personalSeen.add(personalId);
         osobniLodicky.push({
@@ -1798,37 +1783,73 @@ function buildProtoDatasetFromDb(
         });
       }
 
-      const datumStavu = normalizeIsoDate(row.datumStavu);
-      events.push({
-        id: `evt-${slugify(`${row.id}-${personalId}-${index}`)}`,
-        osobniLodickaId: personalId,
-        datumStavu,
-        zapsanoAt: `${datumStavu} 12:00`,
-        stav: mapDbStavToProto(row.stav),
-        zapsalId: parentActorId,
-        poznamka: row.poznamka && row.poznamka !== "—" ? row.poznamka : undefined,
-      });
+      if (row.history.length > 0) {
+        row.history.forEach((historyItem) => {
+          const actorId = resolveHistoryActorId(historyItem, ensureActor);
+          events.push({
+            id: historyItem.id,
+            osobniLodickaId: personalId,
+            datumStavu: normalizeIsoDate(historyItem.datumStavu ?? row.datumStavu),
+            zapsanoAt: normalizeIsoDateTime(
+              historyItem.sourceModifiedAt ??
+                historyItem.sourceCreatedAt ??
+                historyItem.createdAt ??
+                historyItem.datumStavu ??
+                row.datumStavu,
+            ),
+            stav: mapDbStavToProto(historyItem.stav, historyItem.hodnota),
+            zapsalId: actorId,
+            poznamka:
+              historyItem.poznamka && historyItem.poznamka.trim()
+                ? historyItem.poznamka
+                : historyItem.uspech && historyItem.uspech.trim()
+                  ? historyItem.uspech
+                  : undefined,
+          });
+        });
+      } else {
+        events.push({
+          id: `current-${row.id}-${index}`,
+          osobniLodickaId: personalId,
+          datumStavu: normalizeIsoDate(row.datumStavu),
+          zapsanoAt: normalizeIsoDateTime(row.datumStavu),
+          stav: mapDbStavToProto(row.stav, null),
+          zapsalId: "db-unknown-actor",
+          poznamka: row.poznamka && row.poznamka !== "—" ? row.poznamka : undefined,
+        });
+      }
     });
   }
 
+  ensureActor("db-unknown-actor", "Neznámý (DB)", "spravce");
+
   return {
     parentActorId,
-    actors,
+    actors: [...actorsMap.values()],
     students,
     parentLinks,
-    lodickyCatalog: [...catalogByKey.values()],
+    lodickyCatalog: [...catalogById.values()],
     osobniLodicky,
     events,
     lodickyRowsCount: rowsCount,
   };
 }
 
-function mapDbStavToProto(stav: string): LodickaStav {
-  const normalized = normalizeSearch(stav);
+function mapDbStavToProto(stav: string | null | undefined, hodnota: number | null = null): LodickaStav {
+  if (typeof hodnota === "number" && Number.isFinite(hodnota)) {
+    const rounded = Math.round(hodnota);
+    if (rounded >= 4) return 4;
+    if (rounded === 3) return 3;
+    if (rounded === 2) return 2;
+    if (rounded === 1) return 1;
+  }
+
+  const normalized = normalizeSearch(stav ?? "");
   if (normalized.includes("samostat")) return 4;
   if (normalized.includes("castec")) return 3;
   if (normalized.includes("dopomoc")) return 2;
   if (normalized.includes("rozprac")) return 1;
+  if (normalized.includes("zahajen")) return 1;
   return 0;
 }
 
@@ -1837,6 +1858,14 @@ function normalizeIsoDate(value: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return getTodayIsoForProto();
   return date.toISOString().slice(0, 10);
+}
+
+function normalizeIsoDateTime(value: string | null): string {
+  if (!value) return `${getTodayIsoForProto()} 00:00`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return `${getTodayIsoForProto()} 00:00`;
+  const iso = date.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
 }
 
 function slugify(value: string): string {
@@ -1863,12 +1892,68 @@ function normalizeChildStupen(value: 1 | 2 | null, rocnik: number): 1 | 2 {
 
 function normalizeChildSmecka(value: string | null): string {
   const trimmed = (value ?? "").trim();
-  return trimmed.length > 0 ? trimmed : "Bez smečky";
+  return trimmed.length > 0 ? trimmed : "—";
 }
 
-function normalizeRole(input: string | null): ProtoRoleId {
-  if (input === "garant" || input === "rodic" || input === "zak" || input === "spravce") return input;
-  return DEFAULT_ROLE;
+function normalizeLodickaCode(kodLodicky: string | null, kodOsobniLodicky: string | null): string {
+  const lodickaCode = (kodLodicky ?? "").trim();
+  if (lodickaCode) return lodickaCode;
+  const personalCode = (kodOsobniLodicky ?? "").trim();
+  if (personalCode) return personalCode;
+  return "—";
+}
+
+function mapLodickaTyp(value: string | null): "individualni" | "hromadna" {
+  const normalized = normalizeSearch(value ?? "");
+  return normalized.includes("hromad") ? "hromadna" : "individualni";
+}
+
+function mapLodickaStupen(value: string | null, studentStupen: 1 | 2 | null): 1 | 2 {
+  const normalized = normalizeSearch(value ?? "");
+  if (normalized.includes("ii") || normalized.includes("2")) return 2;
+  if (normalized.includes("i") || normalized.includes("1")) return 1;
+  if (studentStupen === 2) return 2;
+  return 1;
+}
+
+function normalizeGradeBound(value: number | null, studentRocnik: number | null): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const rounded = Math.round(value);
+    if (rounded >= 1 && rounded <= 9) return rounded;
+  }
+  if (typeof studentRocnik === "number" && Number.isFinite(studentRocnik)) {
+    const rounded = Math.round(studentRocnik);
+    if (rounded >= 1 && rounded <= 9) return rounded;
+  }
+  return 0;
+}
+
+function resolveHistoryActorId(
+  historyItem: LodickaHistoryRow,
+  ensureActor: (id: string, name: string, role: ProtoRoleId) => void,
+): string {
+  const personId = (historyItem.changedByPersonId ?? "").trim();
+  if (personId) {
+    const personName =
+      (historyItem.changedByLabel ?? "").trim() ||
+      (historyItem.sourceModifiedByLabel ?? "").trim() ||
+      (historyItem.sourceCreatedByLabel ?? "").trim() ||
+      personId;
+    ensureActor(personId, personName, "spravce");
+    return personId;
+  }
+
+  const label =
+    (historyItem.changedByLabel ?? "").trim() ||
+    (historyItem.sourceModifiedByLabel ?? "").trim() ||
+    (historyItem.sourceCreatedByLabel ?? "").trim();
+  if (label) {
+    const labelId = `db-label-${slugify(label)}`;
+    ensureActor(labelId, label, "spravce");
+    return labelId;
+  }
+
+  return "db-unknown-actor";
 }
 
 function SegmentControl({
@@ -2501,13 +2586,6 @@ function removeTokenFromSearch(searchInput: string, token: string): string {
 function getGuideDisplayName(actorId: string): string {
   const actor = PROTO_ACTORS.find((item) => item.id === actorId);
   if (!actor) return actorId;
-  return toNickname(actor.jmeno);
-}
-
-function getActorDisplayForSelector(actor: ProtoActor, activeRole: ProtoRoleId): string {
-  if (activeRole === "rodic") return actor.jmeno;
-  if (activeRole === "garant") return toNickname(actor.jmeno);
-  if (activeRole === "zak") return toNickname(actor.jmeno);
   return actor.jmeno;
 }
 
@@ -2516,7 +2594,7 @@ function getActorDisplayName(actorId: string, activeRole: ProtoRoleId): string {
   if (!actor) return actorId;
 
   if (actor.roles.includes("rodic")) return actor.jmeno;
-  if (actor.roles.includes("garant")) return toNickname(actor.jmeno);
+  if (actor.roles.includes("garant")) return actor.jmeno;
   if (actor.roles.includes("zak")) {
     const linked = actor.linkedStudentId ? PROTO_STUDENTS.find((item) => item.id === actor.linkedStudentId) : null;
     if (linked) return getStudentDisplayName(linked, activeRole);
@@ -2560,6 +2638,15 @@ function buildLodickaGroupLabel(lodicka: ProtoLodickaCatalogItem, keys: LodickaG
 
 function formatRocnikLabel(rocnik: number): string {
   return `${rocnik}. ročník`;
+}
+
+function formatLodickaRocnikRange(odRocniku: number, doRocniku: number): string {
+  if (odRocniku <= 0 || doRocniku <= 0) return "—";
+  return `${odRocniku}. až ${doRocniku}. ročník`;
+}
+
+function formatLodickaTyp(typ: "individualni" | "hromadna"): string {
+  return typ === "hromadna" ? "Hromadná" : "Individuální";
 }
 
 function stavBadgeClass(stav: LodickaStav): string {
@@ -2624,28 +2711,4 @@ function formatDateTimeCz(value: string): string {
 
 function getStudentPhotoUrl(student: ProtoStudent): string {
   return `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(student.id)}`;
-}
-
-function hash(input: string): number {
-  let value = 0;
-  for (let i = 0; i < input.length; i += 1) {
-    value = (value * 31 + input.charCodeAt(i)) >>> 0;
-  }
-  return value;
-}
-
-function getMockRvpBindings(lodicka: ProtoLodickaCatalogItem): Array<{ kod: string; text: string }> {
-  const seed = Math.abs(hash(`${lodicka.id}-${lodicka.kod}`));
-  const first = (seed % 40) + 1;
-  const second = ((seed + 17) % 40) + 1;
-  return [
-    {
-      kod: `OVU-${lodicka.stupen}-${String(first).padStart(2, "0")}`,
-      text: `${lodicka.oblast}: očekávaný výstup pro ${lodicka.doRocniku}. ročník`,
-    },
-    {
-      kod: `OVU-${lodicka.stupen}-${String(second).padStart(2, "0")}`,
-      text: `${lodicka.predmet}${lodicka.podpředmět ? ` / ${lodicka.podpředmět}` : ""}: navazující výstup`,
-    },
-  ];
 }
