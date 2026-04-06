@@ -313,6 +313,12 @@ function OsobniLodickyPrototypePageInner() {
 
   const filteredStudents = useMemo(() => {
     const tokens = searchPlan.freeTokens;
+    const tokenHasStudentMatch = new Map<string, boolean>();
+    tokens.forEach((token) => {
+      const hasMatch = accessibleStudents.some((student) => buildStudentSearchHaystack(student).includes(token));
+      tokenHasStudentMatch.set(token, hasMatch);
+    });
+
     return accessibleStudents.filter((student) => {
       if (
         effectivePeopleStupenFilter.length > 0 &&
@@ -332,13 +338,12 @@ function OsobniLodickyPrototypePageInner() {
       ) {
         return false;
       }
-      if (tokens.length > 0 && viewMode === "po_lidech") {
-        const firstName = getFirstName(student.jmeno);
-        const lastName = getLastName(student.jmeno);
-        const haystack = normalizeSearch(
-          `${student.jmeno} ${firstName} ${lastName} ${student.prezdivka} ${student.smecka} ${student.rocnik}`,
-        );
-        if (!tokens.every((token) => haystack.includes(token))) return false;
+      if (tokens.length > 0) {
+        const haystack = buildStudentSearchHaystack(student);
+        const relevantTokens = tokens.filter((token) => tokenHasStudentMatch.get(token));
+        if (relevantTokens.length > 0 && !relevantTokens.every((token) => haystack.includes(token))) {
+          return false;
+        }
       }
       return true;
     });
@@ -348,11 +353,16 @@ function OsobniLodickyPrototypePageInner() {
     effectivePeopleSmeckaFilter,
     effectivePeopleStupenFilter,
     searchPlan.freeTokens,
-    viewMode,
   ]);
 
   const filteredLodicky = useMemo(() => {
     const tokens = searchPlan.freeTokens;
+    const tokenHasLodickaMatch = new Map<string, boolean>();
+    tokens.forEach((token) => {
+      const hasMatch = PROTO_LODICKY_CATALOG.some((lodicka) => buildLodickaSearchHaystack(lodicka).includes(token));
+      tokenHasLodickaMatch.set(token, hasMatch);
+    });
+
     return PROTO_LODICKY_CATALOG.filter((lodicka) => {
       if (effectiveScope === "moje" && activeRole === "garant" && activeUserId) {
         if (lodicka.garantId !== activeUserId) return false;
@@ -382,11 +392,12 @@ function OsobniLodickyPrototypePageInner() {
       ) {
         return false;
       }
-      if (tokens.length > 0 && viewMode === "po_lodickach") {
-        const haystack = normalizeSearch(
-          `${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast} ${lodicka.predmet} ${lodicka.podpředmět ?? ""} ${getGuideDisplayName(lodicka.garantId)}`,
-        );
-        if (!tokens.every((token) => haystack.includes(token))) return false;
+      if (tokens.length > 0) {
+        const haystack = buildLodickaSearchHaystack(lodicka);
+        const relevantTokens = tokens.filter((token) => tokenHasLodickaMatch.get(token));
+        if (relevantTokens.length > 0 && !relevantTokens.every((token) => haystack.includes(token))) {
+          return false;
+        }
       }
       return true;
     });
@@ -400,7 +411,6 @@ function OsobniLodickyPrototypePageInner() {
     effectiveScope,
     searchPlan.freeTokens,
     showGarantControls,
-    viewMode,
   ]);
 
   const filteredStudentIds = useMemo(() => new Set(filteredStudents.map((student) => student.id)), [filteredStudents]);
@@ -2003,6 +2013,20 @@ function normalizeSearch(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function buildStudentSearchHaystack(student: ProtoStudent): string {
+  const firstName = getFirstName(student.jmeno);
+  const lastName = getLastName(student.jmeno);
+  return normalizeSearch(
+    `${student.jmeno} ${firstName} ${lastName} ${student.prezdivka} ${student.smecka} ${student.rocnik}`,
+  );
+}
+
+function buildLodickaSearchHaystack(lodicka: ProtoLodickaCatalogItem): string {
+  return normalizeSearch(
+    `${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast} ${lodicka.predmet} ${lodicka.podpředmět ?? ""} ${getGuideDisplayName(lodicka.garantId)}`,
+  );
 }
 
 function tokenizeSearch(value: string): string[] {
