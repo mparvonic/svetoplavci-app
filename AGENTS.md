@@ -102,3 +102,24 @@ Configured via environment variables (see `.env.local`):
 - Prototype pages live in `app/(prototype)/` — excluded from production
 - Mock data lives in `src/lib/mock/`
 - When asked to prototype, use mock data and follow existing component patterns
+
+## Environment Promotion Contract (Mandatory)
+
+All agents must follow this contract for every change:
+
+1. Work through environments in order: `Local (Mac) -> Proto -> Test (staging) -> Prod (main)`.
+2. Preserve UI/behavior parity 1:1 during promotion. UI must be shared (single source), only data adapters may change.
+3. Keep proto-only controls isolated to `app/(prototype)/` and never import them into runtime/dashboard routes.
+4. Do not introduce environment names (`proto`, `staging`, `test`, `prod`, `dev`) in app/runtime identifiers (functions, constants, params, types).
+5. For PR to `staging` or `main`, do not modify `app/(prototype)/` or `src/lib/mock/` in the same promotion PR.
+6. Every PR to `proto`, `staging`, `main` must update `docs/09-status/`; PRs to `staging` and `main` must include a promotion record in `docs/09-status/promotions/`.
+
+Reference:
+
+- `docs/05-delivery/environment-promotion-policy.md`
+- `docs/10-templates/promotion-record-template.md`
+
+Enforcement:
+
+- CI policy guard workflow: `.github/workflows/policy-guard.yml`
+- Guard script: `scripts/policy/enforce-promotion-policy.mjs`
