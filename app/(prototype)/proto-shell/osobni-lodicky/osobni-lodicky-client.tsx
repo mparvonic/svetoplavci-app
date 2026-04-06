@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, type ReactNode, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { CalendarDays, ChevronDown, ChevronUp, Filter, Search } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +33,8 @@ import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 
 type ScopeMode = "moje" | "vsechny";
 type ViewMode = "po_lodickach" | "po_lidech";
+type LideGroupBy = "rocniky" | "smecky";
+type LodickyGroupMode = "ano" | "ne";
 
 type PersonalWithSnapshot = {
   personal: ProtoOsobniLodicka;
@@ -93,6 +95,9 @@ function OsobniLodickyPrototypePageInner() {
   const [leftSort, setLeftSort] = useState<PaneSort>("nazev");
   const [rightSort, setRightSort] = useState<PaneSort>("jmeno");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [lideGroupBy, setLideGroupBy] = useState<LideGroupBy>("rocniky");
+  const [lodickyGroupMode, setLodickyGroupMode] = useState<LodickyGroupMode>("ano");
+  const [historyDetailEventId, setHistoryDetailEventId] = useState<string | null>(null);
 
   const [selectedLeftId, setSelectedLeftId] = useState<string | null>(null);
   const [selectedPersonalId, setSelectedPersonalId] = useState<string | null>(null);
@@ -113,6 +118,9 @@ function OsobniLodickyPrototypePageInner() {
 
   const isReadonly = activeRole === "rodic" || activeRole === "zak";
   const effectiveScope: ScopeMode = activeRole === "garant" || activeRole === "spravce" ? scopeMode : "moje";
+  const showGarantContext = effectiveScope === "vsechny";
+  const effectiveLeftSort: PaneSort =
+    !showGarantContext && leftSort === "garant" ? "nazev" : leftSort;
 
   const studentsById = useMemo(
     () => new Map(PROTO_STUDENTS.map((student) => [student.id, student])),
@@ -189,7 +197,8 @@ function OsobniLodickyPrototypePageInner() {
       }
       if (searchInput.trim() && viewMode === "po_lidech") {
         const needle = searchInput.trim().toLowerCase();
-        if (!student.jmeno.toLowerCase().includes(needle)) return false;
+        const haystack = `${student.prezdivka} ${student.jmeno}`.toLowerCase();
+        if (!haystack.includes(needle)) return false;
       }
       return true;
     });
@@ -212,7 +221,11 @@ function OsobniLodickyPrototypePageInner() {
       if (lodickyOblastFilter.length > 0 && !lodickyOblastFilter.includes(lodicka.oblast)) {
         return false;
       }
-      if (lodickyGarantFilter.length > 0 && !lodickyGarantFilter.includes(getActorLabel(lodicka.garantId))) {
+      if (
+        showGarantContext &&
+        lodickyGarantFilter.length > 0 &&
+        !lodickyGarantFilter.includes(getActorLabel(lodicka.garantId))
+      ) {
         return false;
       }
       if (searchInput.trim() && viewMode === "po_lodickach") {
@@ -231,6 +244,7 @@ function OsobniLodickyPrototypePageInner() {
     lodickyPodpredmetFilter,
     lodickyPredmetFilter,
     searchInput,
+    showGarantContext,
     viewMode,
   ]);
 
@@ -277,7 +291,7 @@ function OsobniLodickyPrototypePageInner() {
         }))
         .filter((item) => item.count > 0);
 
-      return sortLeftPaneLodicky(lodickaWithCount, leftSort);
+      return sortLeftPaneLodicky(lodickaWithCount, effectiveLeftSort);
     }
 
     const studentsWithCount = filteredStudents
@@ -287,8 +301,8 @@ function OsobniLodickyPrototypePageInner() {
       }))
       .filter((item) => item.count > 0);
 
-    return sortLeftPaneStudents(studentsWithCount, leftSort);
-  }, [filteredLodicky, filteredStudents, leftSort, personalRows, viewMode]);
+    return sortLeftPaneStudents(studentsWithCount, effectiveLeftSort);
+  }, [effectiveLeftSort, filteredLodicky, filteredStudents, personalRows, viewMode]);
 
   const selectedLeftIdEffective = useMemo(() => {
     const leftIds = leftItems.map((item) => ("lodicka" in item ? item.lodicka.id : item.student.id));
@@ -326,6 +340,11 @@ function OsobniLodickyPrototypePageInner() {
       : b.datumStavu.localeCompare(a.datumStavu),
   );
 
+  const activeHistoryDetailId =
+    historyDetailEventId && selectedPersonalHistory.some((event) => event.id === historyDetailEventId)
+      ? historyDetailEventId
+      : null;
+
   const suggestions = useMemo(() => {
     const needle = searchInput.trim().toLowerCase();
     if (!needle) return [] as SearchSuggestion[];
@@ -341,8 +360,13 @@ function OsobniLodickyPrototypePageInner() {
       });
 
       filteredStudents.forEach((student) => {
-        if (student.jmeno.toLowerCase().includes(needle)) {
-          output.push({ id: `student-${student.id}`, label: `Žák: ${student.jmeno}`, type: "student", value: student.jmeno });
+        if (`${student.prezdivka} ${student.jmeno}`.toLowerCase().includes(needle)) {
+          output.push({
+            id: `student-${student.id}`,
+            label: `Žák: ${student.prezdivka}`,
+            type: "student",
+            value: student.prezdivka,
+          });
         }
       });
     } else {
@@ -429,6 +453,24 @@ function OsobniLodickyPrototypePageInner() {
     });
   }
 
+  function clearAllFilters() {
+    setPeopleStupenFilter([]);
+    setPeopleRocnikFilter([]);
+    setPeopleSmeckaFilter([]);
+    setLodickyPredmetFilter([]);
+    setLodickyPodpredmetFilter([]);
+    setLodickyOblastFilter([]);
+    setLodickyGarantFilter([]);
+    setSearchInput("");
+
+    pushDebug({
+      elementId: "BTN-CLEAR-FILTERS",
+      label: "Vymazat všechny filtry",
+      action: "clear-filters",
+      hierarchy: "PERSONAL_LODICKY > FILTER_PANEL",
+    });
+  }
+
   function updateStatus(personalId: string, nextStatus: LodickaStav) {
     if (isReadonly || !activeUser) return;
 
@@ -461,6 +503,9 @@ function OsobniLodickyPrototypePageInner() {
 
   const leftTableId = viewMode === "po_lodickach" ? "T221" : "T222";
   const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
+  const showGarantColumn = viewMode === "po_lodickach" && showGarantContext;
+  const leftTableColumnCount = viewMode === "po_lodickach" ? (showGarantColumn ? 3 : 2) : 2;
+  const rightTableColumnCount = 3;
 
   return (
     <main className="min-h-screen bg-slate-50 pb-44">
@@ -580,7 +625,7 @@ function OsobniLodickyPrototypePageInner() {
                   />
                 </div>
                 <span className="mt-1 block text-[11px] text-slate-500">
-                  Aktivní pololetí: {semesterBounds.minDate} až {semesterBounds.maxDate}
+                  Aktivní pololetí: {formatCzDate(semesterBounds.minDate)} až {formatCzDate(semesterBounds.maxDate)}
                 </span>
               </label>
             </div>
@@ -608,6 +653,15 @@ function OsobniLodickyPrototypePageInner() {
                   <Filter className="mr-1 size-3.5" />
                   fulltext
                 </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  className="border-[#D9E4F2] text-[#05204A]"
+                  onClick={clearAllFilters}
+                >
+                  Vymazat filtry
+                </Button>
               </div>
 
               {suggestions.length > 0 && (
@@ -677,12 +731,25 @@ function OsobniLodickyPrototypePageInner() {
                       value={lodickyOblastFilter}
                       onChange={setLodickyOblastFilter}
                     />
-                    <MultiToggleSelect
-                      label="Garant"
-                      options={options.garanti}
-                      value={lodickyGarantFilter}
-                      onChange={setLodickyGarantFilter}
-                    />
+                    {showGarantContext && (
+                      <MultiToggleSelect
+                        label="Garant"
+                        options={options.garanti}
+                        value={lodickyGarantFilter}
+                        onChange={setLodickyGarantFilter}
+                      />
+                    )}
+                    <div className="md:col-span-2 xl:col-span-4">
+                      <SegmentControl
+                        label="Seskupovat lodičky"
+                        options={[
+                          { id: "ano", label: "Ano" },
+                          { id: "ne", label: "Ne" },
+                        ]}
+                        value={lodickyGroupMode}
+                        onChange={(value) => setLodickyGroupMode(value as LodickyGroupMode)}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -708,21 +775,36 @@ function OsobniLodickyPrototypePageInner() {
                       : "Výběr žáka určuje obsah pravého panelu."}
                   </CardDescription>
                 </div>
-                <SortSelect
-                  value={leftSort}
-                  onChange={setLeftSort}
-                  options={
-                    viewMode === "po_lodickach"
-                      ? [
-                          { id: "nazev", label: "Název" },
-                          { id: "garant", label: "Garant" },
-                        ]
-                      : [
-                          { id: "jmeno", label: "Jméno" },
-                          { id: "rocnik", label: "Ročník" },
-                        ]
-                  }
-                />
+                <div className="space-y-1 text-right">
+                  <SortSelect
+                    value={effectiveLeftSort}
+                    onChange={(value) => setLeftSort(value as PaneSort)}
+                    options={
+                      viewMode === "po_lodickach"
+                        ? showGarantContext
+                          ? [
+                              { id: "nazev", label: "Název" },
+                              { id: "garant", label: "Garant" },
+                            ]
+                          : [{ id: "nazev", label: "Název" }]
+                        : [
+                            { id: "jmeno", label: "Přezdívka" },
+                            { id: "rocnik", label: "Ročník" },
+                          ]
+                    }
+                  />
+                  {viewMode === "po_lidech" && (
+                    <SortSelect
+                      label="Seskupit podle"
+                      value={lideGroupBy}
+                      onChange={(value) => setLideGroupBy(value as LideGroupBy)}
+                      options={[
+                        { id: "rocniky", label: "Ročníky" },
+                        { id: "smecky", label: "Smečky" },
+                      ]}
+                    />
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="overflow-auto xl:min-h-0 xl:flex-1">
@@ -732,13 +814,12 @@ function OsobniLodickyPrototypePageInner() {
                     {viewMode === "po_lodickach" ? (
                       <>
                         <TableHead>Lodička</TableHead>
-                        <TableHead>Garant</TableHead>
+                        {showGarantColumn && <TableHead>Garant</TableHead>}
                         <TableHead>Počet</TableHead>
                       </>
                     ) : (
                       <>
                         <TableHead>Žák</TableHead>
-                        <TableHead>Smečka</TableHead>
                         <TableHead>Počet</TableHead>
                       </>
                     )}
@@ -747,7 +828,7 @@ function OsobniLodickyPrototypePageInner() {
                 <TableBody>
                   {leftItems.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={3} className="py-8 text-center text-slate-500">
+                      <TableCell colSpan={leftTableColumnCount} className="py-8 text-center text-slate-500">
                         Žádná data pro zvolený filtr.
                       </TableCell>
                     </TableRow>
@@ -757,6 +838,9 @@ function OsobniLodickyPrototypePageInner() {
                     viewMode,
                     leftItems,
                     selectedLeftId: selectedLeftIdEffective,
+                    showGarantColumn,
+                    showLodickyGrouping: lodickyGroupMode === "ano",
+                    lideGroupBy,
                     onSelect: (id, label, rowId, tableId, hierarchy) => {
                       setSelectedLeftId(id);
                       setSelectedPersonalId(null);
@@ -789,11 +873,11 @@ function OsobniLodickyPrototypePageInner() {
                 </div>
                 <SortSelect
                   value={rightSort}
-                  onChange={setRightSort}
+                  onChange={(value) => setRightSort(value as PaneSort)}
                   options={
                     viewMode === "po_lodickach"
                       ? [
-                          { id: "jmeno", label: "Jméno" },
+                          { id: "jmeno", label: "Přezdívka" },
                           { id: "stav", label: "Stav" },
                         ]
                       : [
@@ -808,27 +892,15 @@ function OsobniLodickyPrototypePageInner() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {viewMode === "po_lodickach" ? (
-                      <>
-                        <TableHead>Žák</TableHead>
-                        <TableHead>Smečka</TableHead>
-                        <TableHead>Stav</TableHead>
-                        <TableHead className="text-right">Změna</TableHead>
-                      </>
-                    ) : (
-                      <>
-                        <TableHead>Lodička</TableHead>
-                        <TableHead>Oblast</TableHead>
-                        <TableHead>Stav</TableHead>
-                        <TableHead className="text-right">Změna</TableHead>
-                      </>
-                    )}
+                    <TableHead>{viewMode === "po_lodickach" ? "Žák" : "Lodička"}</TableHead>
+                    <TableHead>Stav</TableHead>
+                    <TableHead className="text-right">Změna</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rightRows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="py-8 text-center text-slate-500">
+                      <TableCell colSpan={rightTableColumnCount} className="py-8 text-center text-slate-500">
                         Pravý panel je prázdný. Vyber vlevo řádek nebo uprav filtr.
                       </TableCell>
                     </TableRow>
@@ -840,6 +912,8 @@ function OsobniLodickyPrototypePageInner() {
                     viewMode,
                     tableId: rightTableId,
                     readonly: isReadonly,
+                    lideGroupBy,
+                    showLodickyGrouping: lodickyGroupMode === "ano",
                     onSelectRow: (personalId, label, rowId, hierarchy) => {
                       setSelectedPersonalId(personalId);
                       pushDebug({
@@ -861,19 +935,18 @@ function OsobniLodickyPrototypePageInner() {
           <Card className="border-[#D9E4F2] xl:h-full xl:min-h-0">
             <CardHeader className="pb-2">
               <CardTitle className="text-[#05204A]">Pomocné okno: historie</CardTitle>
-              <CardDescription>Vybraný řádek v pravém panelu: detail změn stavu osobní lodičky.</CardDescription>
+              <CardDescription>Kompaktní přehled: datum, stav a detail po kliknutí na ikonu.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 overflow-auto xl:min-h-0 xl:flex-1">
               {!selectedPersonalRow && <p className="text-sm text-slate-500">Není vybraná osobní lodička.</p>}
 
               {selectedPersonalRow && (
-                <div className="grid gap-2">
-                  <InfoCell label="Žák" value={selectedPersonalRow.student.jmeno} />
-                  <InfoCell label="Lodička" value={selectedPersonalRow.lodicka.nazev} />
-                  <InfoCell
-                    label="Aktuální stav"
-                    value={`${selectedPersonalRow.stav} - ${LODICKA_STAV_LABEL[selectedPersonalRow.stav]}`}
-                  />
+                <div className="rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] px-3 py-2">
+                  <p className="text-sm font-semibold text-[#05204A]">{selectedPersonalRow.student.prezdivka}</p>
+                  <p className="text-xs text-slate-600">{selectedPersonalRow.lodicka.nazev}</p>
+                  <Badge className={`mt-1 ${stavBadgeClass(selectedPersonalRow.stav)}`}>
+                    {LODICKA_STAV_LABEL[selectedPersonalRow.stav]}
+                  </Badge>
                 </div>
               )}
 
@@ -881,31 +954,52 @@ function OsobniLodickyPrototypePageInner() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Datum stavu</TableHead>
-                    <TableHead>Zapsáno</TableHead>
                     <TableHead>Stav</TableHead>
-                    <TableHead>Zapsal</TableHead>
-                    <TableHead>Poznámka</TableHead>
+                    <TableHead className="text-right">Detail</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {selectedPersonalHistory.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-6 text-center text-slate-500">
+                      <TableCell colSpan={3} className="py-6 text-center text-slate-500">
                         Pro vybranou položku zatím nejsou eventy.
                       </TableCell>
                     </TableRow>
                   )}
                   {selectedPersonalHistory.map((event) => (
                     <TableRow key={event.id}>
-                      <TableCell>{event.datumStavu}</TableCell>
-                      <TableCell>{event.zapsanoAt}</TableCell>
+                      <TableCell>{formatCzDate(event.datumStavu)}</TableCell>
                       <TableCell>
                         <Badge className={stavBadgeClass(event.stav)}>
-                          {event.stav} - {LODICKA_STAV_LABEL[event.stav]}
+                          {LODICKA_STAV_LABEL[event.stav]}
                         </Badge>
                       </TableCell>
-                      <TableCell>{getActorLabel(event.zapsalId)}</TableCell>
-                      <TableCell>{event.poznamka ?? "-"}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="relative inline-block">
+                          <button
+                            type="button"
+                            className="inline-flex size-6 items-center justify-center rounded-full border border-[#D9E4F2] bg-white text-[#0A4DA6] hover:bg-[#F2F7FF]"
+                            onClick={() =>
+                              setHistoryDetailEventId((prev) => (prev === event.id ? null : event.id))
+                            }
+                          >
+                            <Info className="size-3.5" />
+                          </button>
+                          {activeHistoryDetailId === event.id && (
+                            <div className="absolute right-0 top-7 z-20 w-56 rounded-lg border border-[#D9E4F2] bg-white p-2 text-left text-[11px] text-slate-600 shadow-lg">
+                              <p>
+                                <span className="font-semibold">Zapsáno:</span> {formatCzDateTime(event.zapsanoAt)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">Zapsal:</span> {getActorLabel(event.zapsalId)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">Poznámka:</span> {event.poznamka ?? "-"}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -961,6 +1055,22 @@ function MultiToggleSelect({
       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </span>
+      {value.length > 0 && (
+        <div className="mb-1.5 flex flex-wrap gap-1">
+          {value.map((item) => (
+            <button
+              key={`selected-${label}-${item}`}
+              type="button"
+              onClick={() => onChange(value.filter((entry) => entry !== item))}
+              className="inline-flex items-center gap-1 rounded-full border border-[#0A4DA6] bg-[#EAF2FF] px-2 py-0.5 text-[11px] font-medium text-[#0A4DA6]"
+              title={`Odebrat filtr ${item}`}
+            >
+              {item}
+              <X className="size-3" />
+            </button>
+          ))}
+        </div>
+      )}
       <div className="max-h-[130px] overflow-auto rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-1.5">
         <div className="flex flex-wrap gap-1.5">
           {options.map((option) => {
@@ -1028,20 +1138,22 @@ function SegmentControl({
 }
 
 function SortSelect({
+  label = "Řazení",
   value,
   onChange,
   options,
 }: {
-  value: PaneSort;
-  onChange: (value: PaneSort) => void;
-  options: { id: PaneSort; label: string }[];
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { id: string; label: string }[];
 }) {
   return (
     <label className="inline-flex items-center gap-2 text-xs text-slate-500">
-      Řazení
+      {label}
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value as PaneSort)}
+        onChange={(e) => onChange(e.target.value)}
         className="rounded-lg border border-[#D9E4F2] bg-white px-2 py-1 text-xs text-slate-700"
       >
         {options.map((option) => (
@@ -1051,15 +1163,6 @@ function SortSelect({
         ))}
       </select>
     </label>
-  );
-}
-
-function InfoCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] px-3 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-medium text-[#05204A]">{value}</p>
-    </div>
   );
 }
 
@@ -1092,9 +1195,12 @@ function sortLeftPaneStudents(
   const sorted = [...rows];
   sorted.sort((a, b) => {
     if (mode === "rocnik") {
-      return a.student.rocnik - b.student.rocnik || a.student.jmeno.localeCompare(b.student.jmeno, "cs");
+      return (
+        a.student.rocnik - b.student.rocnik ||
+        a.student.prezdivka.localeCompare(b.student.prezdivka, "cs")
+      );
     }
-    return a.student.jmeno.localeCompare(b.student.jmeno, "cs");
+    return a.student.prezdivka.localeCompare(b.student.prezdivka, "cs");
   });
   return sorted;
 }
@@ -1105,7 +1211,7 @@ function sortRightPane(rows: PersonalWithSnapshot[], mode: PaneSort, viewMode: V
     if (mode === "stav") return b.stav - a.stav;
 
     if (viewMode === "po_lodickach") {
-      return a.student.jmeno.localeCompare(b.student.jmeno, "cs");
+      return a.student.prezdivka.localeCompare(b.student.prezdivka, "cs");
     }
 
     return a.lodicka.nazev.localeCompare(b.lodicka.nazev, "cs");
@@ -1118,6 +1224,9 @@ function renderLeftPaneRows({
   viewMode,
   leftItems,
   selectedLeftId,
+  showGarantColumn,
+  showLodickyGrouping,
+  lideGroupBy,
   onSelect,
   tableId,
 }: {
@@ -1126,30 +1235,22 @@ function renderLeftPaneRows({
     | { lodicka: ProtoLodickaCatalogItem; count: number }[]
     | { student: ProtoStudent; count: number }[];
   selectedLeftId: string | null;
+  showGarantColumn: boolean;
+  showLodickyGrouping: boolean;
+  lideGroupBy: LideGroupBy;
   onSelect: (id: string, label: string, rowId: string, tableId: string, hierarchy: string) => void;
   tableId: string;
 }) {
   if (viewMode === "po_lodickach") {
-    const grouped = groupBy(
-      leftItems as { lodicka: ProtoLodickaCatalogItem; count: number }[],
-      (item) => item.lodicka.oblast,
-    );
-
+    const lodickyRows = leftItems as { lodicka: ProtoLodickaCatalogItem; count: number }[];
+    const colSpan = showGarantColumn ? 3 : 2;
     let rowCounter = 0;
 
-    return grouped.flatMap(([groupName, items]) => {
-      const rows = [
-        <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
-          <TableCell colSpan={3} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
-            {groupName} ({items.length})
-          </TableCell>
-        </TableRow>,
-      ];
-
-      items.forEach((item) => {
+    if (!showLodickyGrouping) {
+      return lodickyRows.map((item) => {
         rowCounter += 1;
         const isSelected = selectedLeftId === item.lodicka.id;
-        rows.push(
+        return (
           <TableRow
             key={item.lodicka.id}
             data-state={isSelected ? "selected" : undefined}
@@ -1160,24 +1261,92 @@ function renderLeftPaneRows({
                 item.lodicka.nazev,
                 String(rowCounter),
                 tableId,
-                `${tableId} > OBLAST:${groupName} > LODICKA:${item.lodicka.id}`,
+                `${tableId} > LODICKA:${item.lodicka.id}`,
               )
             }
           >
             <TableCell className="font-medium text-[#05204A]">{item.lodicka.nazev}</TableCell>
-            <TableCell>{getActorLabel(item.lodicka.garantId)}</TableCell>
+            {showGarantColumn && <TableCell>{getActorLabel(item.lodicka.garantId)}</TableCell>}
             <TableCell>{item.count}</TableCell>
-          </TableRow>,
+          </TableRow>
         );
       });
+    }
 
-      return rows;
+    const predmetGroups = groupBy(lodickyRows, (item) => item.lodicka.predmet).sort((a, b) =>
+      a[0].localeCompare(b[0], "cs"),
+    );
+    const rows: ReactNode[] = [];
+
+    predmetGroups.forEach(([predmet, predmetItems]) => {
+      rows.push(
+        <TableRow key={`predmet-${predmet}`} className="bg-[#F7FAFF]">
+          <TableCell colSpan={colSpan} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
+            {predmet} ({predmetItems.length})
+          </TableCell>
+        </TableRow>,
+      );
+
+      const podpredmetGroups = groupBy(predmetItems, (item) => item.lodicka.podpředmět ?? "Bez podpředmětu").sort(
+        (a, b) => a[0].localeCompare(b[0], "cs"),
+      );
+
+      podpredmetGroups.forEach(([podpredmet, podpredmetItems]) => {
+        rows.push(
+          <TableRow key={`podpredmet-${predmet}-${podpredmet}`} className="bg-[#F9FCFF]">
+            <TableCell colSpan={colSpan} className="pl-4 text-xs font-medium text-[#0A4DA6]">
+              {podpredmet} ({podpredmetItems.length})
+            </TableCell>
+          </TableRow>,
+        );
+
+        const oblastGroups = groupBy(podpredmetItems, (item) => item.lodicka.oblast).sort((a, b) =>
+          a[0].localeCompare(b[0], "cs"),
+        );
+
+        oblastGroups.forEach(([oblast, oblastItems]) => {
+          rows.push(
+            <TableRow key={`oblast-${predmet}-${podpredmet}-${oblast}`} className="bg-[#FCFEFF]">
+              <TableCell colSpan={colSpan} className="pl-7 text-xs text-[#0A4DA6]">
+                {oblast} ({oblastItems.length})
+              </TableCell>
+            </TableRow>,
+          );
+
+          oblastItems.forEach((item) => {
+            rowCounter += 1;
+            const isSelected = selectedLeftId === item.lodicka.id;
+            rows.push(
+              <TableRow
+                key={item.lodicka.id}
+                data-state={isSelected ? "selected" : undefined}
+                className="cursor-pointer"
+                onClick={() =>
+                  onSelect(
+                    item.lodicka.id,
+                    item.lodicka.nazev,
+                    String(rowCounter),
+                    tableId,
+                    `${tableId} > PREDMET:${predmet} > PODPREDMET:${podpredmet} > OBLAST:${oblast} > LODICKA:${item.lodicka.id}`,
+                  )
+                }
+              >
+                <TableCell className="pl-9 font-medium text-[#05204A]">{item.lodicka.nazev}</TableCell>
+                {showGarantColumn && <TableCell>{getActorLabel(item.lodicka.garantId)}</TableCell>}
+                <TableCell>{item.count}</TableCell>
+              </TableRow>,
+            );
+          });
+        });
+      });
     });
+
+    return rows;
   }
 
-  const grouped = groupBy(
-    leftItems as { student: ProtoStudent; count: number }[],
-    (item) => item.student.smecka,
+  const studentRows = leftItems as { student: ProtoStudent; count: number }[];
+  const grouped = groupBy(studentRows, (item) => getPeopleGroupLabel(item.student, lideGroupBy)).sort((a, b) =>
+    sortPeopleGroupLabel(a[0], b[0], lideGroupBy),
   );
 
   let rowCounter = 0;
@@ -1185,7 +1354,7 @@ function renderLeftPaneRows({
   return grouped.flatMap(([groupName, items]) => {
     const rows = [
       <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
-        <TableCell colSpan={3} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
+        <TableCell colSpan={2} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
           {groupName} ({items.length})
         </TableCell>
       </TableRow>,
@@ -1202,15 +1371,14 @@ function renderLeftPaneRows({
           onClick={() =>
             onSelect(
               item.student.id,
-              item.student.jmeno,
+              item.student.prezdivka,
               String(rowCounter),
               tableId,
-              `${tableId} > SMECKA:${groupName} > STUDENT:${item.student.id}`,
+              `${tableId} > GROUP:${groupName} > STUDENT:${item.student.id}`,
             )
           }
         >
-          <TableCell className="font-medium text-[#05204A]">{item.student.jmeno}</TableCell>
-          <TableCell>{item.student.smecka}</TableCell>
+          <TableCell className="font-medium text-[#05204A]">{item.student.prezdivka}</TableCell>
           <TableCell>{item.count}</TableCell>
         </TableRow>,
       );
@@ -1226,6 +1394,8 @@ function renderRightPaneRows({
   viewMode,
   tableId,
   readonly,
+  lideGroupBy,
+  showLodickyGrouping,
   onSelectRow,
   onSetStatus,
 }: {
@@ -1234,16 +1404,125 @@ function renderRightPaneRows({
   viewMode: ViewMode;
   tableId: string;
   readonly: boolean;
+  lideGroupBy: LideGroupBy;
+  showLodickyGrouping: boolean;
   onSelectRow: (personalId: string, label: string, rowId: string, hierarchy: string) => void;
   onSetStatus: (personalId: string, status: LodickaStav) => void;
 }) {
-  const grouped = groupBy(rows, (row) => (viewMode === "po_lodickach" ? row.student.smecka : row.lodicka.oblast));
   let rowCounter = 0;
 
-  return grouped.flatMap(([groupName, items]) => {
+  if (viewMode === "po_lidech") {
+    if (!showLodickyGrouping) {
+      return rows.map((row) => {
+        rowCounter += 1;
+        const isSelected = selectedPersonalId === row.personal.id;
+        return (
+          <TableRow
+            key={row.personal.id}
+            data-state={isSelected ? "selected" : undefined}
+            className="cursor-pointer"
+            onClick={() =>
+              onSelectRow(
+                row.personal.id,
+                row.lodicka.nazev,
+                String(rowCounter),
+                `${tableId} > LODICKA:${row.lodicka.id} > PERSONAL:${row.personal.id}`,
+              )
+            }
+          >
+            <TableCell className="font-medium text-[#05204A]">{row.lodicka.nazev}</TableCell>
+            <TableCell>
+              <Badge className={stavBadgeClass(row.stav)}>{LODICKA_STAV_LABEL[row.stav]}</Badge>
+            </TableCell>
+            <TableCell className="text-right">
+              <StatusButtons row={row} readonly={readonly} onSetStatus={onSetStatus} />
+            </TableCell>
+          </TableRow>
+        );
+      });
+    }
+
+    const predmetGroups = groupBy(rows, (row) => row.lodicka.predmet).sort((a, b) =>
+      a[0].localeCompare(b[0], "cs"),
+    );
+    const nestedRows: ReactNode[] = [];
+
+    predmetGroups.forEach(([predmet, predmetItems]) => {
+      nestedRows.push(
+        <TableRow key={`r-predmet-${predmet}`} className="bg-[#F7FAFF]">
+          <TableCell colSpan={3} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
+            {predmet} ({predmetItems.length})
+          </TableCell>
+        </TableRow>,
+      );
+
+      const podpredmetGroups = groupBy(predmetItems, (row) => row.lodicka.podpředmět ?? "Bez podpředmětu").sort(
+        (a, b) => a[0].localeCompare(b[0], "cs"),
+      );
+
+      podpredmetGroups.forEach(([podpredmet, podpredmetItems]) => {
+        nestedRows.push(
+          <TableRow key={`r-podpredmet-${predmet}-${podpredmet}`} className="bg-[#F9FCFF]">
+            <TableCell colSpan={3} className="pl-4 text-xs font-medium text-[#0A4DA6]">
+              {podpredmet} ({podpredmetItems.length})
+            </TableCell>
+          </TableRow>,
+        );
+
+        const oblastGroups = groupBy(podpredmetItems, (row) => row.lodicka.oblast).sort((a, b) =>
+          a[0].localeCompare(b[0], "cs"),
+        );
+        oblastGroups.forEach(([oblast, oblastItems]) => {
+          nestedRows.push(
+            <TableRow key={`r-oblast-${predmet}-${podpredmet}-${oblast}`} className="bg-[#FCFEFF]">
+              <TableCell colSpan={3} className="pl-7 text-xs text-[#0A4DA6]">
+                {oblast} ({oblastItems.length})
+              </TableCell>
+            </TableRow>,
+          );
+
+          oblastItems.forEach((row) => {
+            rowCounter += 1;
+            const isSelected = selectedPersonalId === row.personal.id;
+            nestedRows.push(
+              <TableRow
+                key={row.personal.id}
+                data-state={isSelected ? "selected" : undefined}
+                className="cursor-pointer"
+                onClick={() =>
+                  onSelectRow(
+                    row.personal.id,
+                    row.lodicka.nazev,
+                    String(rowCounter),
+                    `${tableId} > PREDMET:${predmet} > PODPREDMET:${podpredmet} > OBLAST:${oblast} > PERSONAL:${row.personal.id}`,
+                  )
+                }
+              >
+                <TableCell className="pl-9 font-medium text-[#05204A]">{row.lodicka.nazev}</TableCell>
+                <TableCell>
+                  <Badge className={stavBadgeClass(row.stav)}>{LODICKA_STAV_LABEL[row.stav]}</Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <StatusButtons row={row} readonly={readonly} onSetStatus={onSetStatus} />
+                </TableCell>
+              </TableRow>,
+            );
+          });
+        });
+      });
+    });
+
+    return nestedRows;
+  }
+
+  const groupedPeople = groupBy(rows, (row) => getPeopleGroupLabel(row.student, lideGroupBy)).sort((a, b) =>
+    sortPeopleGroupLabel(a[0], b[0], lideGroupBy),
+  );
+
+  return groupedPeople.flatMap(([groupName, items]) => {
     const result = [
       <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
-        <TableCell colSpan={4} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
+        <TableCell colSpan={3} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
           {groupName} ({items.length})
         </TableCell>
       </TableRow>,
@@ -1252,7 +1531,7 @@ function renderRightPaneRows({
     items.forEach((row) => {
       rowCounter += 1;
       const isSelected = selectedPersonalId === row.personal.id;
-      const rowLabel = viewMode === "po_lodickach" ? row.student.jmeno : row.lodicka.nazev;
+      const rowLabel = viewMode === "po_lodickach" ? row.student.prezdivka : row.lodicka.nazev;
 
       result.push(
         <TableRow
@@ -1268,42 +1547,14 @@ function renderRightPaneRows({
             )
           }
         >
-          {viewMode === "po_lodickach" ? (
-            <>
-              <TableCell className="font-medium text-[#05204A]">{row.student.jmeno}</TableCell>
-              <TableCell>{row.student.smecka}</TableCell>
-            </>
-          ) : (
-            <>
-              <TableCell className="font-medium text-[#05204A]">{row.lodicka.nazev}</TableCell>
-              <TableCell>{row.lodicka.oblast}</TableCell>
-            </>
-          )}
-
+          <TableCell className="font-medium text-[#05204A]">
+            {viewMode === "po_lodickach" ? row.student.prezdivka : row.lodicka.nazev}
+          </TableCell>
           <TableCell>
-            <Badge className={stavBadgeClass(row.stav)}>
-              {row.stav} - {LODICKA_STAV_LABEL[row.stav]}
-            </Badge>
+            <Badge className={stavBadgeClass(row.stav)}>{LODICKA_STAV_LABEL[row.stav]}</Badge>
           </TableCell>
           <TableCell className="text-right">
-            <div className="inline-flex gap-1">
-              {[0, 1, 2, 3, 4].map((statusValue) => (
-                <Button
-                  key={statusValue}
-                  type="button"
-                  size="xs"
-                  variant={row.stav === statusValue ? "default" : "outline"}
-                  disabled={readonly}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onSetStatus(row.personal.id, statusValue as LodickaStav);
-                  }}
-                  className={row.stav === statusValue ? "bg-[#002060] text-white" : ""}
-                >
-                  {statusValue}
-                </Button>
-              ))}
-            </div>
+            <StatusButtons row={row} readonly={readonly} onSetStatus={onSetStatus} />
           </TableCell>
         </TableRow>,
       );
@@ -1311,6 +1562,37 @@ function renderRightPaneRows({
 
     return result;
   });
+}
+
+function StatusButtons({
+  row,
+  readonly,
+  onSetStatus,
+}: {
+  row: PersonalWithSnapshot;
+  readonly: boolean;
+  onSetStatus: (personalId: string, status: LodickaStav) => void;
+}) {
+  return (
+    <div className="inline-flex gap-1">
+      {[0, 1, 2, 3, 4].map((statusValue) => (
+        <Button
+          key={statusValue}
+          type="button"
+          size="xs"
+          variant={row.stav === statusValue ? "default" : "outline"}
+          disabled={readonly}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSetStatus(row.personal.id, statusValue as LodickaStav);
+          }}
+          className={row.stav === statusValue ? "bg-[#002060] text-white" : ""}
+        >
+          {statusValue}
+        </Button>
+      ))}
+    </div>
+  );
 }
 
 function groupBy<T>(items: T[], getKey: (item: T) => string): [string, T[]][] {
@@ -1322,6 +1604,34 @@ function groupBy<T>(items: T[], getKey: (item: T) => string): [string, T[]][] {
     map.set(key, bucket);
   });
   return [...map.entries()];
+}
+
+function getPeopleGroupLabel(student: ProtoStudent, mode: LideGroupBy): string {
+  if (mode === "rocniky") return `Ročník ${student.rocnik}`;
+  return student.smecka;
+}
+
+function sortPeopleGroupLabel(a: string, b: string, mode: LideGroupBy): number {
+  if (mode === "rocniky") {
+    const numberA = Number(a.replace(/\D/g, ""));
+    const numberB = Number(b.replace(/\D/g, ""));
+    return numberA - numberB;
+  }
+  return a.localeCompare(b, "cs");
+}
+
+function formatCzDate(value: string): string {
+  const onlyDate = value.slice(0, 10);
+  const [year, month, day] = onlyDate.split("-");
+  if (!year || !month || !day) return value;
+  return `${Number(day)}.${Number(month)}.${year}`;
+}
+
+function formatCzDateTime(value: string): string {
+  const datePart = value.slice(0, 10);
+  const timePart = value.length > 10 ? value.slice(11, 16) : "";
+  const formattedDate = formatCzDate(datePart);
+  return timePart ? `${formattedDate} ${timePart}` : formattedDate;
 }
 
 function clampDate(value: string, min: string, max: string): string {
