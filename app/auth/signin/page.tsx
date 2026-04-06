@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { getPostLoginDefaultPath } from "@/src/lib/post-login-path";
 
 import { redirect } from "next/navigation";
 
@@ -16,7 +17,7 @@ export default async function SignInPage({
 }) {
   const params = await searchParams;
   const error = params.error;
-  const callbackUrl = params.callbackUrl ?? "/";
+  const callbackUrl = params.callbackUrl ?? getPostLoginDefaultPath();
   const reason = params.reason;
   const tooFast = params.tooFast === "1";
 

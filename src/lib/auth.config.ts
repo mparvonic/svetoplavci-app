@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
+import { getPostLoginDefaultPath } from "@/src/lib/post-login-path";
 
 /**
  * Edge-kompatibilní konfigurace NextAuth (bez Nodemailer/Node.js modulů).
@@ -59,8 +60,9 @@ export const authConfig = {
       return session;
     },
     async redirect({ url, baseUrl }) {
+      const defaultPostLoginPath = getPostLoginDefaultPath();
       if (url == null || url === "" || url === "undefined") {
-        return baseUrl + "/";
+        return baseUrl + defaultPostLoginPath;
       }
       try {
         const target = new URL(url, baseUrl);
@@ -70,11 +72,11 @@ export const authConfig = {
           if (reason === "inactivity" || error === "NoRole") {
             return target.origin + target.pathname + target.search;
           }
-          return baseUrl + "/";
+          return baseUrl + defaultPostLoginPath;
         }
         return target.origin + target.pathname + target.search;
       } catch {
-        return baseUrl + "/";
+        return baseUrl + defaultPostLoginPath;
       }
     },
   },
