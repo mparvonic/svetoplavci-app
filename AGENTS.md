@@ -9,6 +9,10 @@ npm run dev        # Start development server with Turbopack (localhost:3000)
 npm run build      # prisma generate + prisma db push + next build
 npm run lint       # Run ESLint
 npm run coda:columns  # List all Coda table columns (useful for debugging Coda integration)
+npm run db:assert:local-safe      # Block local startup when DB URL points to prod
+npm run db:dev-template:refresh -- --yes  # Recreate dev-template Neon branch from prod parent
+npm run db:dev-branch:create -- --developer <name> --feature <slug>  # Create personal DEV DB branch
+npm run db:dev-branch:reset -- --developer <name> --feature <slug> --yes  # Reset personal DEV DB branch
 ```
 
 No test suite is configured.
@@ -118,6 +122,7 @@ Reference:
 
 - `docs/05-delivery/environment-promotion-policy.md`
 - `docs/10-templates/promotion-record-template.md`
+- `docs/07-operations/runbooks/dev-db-branching-runbook.md`
 
 Enforcement:
 

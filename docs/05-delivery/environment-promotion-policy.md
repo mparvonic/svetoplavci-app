@@ -23,6 +23,16 @@ Cíl: zachovat 1:1 konzistenci UI a funkčnosti mezi prostředími a eliminovat 
 5. `Proto Isolation`: proto-specifické nástroje (role switcher, debug menu, mock action toolbar) žijí pouze v `app/(prototype)` a nesmí se importovat do dashboard/runtime kódu.
 6. `Traceability`: každý přechod mezi prostředími musí mít promotion záznam v `docs/09-status/promotions/`.
 
+## 2.1 Data režim pro DEV (povinný)
+
+1. Lokální vývoj nikdy nesmí běžet nad produkční DB.
+2. DEV používá model:
+  - `dev-template` (pravidelně obnovovaný z prod),
+  - osobní `dev-<developer>-<feature>` branch.
+3. Refresh se dělá jen pro `dev-template`, ne pro každou osobní DEV branch.
+4. Lokální start `npm run dev` musí obsahovat safety guard (`db:assert:local-safe`).
+5. Nouzový bypass je povolen jen explicitně přes `ALLOW_UNSAFE_DB=1`.
+
 ## 3. Povolené přechody
 
 1. `feature/* -> proto` (UX validace nad mocky)

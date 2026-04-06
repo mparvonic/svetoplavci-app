@@ -1,0 +1,45 @@
+name: Dev DB safety
+
+on:
+  pull_request:
+    branches: [proto, staging, main]
+
+concurrency:
+  group: dev-db-safety-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Guard must fail for prod DB URL
+        shell: bash
+        run: |
+          set +e
+          node scripts/db/assert-safe-local-db.mjs --url 'postgresql://user:pass@db.example.com:5432/svetoplavci_prod?sslmode=require'
+          exit_code=$?
+          set -e
+          if [[ "$exit_code" -eq 0 ]]; then
+            echo "Expected guard to fail for production DB URL."
+            exit 1
+          fi
+
+      - name: Guard must pass for test DB URL
+        run: node scripts/db/assert-safe-local-db.mjs --url 'postgresql://user:pass@db.example.com:5432/svetoplavci_test?sslmode=require'
+
+      - name: npm run dev must include DB safety guard
+        run: |
+          node -e "const pkg=require('./package.json'); const dev=pkg?.scripts?.dev||''; if(!dev.includes('db:assert:local-safe')){ throw new Error('scripts.dev must include db:assert:local-safe'); }"
