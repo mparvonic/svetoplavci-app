@@ -61,6 +61,7 @@ type SearchSuggestion = {
     | "oblast"
     | "predmet"
     | "podpredmet"
+    | "stav"
     | "garant"
     | "rocnik"
     | "stupen";
@@ -164,6 +165,14 @@ const STATUS_BUTTONS: Array<{ value: LodickaStav; label: string }> = [
   { value: 4, label: "4" },
 ];
 
+const LODICKA_STAV_FILTER_OPTIONS: string[] = ([
+  0,
+  1,
+  2,
+  3,
+  4,
+] as LodickaStav[]).map((value) => TEST_LODICKA_STAV_LABEL[value]);
+
 function OsobniLodickyPrototypePageInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -200,6 +209,7 @@ function OsobniLodickyPrototypePageInner() {
   const [lodickyPredmetFilter, setLodickyPredmetFilter] = useState<string[]>([]);
   const [lodickyPodpredmetFilter, setLodickyPodpredmetFilter] = useState<string[]>([]);
   const [lodickyOblastFilter, setLodickyOblastFilter] = useState<string[]>([]);
+  const [lodickyStavFilter, setLodickyStavFilter] = useState<string[]>([]);
   const [lodickyGarantFilter, setLodickyGarantFilter] = useState<string[]>([]);
 
   const [groupLodickyPredmet, setGroupLodickyPredmet] = useState(true);
@@ -358,6 +368,7 @@ function OsobniLodickyPrototypePageInner() {
       oblasti: [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => lodicka.oblast))].sort((a, b) =>
         a.localeCompare(b, "cs"),
       ),
+      stavy: LODICKA_STAV_FILTER_OPTIONS,
       garanti,
     };
   }, [datasetVersion]);
@@ -443,6 +454,7 @@ function OsobniLodickyPrototypePageInner() {
         predmety: filterOptions.predmety,
         podpredmety: filterOptions.podpredmety,
         oblasti: filterOptions.oblasti,
+        stavy: filterOptions.stavy,
         garanti: showGarantControls ? filterOptions.garanti : [],
         studentHaystacks: accessibleStudents.map((student) => buildStudentSearchHaystack(student)),
       }),
@@ -473,6 +485,10 @@ function OsobniLodickyPrototypePageInner() {
   const effectiveLodickyOblastFilter = useMemo(
     () => uniqueValues([...lodickyOblastFilter, ...searchPlan.lodicky.oblast]),
     [lodickyOblastFilter, searchPlan.lodicky.oblast],
+  );
+  const effectiveLodickyStavFilter = useMemo(
+    () => uniqueValues([...lodickyStavFilter, ...searchPlan.lodicky.stav]),
+    [lodickyStavFilter, searchPlan.lodicky.stav],
   );
   const effectiveLodickyGarantFilter = useMemo(
     () => uniqueValues([...lodickyGarantFilter, ...searchPlan.lodicky.garant]),
@@ -596,17 +612,28 @@ function OsobniLodickyPrototypePageInner() {
       if (!student || !lodicka) return;
 
       const snapshot = statusSnapshotByPersonal.get(personal.id);
+      const stav = snapshot?.stav ?? 0;
+      if (effectiveLodickyStavFilter.length > 0 && !effectiveLodickyStavFilter.includes(TEST_LODICKA_STAV_LABEL[stav])) {
+        return;
+      }
       rows.push({
         personal,
         student,
         lodicka,
-        stav: snapshot?.stav ?? 0,
+        stav,
         lastEvent: snapshot?.lastEvent ?? null,
       });
     });
 
     return rows;
-  }, [filteredLodickaIds, filteredStudentIds, lodickyById, statusSnapshotByPersonal, studentsById]);
+  }, [
+    effectiveLodickyStavFilter,
+    filteredLodickaIds,
+    filteredStudentIds,
+    lodickyById,
+    statusSnapshotByPersonal,
+    studentsById,
+  ]);
 
   const leftItems = useMemo(() => {
     if (viewMode === "po_lodickach") {
@@ -707,6 +734,7 @@ function OsobniLodickyPrototypePageInner() {
       { type: "predmet", label: "Předmět", options: filterOptions.predmety },
       { type: "podpredmet", label: "Podpředmět", options: filterOptions.podpredmety },
       { type: "oblast", label: "Oblast", options: filterOptions.oblasti },
+      { type: "stav", label: "Stav lodičky", options: filterOptions.stavy },
       ...(showGarantControls
         ? [{ type: "garant" as const, label: "Garant", options: filterOptions.garanti }]
         : []),
@@ -775,6 +803,7 @@ function OsobniLodickyPrototypePageInner() {
     setLodickyPredmetFilter([]);
     setLodickyPodpredmetFilter([]);
     setLodickyOblastFilter([]);
+    setLodickyStavFilter([]);
     setLodickyGarantFilter([]);
     setSearchInput("");
     setSuggestionsOpen(false);
@@ -805,6 +834,9 @@ function OsobniLodickyPrototypePageInner() {
       setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
     } else if (suggestion.type === "podpredmet") {
       setLodickyPodpredmetFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
+      setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
+    } else if (suggestion.type === "stav") {
+      setLodickyStavFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
       setSearchInput((prev) => removeTokenFromSearch(prev, suggestion.token ?? suggestion.value));
     } else if (suggestion.type === "garant") {
       setLodickyGarantFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
@@ -1243,6 +1275,12 @@ function OsobniLodickyPrototypePageInner() {
                       options={options.oblasti}
                       value={effectiveLodickyOblastFilter}
                       onChange={setLodickyOblastFilter}
+                    />
+                    <MultiToggleSelect
+                      label="Stav lodičky"
+                      options={options.stavy}
+                      value={effectiveLodickyStavFilter}
+                      onChange={setLodickyStavFilter}
                     />
                     {showGarantControls && (
                       <MultiToggleSelect
@@ -2507,6 +2545,7 @@ function buildSmartSearchPlan(
     predmety: string[];
     podpredmety: string[];
     oblasti: string[];
+    stavy: string[];
     garanti: string[];
     studentHaystacks: string[];
   },
@@ -2518,6 +2557,7 @@ function buildSmartSearchPlan(
       predmet: [] as string[],
       podpredmet: [] as string[],
       oblast: [] as string[],
+      stav: [] as string[],
       garant: [] as string[],
     },
     freeTokens: [] as string[],
@@ -2546,6 +2586,9 @@ function buildSmartSearchPlan(
     const oblast = findUniqueFilterMatch(token, options.oblasti);
     if (oblast) candidates.push({ score: oblast.score, apply: () => plan.lodicky.oblast.push(oblast.value) });
 
+    const stav = findUniqueFilterMatch(token, options.stavy);
+    if (stav) candidates.push({ score: stav.score, apply: () => plan.lodicky.stav.push(stav.value) });
+
     const hasStudentNameMatch = options.studentHaystacks.some((haystack) => haystack.includes(token));
     const garant = findUniqueFilterMatch(token, options.garanti);
     if (garant && !hasStudentNameMatch) {
@@ -2573,6 +2616,7 @@ function buildSmartSearchPlan(
   plan.lodicky.predmet = uniqueValues(plan.lodicky.predmet);
   plan.lodicky.podpredmet = uniqueValues(plan.lodicky.podpredmet);
   plan.lodicky.oblast = uniqueValues(plan.lodicky.oblast);
+  plan.lodicky.stav = uniqueValues(plan.lodicky.stav);
   plan.lodicky.garant = uniqueValues(plan.lodicky.garant);
 
   return plan;
