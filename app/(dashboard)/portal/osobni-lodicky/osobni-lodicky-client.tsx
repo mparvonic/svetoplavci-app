@@ -20,7 +20,6 @@ import {
   createProtoDebugEvent,
   type ProtoDebugEvent,
 } from "@/components/proto/proto-debug-panel";
-import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 
 type Child = {
   id: string;
@@ -691,7 +690,7 @@ function SegmentControl({
             type="button"
             onClick={() => onChange(option.id)}
             className={`rounded-lg px-3 py-1.5 text-sm ${
-              option.id === value ? `${UI_CLASSES.primaryButton} shadow-sm` : "text-slate-700 hover:bg-white"
+              option.id === value ? `bg-[#002060] text-white hover:bg-[#001540] shadow-sm` : "text-slate-700 hover:bg-white"
             }`}
           >
             {option.label}
