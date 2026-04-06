@@ -1163,7 +1163,7 @@ function OsobniLodickyPrototypePageInner() {
 
         <section
           ref={panesSectionRef}
-          className="grid min-h-0 gap-4 min-[1180px]:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]"
+          className="grid min-h-0 gap-4 min-[1180px]:items-start min-[1180px]:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]"
         >
           <Card
             className="min-w-0 border-[#D9E4F2] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
