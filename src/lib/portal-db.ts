@@ -29,6 +29,7 @@ export interface PortalLodickaRow {
   garantPersonId: string | null;
   garantName: string | null;
   stav: string;
+  hodnota: number | null;
   uspech: string;
   poznamka: string;
   datumStavu: string | null;
@@ -79,6 +80,7 @@ type LodickaQueryRow = {
   garant_person_id: string | null;
   garant_name: string | null;
   stav: string | null;
+  hodnota: number | null;
   uspech: string | null;
   poznamka: string | null;
   datum_stavu: Date | string | null;
@@ -377,6 +379,7 @@ export async function getPortalChildLodickyByEmail(email: string, childId: strin
       l.garant_person_id AS garant_person_id,
       gp.display_name AS garant_name,
       ol.current_stav_label AS stav,
+      ol.current_hodnota AS hodnota,
       ol.uspech AS uspech,
       ol.poznamka AS poznamka,
       ol.datum_stavu AS datum_stavu,
@@ -440,6 +443,7 @@ export async function getPortalChildLodickyByEmail(email: string, childId: strin
     garantPersonId: normalizeOptionalText(row.garant_person_id),
     garantName: normalizeOptionalText(row.garant_name),
     stav: normalizeText(row.stav, "Nezahájeno"),
+    hodnota: typeof row.hodnota === "number" && Number.isFinite(row.hodnota) ? row.hodnota : null,
     uspech: normalizeText(row.uspech, "—"),
     poznamka: normalizeText(row.poznamka, "—"),
     datumStavu: toIso(row.datum_stavu),

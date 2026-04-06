@@ -116,6 +116,7 @@ type LodickaRow = {
   garantPersonId: string | null;
   garantName: string | null;
   stav: string;
+  hodnota: number | null;
   uspech: string;
   poznamka: string;
   datumStavu: string | null;
@@ -1857,7 +1858,7 @@ function buildProtoDatasetFromDb(
           osobniLodickaId: personalId,
           datumStavu: normalizeIsoDate(row.datumStavu),
           zapsanoAt: normalizeIsoDateTime(row.datumStavu),
-          stav: mapDbStavToProto(row.stav, null),
+          stav: mapDbStavToProto(row.stav, row.hodnota),
           zapsalId: "db-unknown-actor",
           poznamka: row.poznamka && row.poznamka !== "—" ? row.poznamka : undefined,
         });
