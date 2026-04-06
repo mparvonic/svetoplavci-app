@@ -3,11 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "npm run db:assert:local-safe && next dev",
+    "dev:unsafe": "ALLOW_UNSAFE_DB=1 next dev",
     "build": "prisma generate && prisma db push && next build",
     "start": "next start",
     "lint": "eslint",
     "coda:columns": "node scripts/list-coda-columns.mjs",
+    "db:assert:local-safe": "node scripts/db/assert-safe-local-db.mjs",
+    "db:dev-template:refresh": "node scripts/db/neon-dev-branches.mjs refresh-template",
+    "db:dev-branch:create": "node scripts/db/neon-dev-branches.mjs create-dev",
+    "db:dev-branch:reset": "node scripts/db/neon-dev-branches.mjs reset-dev",
+    "db:dev-branch:list": "node scripts/db/neon-dev-branches.mjs list",
     "policy:guard": "node scripts/policy/enforce-promotion-policy.mjs"
   },
   "dependencies": {

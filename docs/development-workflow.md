@@ -102,7 +102,7 @@ Před mergem do main:
 
 Soubor `.env.local` (není v gitu) obsahuje:
 ```
-POSTGRES_PRISMA_URL=...       # Neon production DB (nebo staging branch)
+POSTGRES_PRISMA_URL=...       # osobní DEV branch (nikdy prod)
 CODA_API_KEY=...
 AUTH_SECRET=...
 GOOGLE_CLIENT_ID=...
@@ -110,7 +110,15 @@ GOOGLE_CLIENT_SECRET=...
 # ...ostatní proměnné
 ```
 
-> Na lokále lze bezpečně používat produkční Coda API (jen čtení). Pro Postgres doporučuji Neon staging branch (viz níže).
+> Na lokále lze používat produkční Coda API jen pro čtení. Postgres musí být osobní DEV branch, ne produkce.
+
+Lokální start je chráněn guardem:
+
+```bash
+npm run dev
+```
+
+Pokud by `POSTGRES_PRISMA_URL` ukazovala na produkční DB, start se zablokuje.
 
 ### Staging (test-app.svetoplavci.cz)
 
@@ -127,13 +135,32 @@ Staging běží na stejném VPS v Coolify jako produkce, ale jako oddělená apl
 
 ---
 
-## Správa dat pro staging
+## Správa dat pro DEV a staging
 
 Auth data (uživatelé, sessions) jsou v **Neon PostgreSQL**. Coda data jsou read-only.
 
 ### Neon database branching
 
-Neon podporuje větvení databáze — staging větev je okamžitá kopie produkčních dat:
+Neon podporuje větvení databáze. Doporučený model:
+
+- `dev-template` branch: pravidelně obnovovaný snapshot z prod.
+- `dev-<developer>-<feature>` branch: osobní vývojová větev založená z `dev-template`.
+- `staging` branch: sdílená test větev.
+
+Založení a údržba DEV branch:
+
+```bash
+# refresh dev-template z prod parent
+npm run db:dev-template:refresh -- --yes
+
+# vytvoření osobní DEV větve
+npm run db:dev-branch:create -- --developer <name> --feature <slug>
+
+# reset osobní DEV větve
+npm run db:dev-branch:reset -- --developer <name> --feature <slug> --yes
+```
+
+Staging větev je okamžitá kopie produkčních dat:
 
 1. Přihlas se na [neon.tech](https://neon.tech)
 2. Vyber projekt → záložka **Branches**
@@ -141,7 +168,7 @@ Neon podporuje větvení databáze — staging větev je okamžitá kopie produk
 4. Zkopíruj connection string pro staging větev
 5. Nastav ho jako `POSTGRES_PRISMA_URL` v Coolify staging aplikaci
 
-**Jednosměrná aktualizace dat:**
+**Jednosměrná aktualizace staging dat:**
 Kdykoli chceš mít na staging čerstvá produkční data (např. před větším testem):
 1. V Neon konzoli smaž staging větev
 2. Vytvoř novou `staging` větev ze `main` — získáš čerstvou kopii
