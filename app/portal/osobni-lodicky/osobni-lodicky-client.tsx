@@ -39,6 +39,12 @@ import {
   type ProtoStudent,
 } from "@/src/lib/mock/proto-lodicky-playground";
 
+const TEST_LODICKA_STAV_LABEL: Record<LodickaStav, string> = {
+  ...LODICKA_STAV_LABEL,
+  // Test DB uses "Zahájeno" for value 1; do not show legacy proto alias "Rozpracováno".
+  1: "Zahájeno",
+};
+
 type ScopeMode = "moje" | "vsechny";
 type ViewMode = "po_lodickach" | "po_lidech";
 type PaneSort = "nazev" | "garant" | "jmeno" | "rocnik" | "stav";
@@ -1458,7 +1464,7 @@ function OsobniLodickyPrototypePageInner() {
                     <TableRow key={event.id}>
                       <TableCell>{formatDateCz(event.datumStavu)}</TableCell>
                       <TableCell>
-                        <Badge className={stavBadgeClass(event.stav)}>{LODICKA_STAV_LABEL[event.stav]}</Badge>
+                        <Badge className={stavBadgeClass(event.stav)}>{TEST_LODICKA_STAV_LABEL[event.stav]}</Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1635,7 +1641,7 @@ function DetailSheet({
                   {personalEvents.map((event) => (
                     <TableRow key={event.id} className={highlightedEventId === event.id ? "bg-[#FFF7E8]" : ""}>
                       <TableCell>{formatDateCz(event.datumStavu)}</TableCell>
-                      <TableCell>{LODICKA_STAV_LABEL[event.stav]}</TableCell>
+                      <TableCell>{TEST_LODICKA_STAV_LABEL[event.stav]}</TableCell>
                       <TableCell>{formatDateTimeCz(event.zapsanoAt)}</TableCell>
                       <TableCell>{getActorDisplayName(event.zapsalId, activeRole)}</TableCell>
                       <TableCell>{event.poznamka ?? "-"}</TableCell>
@@ -2411,7 +2417,7 @@ function renderRightPaneRows({
             </div>
           </TableCell>
           <TableCell>
-            <Badge className={stavBadgeClass(row.stav)}>{LODICKA_STAV_LABEL[row.stav]}</Badge>
+            <Badge className={stavBadgeClass(row.stav)}>{TEST_LODICKA_STAV_LABEL[row.stav]}</Badge>
           </TableCell>
           <TableCell className="text-right">
             <TooltipProvider delayDuration={450}>
@@ -2434,7 +2440,7 @@ function renderRightPaneRows({
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top" sideOffset={8}>
-                      {LODICKA_STAV_LABEL[statusButton.value]}
+                      {TEST_LODICKA_STAV_LABEL[statusButton.value]}
                     </TooltipContent>
                   </Tooltip>
                 ))}
