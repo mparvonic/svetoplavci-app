@@ -32,6 +32,10 @@ import {
   type ProtoInviteStatus,
   type ProtoUserStatus,
 } from "@/src/lib/mock/proto-user-management";
+import {
+  MOCK_ADMIN_LOGIN_IDENTITIES,
+  type MockIdentityLinkStatus,
+} from "@/src/lib/mock/admin-user-identities";
 import { UI_CLASSES } from "@/src/lib/design-pack/ui";
 
 type ProtoContextRole = ProtoAdminRole;
@@ -51,6 +55,18 @@ const CONTEXT_ROLE_SET = new Set<ProtoContextRole>(CONTEXT_ROLE_ORDER);
 const ROLE_LABELS = new Map(PROTO_ADMIN_ROLE_OPTIONS.map((item) => [item.id, item.label]));
 
 const STATUS_LABELS = new Map(PROTO_USER_STATUS_OPTIONS.map((item) => [item.id, item.label]));
+
+const IDENTITY_SOURCE_LABELS = {
+  edookit: "Edookit",
+  manual: "Ručně",
+  "csv-sync": "CSV sync",
+} as const;
+
+const IDENTITY_LINK_BADGES: Record<MockIdentityLinkStatus, string> = {
+  approved: "border border-[#BEE3D2] bg-[#ECFDF5] text-[#047857] hover:bg-[#ECFDF5]",
+  pending: "border border-[#F2D9A4] bg-[#FFF8E8] text-[#A16207] hover:bg-[#FFF8E8]",
+  rejected: "border border-[#E3E8EF] bg-[#F8FAFC] text-[#475569] hover:bg-[#F8FAFC]",
+};
 
 const DATE_FORMATTER = new Intl.DateTimeFormat("cs-CZ", {
   day: "2-digit",
@@ -91,6 +107,25 @@ function resolveDefaultContextRole(sessionRoles: string[]): ProtoContextRole {
   }
   return "admin";
 }
+
+type UserLoginRow = {
+  id: string;
+  name: string;
+  email: string;
+  roles: string[];
+  status: ProtoUserStatus;
+  approvedIdentities: string[];
+  pendingIdentities: string[];
+};
+
+type PendingIdentityRow = {
+  id: string;
+  identityValue: string;
+  source: string;
+  updatedAt: string;
+  pendingCandidates: Array<{ name: string; roles: string; reason?: string }>;
+  approvedCandidates: Array<{ name: string; roles: string }>;
+};
 
 export default function UserManagementProtoClient({
   sessionName,
@@ -151,14 +186,88 @@ export default function UserManagementProtoClient({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [activeContextRole, activeContextUserId, pathname, router]);
 
+  const usersById = useMemo(() => new Map(PROTO_MANAGED_USERS.map((user) => [user.id, user])), []);
+
+  const identityUserRows = useMemo<UserLoginRow[]>(
+    () =>
+      PROTO_MANAGED_USERS.map((user) => {
+        const approvedIdentities = new Set<string>();
+        const pendingIdentities = new Set<string>();
+
+        for (const identity of MOCK_ADMIN_LOGIN_IDENTITIES) {
+          for (const link of identity.links) {
+            if (link.userId !== user.id) continue;
+            if (link.status === "approved" && identity.isActive) {
+              approvedIdentities.add(identity.identityValue);
+            }
+            if (link.status === "pending") {
+              pendingIdentities.add(identity.identityValue);
+            }
+          }
+        }
+
+        return {
+          id: user.id,
+          name: user.jmeno,
+          email: user.email,
+          roles: user.roles,
+          status: user.status,
+          approvedIdentities: [...approvedIdentities],
+          pendingIdentities: [...pendingIdentities],
+        };
+      }),
+    [],
+  );
+
+  const pendingIdentityRows = useMemo<PendingIdentityRow[]>(
+    () =>
+      MOCK_ADMIN_LOGIN_IDENTITIES.flatMap((identity) => {
+        const pendingLinks = identity.links.filter((link) => link.status === "pending");
+        if (pendingLinks.length === 0) return [];
+
+        const approvedLinks = identity.links.filter((link) => link.status === "approved");
+
+        return [
+          {
+            id: identity.id,
+            identityValue: identity.identityValue,
+            source: IDENTITY_SOURCE_LABELS[identity.source],
+            updatedAt: identity.updatedAt,
+            pendingCandidates: pendingLinks.map((link) => {
+              const user = usersById.get(link.userId);
+              return {
+                name: user?.jmeno ?? link.userId,
+                roles: (user?.roles ?? []).map((role) => ROLE_LABELS.get(role) ?? role).join(", "),
+                reason: link.reason,
+              };
+            }),
+            approvedCandidates: approvedLinks.map((link) => {
+              const user = usersById.get(link.userId);
+              return {
+                name: user?.jmeno ?? link.userId,
+                roles: (user?.roles ?? []).map((role) => ROLE_LABELS.get(role) ?? role).join(", "),
+              };
+            }),
+          },
+        ];
+      }),
+    [usersById],
+  );
+
+  const openConflictCount = useMemo(
+    () => pendingIdentityRows.filter((row) => row.approvedCandidates.length > 0).length,
+    [pendingIdentityRows],
+  );
+
   const summary = useMemo(
     () => ({
       total: PROTO_MANAGED_USERS.length,
       adminCount: PROTO_MANAGED_USERS.filter((user) => user.roles.includes("admin")).length,
-      pendingCount: PROTO_MANAGED_USERS.filter((user) => user.status === "pending").length,
+      pendingEmailCount: pendingIdentityRows.length,
+      openConflictCount,
       blockedCount: PROTO_MANAGED_USERS.filter((user) => user.status === "blocked").length,
     }),
-    [],
+    [openConflictCount, pendingIdentityRows.length],
   );
 
   const filteredUsers = useMemo(() => {
@@ -311,13 +420,19 @@ export default function UserManagementProtoClient({
           </Card>
         )}
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard icon={Users} label="Uživatelé celkem" value={String(summary.total)} tone="info" />
           <MetricCard icon={ShieldCheck} label="Administrátoři" value={String(summary.adminCount)} tone="success" />
           <MetricCard
+            icon={MailPlus}
+            label="Pending e-maily"
+            value={String(summary.pendingEmailCount)}
+            tone="warning"
+          />
+          <MetricCard
             icon={UserRoundPlus}
-            label="Čeká na aktivaci"
-            value={String(summary.pendingCount)}
+            label="Otevřené konflikty"
+            value={String(summary.openConflictCount)}
             tone="warning"
           />
           <MetricCard icon={UserX} label="Blokované účty" value={String(summary.blockedCount)} tone="danger" />
@@ -326,6 +441,7 @@ export default function UserManagementProtoClient({
         <Tabs defaultValue="users" className="space-y-4">
           <TabsList className="h-10 bg-[#EAF2FF] text-[#0A4DA6]">
             <TabsTrigger value="users">Uživatelé</TabsTrigger>
+            <TabsTrigger value="identities">Login identity</TabsTrigger>
             <TabsTrigger value="invites">Pozvánky</TabsTrigger>
             <TabsTrigger value="audit">Audit log</TabsTrigger>
           </TabsList>
@@ -553,6 +669,155 @@ export default function UserManagementProtoClient({
                 </CardContent>
               </Card>
             </section>
+          </TabsContent>
+
+          <TabsContent value="identities" className="space-y-4">
+            <Card className="border-[#D9E4F2]">
+              <CardHeader>
+                <CardTitle className="text-[#05204A]">Uživatelé a přihlašovací účty</CardTitle>
+                <CardDescription>
+                  Sloupec „Může se přihlásit přes“ ukazuje schválené identity (<code>approved</code>).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className={UI_CLASSES.tableShell}>
+                  <Table>
+                    <TableHeader className={UI_CLASSES.tableHead}>
+                      <TableRow className="border-b border-[#D9E4F2]">
+                        <TableHead>Uživatel</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Může se přihlásit přes</TableHead>
+                        <TableHead>Pending e-maily</TableHead>
+                        <TableHead>Stav účtu</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {identityUserRows.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            <p className="font-semibold text-[#05204A]">{row.name}</p>
+                            <p className="text-xs text-slate-500">{row.email}</p>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1.5">
+                              {row.roles.map((role) => (
+                                <Badge
+                                  key={`${row.id}-${role}`}
+                                  className="border border-[#D8E3F5] bg-[#F8FBFF] text-[#0A4DA6] hover:bg-[#F8FBFF]"
+                                >
+                                  {ROLE_LABELS.get(role) ?? role}
+                                </Badge>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {row.approvedIdentities.length === 0 ? (
+                              <span className="text-slate-400">-</span>
+                            ) : (
+                              <div className="space-y-1">
+                                {row.approvedIdentities.map((identity) => (
+                                  <p key={`${row.id}-${identity}`} className="font-mono text-xs text-[#05204A]">
+                                    {identity}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {row.pendingIdentities.length === 0 ? (
+                              <span className="text-slate-400">-</span>
+                            ) : (
+                              <div className="space-y-1">
+                                {row.pendingIdentities.map((identity) => (
+                                  <p key={`${row.id}-pending-${identity}`} className="font-mono text-xs text-[#A16207]">
+                                    {identity}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={row.status} />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-[#D9E4F2]">
+              <CardHeader>
+                <CardTitle className="text-[#05204A]">Pending emailové adresy</CardTitle>
+                <CardDescription>
+                  E-maily ve stavu <code>pending</code> čekající na rozhodnutí identity linku.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className={UI_CLASSES.tableShell}>
+                  <Table>
+                    <TableHeader className={UI_CLASSES.tableHead}>
+                      <TableRow className="border-b border-[#D9E4F2]">
+                        <TableHead>Email identity</TableHead>
+                        <TableHead>Pending kandidáti</TableHead>
+                        <TableHead>Už schváleno pro</TableHead>
+                        <TableHead>Zdroj</TableHead>
+                        <TableHead>Poslední změna</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingIdentityRows.map((row) => (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            <p className="font-mono text-xs text-[#05204A]">{row.identityValue}</p>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-2">
+                              {row.pendingCandidates.map((candidate) => (
+                                <div key={`${row.id}-pending-${candidate.name}`}>
+                                  <div className="flex items-center gap-2">
+                                    <Badge className={IDENTITY_LINK_BADGES.pending}>pending</Badge>
+                                    <span className="text-sm text-[#05204A]">{candidate.name}</span>
+                                  </div>
+                                  <p className="text-xs text-slate-500">{candidate.roles}</p>
+                                  {candidate.reason && (
+                                    <p className="text-xs text-[#A16207]">{candidate.reason}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {row.approvedCandidates.length === 0 ? (
+                              <span className="text-slate-400">-</span>
+                            ) : (
+                              <div className="space-y-2">
+                                {row.approvedCandidates.map((candidate) => (
+                                  <div key={`${row.id}-approved-${candidate.name}`}>
+                                    <div className="flex items-center gap-2">
+                                      <Badge className={IDENTITY_LINK_BADGES.approved}>approved</Badge>
+                                      <span className="text-sm text-[#05204A]">{candidate.name}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-500">{candidate.roles}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-slate-700">{row.source}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-slate-700">{formatDateTime(row.updatedAt)}</span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="invites">
