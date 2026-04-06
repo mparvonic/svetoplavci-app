@@ -1,11 +1,11 @@
 export const DESIGN_PACK_META = {
   name: "Svetoplavci Design Pack",
-  version: "2026-04-06.2",
+  version: "2026-04-06.1",
   updatedAt: "2026-04-06",
 };
 
 export const DESIGN_RULES = [
-  "Standardní desktop layout navrhujeme pro MacBook Air M1: viewport 1440 × 900 px.",
+  "Standardní layout navrhujeme pro notebook MacBook Air M1: výchozí šířka viewportu 1440 px.",
   "Navigace vlevo, obsah vpravo, vždy jasně aktivní sekce.",
   "Primární CTA je modré, destruktivní akce červené, sekundární akce outline.",
   "Každý datový modul má stejnou strukturu: název, filtry, obsah, akce.",
@@ -13,8 +13,7 @@ export const DESIGN_RULES = [
   "Tabulky mají fixní hlavičku a jednoznačné řádkové akce.",
   "Formuláře jsou dělené do kroků nebo logických bloků; validace přímo u pole.",
   "Role uživatele určují viditelnost sekcí, ne vizuální chaos.",
-  "Datumy v UI zobrazujeme ve formátu d.M.yyyy (např. 23.3.2026).",
-  "Všechny datumy/časy v UI prezentovat lokálně v CET/CEST.",
+  "Datumy v UI zobrazovat ve formátu d.M.yyyy (např. 23.3.2026); časy lokálně v CET/CEST.",
 ] as const;
 
 export const DESIGN_COLORS = [
