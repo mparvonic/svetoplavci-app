@@ -131,6 +131,7 @@ function OsobniLodickyPrototypePageInner() {
   const [lodickyPodpredmetFilter, setLodickyPodpredmetFilter] = useState<string[]>([]);
   const [lodickyOblastFilter, setLodickyOblastFilter] = useState<string[]>([]);
   const [lodickyGarantFilter, setLodickyGarantFilter] = useState<string[]>([]);
+  const [lodickyStavFilter, setLodickyStavFilter] = useState<string[]>([]);
 
   const [groupLodickyPredmet, setGroupLodickyPredmet] = useState(true);
   const [groupLodickyPodpredmet, setGroupLodickyPodpredmet] = useState(false);
@@ -228,6 +229,7 @@ function OsobniLodickyPrototypePageInner() {
         a.localeCompare(b, "cs"),
       ),
       garanti,
+      stavy: STATUS_BUTTONS.map((item) => String(item.value)),
     };
   }, []);
 
@@ -462,17 +464,20 @@ function OsobniLodickyPrototypePageInner() {
       if (!student || !lodicka) return;
 
       const snapshot = statusSnapshotByPersonal.get(personal.id);
+      const currentStav = snapshot?.stav ?? 0;
+      if (lodickyStavFilter.length > 0 && !lodickyStavFilter.includes(String(currentStav))) return;
+
       rows.push({
         personal,
         student,
         lodicka,
-        stav: snapshot?.stav ?? 0,
+        stav: currentStav,
         lastEvent: snapshot?.lastEvent ?? null,
       });
     });
 
     return rows;
-  }, [filteredLodickaIds, filteredStudentIds, lodickyById, statusSnapshotByPersonal, studentsById]);
+  }, [filteredLodickaIds, filteredStudentIds, lodickyById, lodickyStavFilter, statusSnapshotByPersonal, studentsById]);
 
   const leftItems = useMemo(() => {
     if (viewMode === "po_lodickach") {
@@ -674,6 +679,7 @@ function OsobniLodickyPrototypePageInner() {
     setLodickyPodpredmetFilter([]);
     setLodickyOblastFilter([]);
     setLodickyGarantFilter([]);
+    setLodickyStavFilter([]);
     setSearchInput("");
     setSuggestionsOpen(false);
 
@@ -1131,6 +1137,13 @@ function OsobniLodickyPrototypePageInner() {
                       value={effectiveLodickyOblastFilter}
                       onChange={setLodickyOblastFilter}
                     />
+                    <MultiToggleSelect
+                      label="Stav lodičky"
+                      options={options.stavy}
+                      value={lodickyStavFilter}
+                      onChange={setLodickyStavFilter}
+                      renderOptionLabel={(option) => `${option} · ${LODICKA_STAV_LABEL[Number(option) as LodickaStav]}`}
+                    />
                     {showGarantControls && (
                       <MultiToggleSelect
                         label="Garant"
@@ -1139,9 +1152,9 @@ function OsobniLodickyPrototypePageInner() {
                         onChange={setLodickyGarantFilter}
                       />
                     )}
-                    <div className="space-y-2 rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-2.5">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Seskupování</p>
-                      <div className="flex flex-wrap gap-2">
+                    <div>
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Seskupování</p>
+                      <div className="flex flex-wrap gap-2 rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-2.5">
                         <GroupToggle label="Předmět" enabled={groupLodickyPredmet} onToggle={setGroupLodickyPredmet} />
                         <GroupToggle
                           label="Podpředmět"
@@ -1666,7 +1679,20 @@ function MultiToggleSelect({
 }) {
   return (
     <div>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+        {value.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="inline-flex h-5 w-5 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            aria-label={`Vymazat filtr ${label}`}
+            title={`Vymazat filtr ${label}`}
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
+      </div>
       <div className="flex flex-wrap gap-1.5 rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-2">
         {options.map((option) => {
           const selected = value.includes(option);
@@ -1683,7 +1709,7 @@ function MultiToggleSelect({
               }}
               className={`rounded-lg border px-2 py-1 text-xs font-medium transition ${
                 selected
-                  ? "border-[#0A4DA6] bg-[#0A4DA6] text-white"
+                  ? "border-[#002060] bg-[#002060] text-white hover:border-[#002060] hover:bg-[#002060]"
                   : "border-[#D9E4F2] bg-white text-slate-700 hover:bg-[#F3F7FF]"
               }`}
             >
@@ -1711,7 +1737,7 @@ function GroupToggle({
       onClick={() => onToggle(!enabled)}
       className={`rounded-lg border px-2 py-1 text-xs font-medium transition ${
         enabled
-          ? "border-[#0A4DA6] bg-[#0A4DA6] text-white"
+          ? "border-[#002060] bg-[#002060] text-white hover:border-[#002060] hover:bg-[#002060]"
           : "border-[#D9E4F2] bg-white text-slate-700 hover:bg-[#F3F7FF]"
       }`}
     >
