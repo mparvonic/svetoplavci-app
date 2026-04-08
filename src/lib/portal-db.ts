@@ -56,8 +56,18 @@ type ParentChildRow = {
   parent_id: string;
   parent_name: string;
   has_rodic_role: boolean;
+  has_global_child_access: boolean;
   child_id: string | null;
   child_name: string | null;
+  child_grade_num: number | null;
+  child_rocnik_code: string | null;
+  child_stupen_code: string | null;
+  child_smecka_name: string | null;
+};
+
+type ActiveChildRow = {
+  child_id: string;
+  child_name: string;
   child_grade_num: number | null;
   child_rocnik_code: string | null;
   child_stupen_code: string | null;
@@ -220,6 +230,82 @@ function pickParentCandidate(candidates: ParentCandidate[]): ParentCandidate | n
   return sorted[0] ?? null;
 }
 
+async function getAllActiveChildren(): Promise<PortalChild[]> {
+  const rows = await prisma.$queryRaw<ActiveChildRow[]>`
+    SELECT
+      c.id AS child_id,
+      c.display_name AS child_name,
+      ss.current_grade_num AS child_grade_num,
+      grp_rocnik.code AS child_rocnik_code,
+      grp_stupen.code AS child_stupen_code,
+      grp_smecka.name AS child_smecka_name
+    FROM app_person c
+    JOIN app_role_assignment cra
+      ON cra.person_id = c.id
+      AND cra.role = 'zak'
+      AND cra.is_active = true
+    LEFT JOIN LATERAL (
+      SELECT s.current_grade_num
+      FROM app_student_state s
+      WHERE s.person_id = c.id
+        AND (s.effective_to IS NULL OR s.effective_to::date >= CURRENT_DATE)
+      ORDER BY s.effective_from DESC, s.created_at DESC
+      LIMIT 1
+    ) ss ON true
+    LEFT JOIN LATERAL (
+      SELECT g.code
+      FROM app_group_membership gm
+      JOIN app_group g ON g.id = gm.group_id
+      WHERE gm.person_id = c.id
+        AND gm.group_kind = 'rocnik'
+        AND gm.valid_from <= NOW()
+        AND (gm.valid_to IS NULL OR gm.valid_to >= NOW())
+        AND g.is_active = true
+      ORDER BY gm.valid_from DESC, gm.created_at DESC
+      LIMIT 1
+    ) grp_rocnik ON true
+    LEFT JOIN LATERAL (
+      SELECT g.code
+      FROM app_group_membership gm
+      JOIN app_group g ON g.id = gm.group_id
+      WHERE gm.person_id = c.id
+        AND gm.group_kind = 'stupen'
+        AND gm.valid_from <= NOW()
+        AND (gm.valid_to IS NULL OR gm.valid_to >= NOW())
+        AND g.is_active = true
+      ORDER BY gm.valid_from DESC, gm.created_at DESC
+      LIMIT 1
+    ) grp_stupen ON true
+    LEFT JOIN LATERAL (
+      SELECT g.name
+      FROM app_group_membership gm
+      JOIN app_group g ON g.id = gm.group_id
+      WHERE gm.person_id = c.id
+        AND gm.group_kind = 'smecka'
+        AND gm.valid_from <= NOW()
+        AND (gm.valid_to IS NULL OR gm.valid_to >= NOW())
+        AND g.is_active = true
+      ORDER BY gm.valid_from DESC, gm.created_at DESC
+      LIMIT 1
+    ) grp_smecka ON true
+    WHERE c.is_active = true
+    ORDER BY c.display_name
+  `;
+
+  return dedupeChildren(
+    rows.map((row) => {
+      const rocnik = parseRocnik(row.child_grade_num ?? row.child_rocnik_code);
+      return {
+        id: row.child_id,
+        name: row.child_name,
+        rocnik,
+        stupen: parseStupen(row.child_stupen_code, rocnik),
+        smecka: normalizeOptionalText(row.child_smecka_name),
+      };
+    })
+  );
+}
+
 export async function getPortalParentAndChildrenByEmail(email: string): Promise<{
   parent: PortalParent;
   children: PortalChild[];
@@ -237,6 +323,13 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
           AND ra.role = 'rodic'
           AND ra.is_active = true
       ) AS has_rodic_role,
+      EXISTS (
+        SELECT 1
+        FROM app_role_assignment ra
+        WHERE ra.person_id = p.id
+          AND ra.is_active = true
+          AND ra.role = 'garant'
+      ) AS has_global_child_access,
       c.id AS child_id,
       c.display_name AS child_name,
       ss.current_grade_num AS child_grade_num,
@@ -342,12 +435,18 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
   const parentCandidate = pickParentCandidate(parentCandidates);
   if (!parentCandidate) return null;
 
+  const hasGlobalChildAccess = rows.some((row) => row.has_global_child_access);
+
+  const children = hasGlobalChildAccess
+    ? await getAllActiveChildren()
+    : parentCandidate.children;
+
   return {
     parent: {
       id: parentCandidate.id,
       name: parentCandidate.displayName,
     },
-    children: parentCandidate.children,
+    children,
   };
 }
 
