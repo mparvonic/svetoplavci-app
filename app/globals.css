@@ -387,6 +387,11 @@
     text-transform: uppercase;
   }
 
+  .sv-italic-serif {
+    font-family: var(--font-display);
+    font-style: italic;
+  }
+
   .display-lg,
   .display-md,
   .display-sm {
