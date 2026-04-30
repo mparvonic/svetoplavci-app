@@ -11,5 +11,5 @@ export default async function VysvedceniPage() {
     redirect("/auth/signin?callbackUrl=/vysvedceni");
   }
 
-  return <HomePageClient />;
+  return <HomePageClient mode="vysvedceni" />;
 }

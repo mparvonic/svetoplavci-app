@@ -13,7 +13,7 @@ interface Child {
   group: string;
 }
 
-export function HomePageClient() {
+export function HomePageClient({ mode = "full" }: { mode?: "full" | "vysvedceni" }) {
   const [showSuccess, setShowSuccess] = useState(true);
   const [data, setData] = useState<{
     parent: { name: string; rowId: string };
@@ -90,6 +90,7 @@ export function HomePageClient() {
         parentName={data.parent.name}
         userEmail={data.userEmail ?? undefined}
         childrenList={data.children}
+        mode={mode}
       />
     </div>
   );

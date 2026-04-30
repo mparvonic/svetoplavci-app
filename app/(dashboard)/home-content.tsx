@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ChildDetailTabs } from "@/app/(dashboard)/portal/dite/[childId]/child-detail-tabs";
+import {
+  ChildDetailTabs,
+  type ChildDetailTabId,
+} from "@/app/(dashboard)/portal/dite/[childId]/child-detail-tabs";
 import { Button } from "@/components/ui/button";
 import { SailboatLoading } from "@/components/sailboat-loading";
 import type { CodaRow } from "@/src/lib/coda";
@@ -16,14 +19,24 @@ interface Child {
   group: string;
 }
 
+const FULL_CHILD_DETAIL_TABS: ChildDetailTabId[] = [
+  "lodicky",
+  "lodicky-po-plavbach",
+  "vysvedceni",
+  "vysvedceni-grafy",
+];
+const VYSVEDCENI_CHILD_DETAIL_TABS: ChildDetailTabId[] = ["vysvedceni", "vysvedceni-grafy"];
+
 export function HomeContent({
   parentName,
   userEmail,
   childrenList,
+  mode = "full",
 }: {
   parentName: string;
   userEmail?: string;
   childrenList: Child[];
+  mode?: "full" | "vysvedceni";
 }) {
   const [selectedChildId, setSelectedChildId] = useState<string>(
     childrenList[0]?.rowId ?? ""
@@ -35,6 +48,7 @@ export function HomeContent({
   const [error, setError] = useState<string | null>(null);
 
   const selectedChild = childrenList.find((c) => c.rowId === selectedChildId);
+  const isVysvedceniOnly = mode === "vysvedceni";
 
   const loadData = useCallback(async (childId: string) => {
     if (!childId) {
@@ -70,9 +84,18 @@ export function HomeContent({
   }, []);
 
   useEffect(() => {
-    if (selectedChildId) loadData(selectedChildId);
-    else setTableData(null);
-  }, [selectedChildId, loadData]);
+    if (!selectedChildId) {
+      setTableData(null);
+      return;
+    }
+    if (isVysvedceniOnly) {
+      setError(null);
+      setLoading(false);
+      setTableData({});
+      return;
+    }
+    loadData(selectedChildId);
+  }, [isVysvedceniOnly, selectedChildId, loadData]);
 
   if (childrenList.length === 0) {
     return (
@@ -100,9 +123,13 @@ export function HomeContent({
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="rounded-xl border border-[#0E2A5C] bg-card p-4 shadow-sm">
-          <h1 className="text-2xl font-bold tracking-normal text-[#0E2A5C]">Výsledky dítěte</h1>
+          <h1 className="text-2xl font-bold tracking-normal text-[#0E2A5C]">
+            {isVysvedceniOnly ? "Vysvědčení dítěte" : "Výsledky dítěte"}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vyberte dítě a zobrazte jeho výsledky v přehledných dlaždicích.
+            {isVysvedceniOnly
+              ? "Vyberte dítě a zobrazte jeho vysvědčení."
+              : "Vyberte dítě a zobrazte jeho výsledky v přehledných dlaždicích."}
           </p>
         </div>
         <div className="rounded-xl border border-[#C8372D] bg-[#C8372D] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
@@ -149,7 +176,7 @@ export function HomeContent({
 
       {selectedChild && (
         <>
-          {loading && (
+          {loading && !isVysvedceniOnly && (
             <SailboatLoading message="Načítám lodičky…" />
           )}
           {error && (
@@ -162,6 +189,8 @@ export function HomeContent({
               childId={selectedChildId}
               childName={selectedChild.name}
               tableData={tableData}
+              initialTab={isVysvedceniOnly ? "vysvedceni" : "lodicky"}
+              enabledTabs={isVysvedceniOnly ? VYSVEDCENI_CHILD_DETAIL_TABS : FULL_CHILD_DETAIL_TABS}
             />
           )}
         </>

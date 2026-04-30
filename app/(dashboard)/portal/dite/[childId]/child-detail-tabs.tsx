@@ -533,14 +533,27 @@ interface VysvedceniData {
   oblasti: CodaRow[];
 }
 
+export type ChildDetailTabId = "lodicky" | "lodicky-po-plavbach" | "vysvedceni" | "vysvedceni-grafy";
+
+const DEFAULT_CHILD_DETAIL_TABS: ChildDetailTabId[] = [
+  "lodicky",
+  "lodicky-po-plavbach",
+  "vysvedceni",
+  "vysvedceni-grafy",
+];
+
 export function ChildDetailTabs({
   childId,
   childName: _childName,
   tableData,
+  initialTab = "lodicky",
+  enabledTabs = DEFAULT_CHILD_DETAIL_TABS,
 }: {
   childId: string;
   childName: string;
   tableData: Record<string, CodaRow[]>;
+  initialTab?: ChildDetailTabId;
+  enabledTabs?: ChildDetailTabId[];
 }) {
   const lodicky = tableData["table-RuXGEEn2z4"] ?? [];
   const lodickyPoPlavbach = tableData["table-1wVyfFAjX2"] ?? [];
@@ -624,15 +637,28 @@ export function ChildDetailTabs({
     lodicka: uniqueValues(lodickyPoPlavbach, "Název lodičky"),
   }), [lodickyPoPlavbach]);
 
-  const [activeTab, setActiveTab] = useState("lodicky");
+  const [activeTab, setActiveTab] = useState<ChildDetailTabId>(initialTab);
+  const enabledTabSet = useMemo(() => new Set(enabledTabs), [enabledTabs]);
+  const tabsGridClass = enabledTabs.length <= 2
+    ? "md:grid-cols-2"
+    : enabledTabs.length === 3
+      ? "md:grid-cols-3"
+      : "md:grid-cols-4";
 
   const handleTabChange = useCallback(
     (value: string) => {
-      setActiveTab(value);
+      if (!enabledTabSet.has(value as ChildDetailTabId)) return;
+      setActiveTab(value as ChildDetailTabId);
       if (value === "vysvedceni") loadVysvedceni();
     },
-    [loadVysvedceni]
+    [enabledTabSet, loadVysvedceni]
   );
+
+  useEffect(() => {
+    if (!enabledTabSet.has(initialTab)) return;
+    setActiveTab(initialTab);
+    if (initialTab === "vysvedceni") void loadVysvedceni();
+  }, [enabledTabSet, initialTab, loadVysvedceni]);
 
   return (
     <Tabs
@@ -640,80 +666,96 @@ export function ChildDetailTabs({
       onValueChange={handleTabChange}
       className="w-full mt-4 mb-4"
     >
-      <TabsList className="mx-2 flex w-full flex-col gap-3 bg-transparent text-sm h-auto md:mx-0 md:flex-row md:grid md:grid-cols-4 md:px-1">
-        <TabsTrigger
-          value="lodicky"
-          className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
-        >
-          Lodičky dítěte
-        </TabsTrigger>
-        <TabsTrigger
-          value="lodicky-po-plavbach"
-          className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
-        >
-          Lodičky po plavbách
-        </TabsTrigger>
-        <TabsTrigger
-          value="vysvedceni"
-          className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
-        >
-          Vysvědčení – data
-        </TabsTrigger>
-        <TabsTrigger
-          value="vysvedceni-grafy"
-          className="hidden w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none md:flex"
-        >
-          Vysvědčení – grafy
-        </TabsTrigger>
+      <TabsList className={`mx-2 flex w-full flex-col gap-3 bg-transparent text-sm h-auto md:mx-0 md:flex-row md:grid ${tabsGridClass} md:px-1`}>
+        {enabledTabSet.has("lodicky") && (
+          <TabsTrigger
+            value="lodicky"
+            className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
+          >
+            Lodičky dítěte
+          </TabsTrigger>
+        )}
+        {enabledTabSet.has("lodicky-po-plavbach") && (
+          <TabsTrigger
+            value="lodicky-po-plavbach"
+            className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
+          >
+            Lodičky po plavbách
+          </TabsTrigger>
+        )}
+        {enabledTabSet.has("vysvedceni") && (
+          <TabsTrigger
+            value="vysvedceni"
+            className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
+          >
+            Vysvědčení – data
+          </TabsTrigger>
+        )}
+        {enabledTabSet.has("vysvedceni-grafy") && (
+          <TabsTrigger
+            value="vysvedceni-grafy"
+            className="hidden w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none md:flex"
+          >
+            Vysvědčení – grafy
+          </TabsTrigger>
+        )}
       </TabsList>
-      <TabsContent value="lodicky" className="mt-0 space-y-4">
-        <div className="mt-4 rounded-xl border border-[#0E2A5C] bg-white p-4">
-          <div className="flex flex-wrap gap-4">
-            <FilterSelect label="Předmět" value={f1Predmet} options={tab1Filters.predmet} onChange={setF1Predmet} />
-            <FilterSelect label="Podpředmět" value={f1Podpredmet} options={tab1Filters.podpredmet} onChange={setF1Podpredmet} />
-            <FilterSelect label="Oblast" value={f1Oblast} options={tab1Filters.oblast} onChange={setF1Oblast} />
-            <FilterSelect label="Lodička" value={f1Lodicka} options={tab1Filters.lodicka} onChange={setF1Lodicka} />
-            <FilterSelect label="Stav" value={f1Stav} options={tab1Filters.stav} onChange={setF1Stav} />
+      {enabledTabSet.has("lodicky") && (
+        <TabsContent value="lodicky" className="mt-0 space-y-4">
+          <div className="mt-4 rounded-xl border border-[#0E2A5C] bg-white p-4">
+            <div className="flex flex-wrap gap-4">
+              <FilterSelect label="Předmět" value={f1Predmet} options={tab1Filters.predmet} onChange={setF1Predmet} />
+              <FilterSelect label="Podpředmět" value={f1Podpredmet} options={tab1Filters.podpredmet} onChange={setF1Podpredmet} />
+              <FilterSelect label="Oblast" value={f1Oblast} options={tab1Filters.oblast} onChange={setF1Oblast} />
+              <FilterSelect label="Lodička" value={f1Lodicka} options={tab1Filters.lodicka} onChange={setF1Lodicka} />
+              <FilterSelect label="Stav" value={f1Stav} options={tab1Filters.stav} onChange={setF1Stav} />
+            </div>
           </div>
-        </div>
-        <CollapsibleLodickyTable rows={lodickyFiltered} columns={TAB1_COLUMNS} />
-      </TabsContent>
-      <TabsContent value="lodicky-po-plavbach" className="mt-0 space-y-4">
-        <div className="mt-4 rounded-xl border border-[#0E2A5C] bg-white p-4">
-          <div className="flex flex-wrap gap-4">
-            <FilterSelect label="Předmět" value={f2Predmet} options={tab2Filters.predmet} onChange={setF2Predmet} />
-            <FilterSelect label="Podpředmět" value={f2Podpredmet} options={tab2Filters.podpredmet} onChange={setF2Podpredmet} />
-            <FilterSelect label="Oblast" value={f2Oblast} options={tab2Filters.oblast} onChange={setF2Oblast} />
-            <FilterSelect label="Lodička" value={f2Lodicka} options={tab2Filters.lodicka} onChange={setF2Lodicka} />
+          <CollapsibleLodickyTable rows={lodickyFiltered} columns={TAB1_COLUMNS} />
+        </TabsContent>
+      )}
+      {enabledTabSet.has("lodicky-po-plavbach") && (
+        <TabsContent value="lodicky-po-plavbach" className="mt-0 space-y-4">
+          <div className="mt-4 rounded-xl border border-[#0E2A5C] bg-white p-4">
+            <div className="flex flex-wrap gap-4">
+              <FilterSelect label="Předmět" value={f2Predmet} options={tab2Filters.predmet} onChange={setF2Predmet} />
+              <FilterSelect label="Podpředmět" value={f2Podpredmet} options={tab2Filters.podpredmet} onChange={setF2Podpredmet} />
+              <FilterSelect label="Oblast" value={f2Oblast} options={tab2Filters.oblast} onChange={setF2Oblast} />
+              <FilterSelect label="Lodička" value={f2Lodicka} options={tab2Filters.lodicka} onChange={setF2Lodicka} />
+            </div>
           </div>
-        </div>
-        <CollapsibleLodickyTable rows={lodickyPoPlavbachFiltered} columns={TAB2_COLUMNS} />
-      </TabsContent>
-      <TabsContent value="vysvedceni" className="mt-0 space-y-8">
-        {vysvedceniLoading && (
-          <SailboatLoading message="Načítám vysvědčení…" />
-        )}
-        {vysvedceniError && !vysvedceniLoading && (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-destructive">
-            {vysvedceniError}
-          </div>
-        )}
-        {!vysvedceniLoading && !vysvedceniError && (
-          <>
-            <section>
-              <h3 className="text-lg font-semibold mb-3">Hodnocení předmětů</h3>
-              <DataTable rows={hodnoceniPredmetu} columns={TAB3_COLUMNS} />
-            </section>
-            <section>
-              <h3 className="text-lg font-semibold mb-3">Hodnocení oblastí</h3>
-              <DataTable rows={hodnoceniOblasti} columns={TAB4_COLUMNS} />
-            </section>
-          </>
-        )}
-      </TabsContent>
-      <TabsContent value="vysvedceni-grafy" className="mt-0 hidden md:block">
-        <VysvedceniGrafy childId={childId} childName={_childName} />
-      </TabsContent>
+          <CollapsibleLodickyTable rows={lodickyPoPlavbachFiltered} columns={TAB2_COLUMNS} />
+        </TabsContent>
+      )}
+      {enabledTabSet.has("vysvedceni") && (
+        <TabsContent value="vysvedceni" className="mt-0 space-y-8">
+          {vysvedceniLoading && (
+            <SailboatLoading message="Načítám vysvědčení…" />
+          )}
+          {vysvedceniError && !vysvedceniLoading && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+              {vysvedceniError}
+            </div>
+          )}
+          {!vysvedceniLoading && !vysvedceniError && (
+            <>
+              <section>
+                <h3 className="text-lg font-semibold mb-3">Hodnocení předmětů</h3>
+                <DataTable rows={hodnoceniPredmetu} columns={TAB3_COLUMNS} />
+              </section>
+              <section>
+                <h3 className="text-lg font-semibold mb-3">Hodnocení oblastí</h3>
+                <DataTable rows={hodnoceniOblasti} columns={TAB4_COLUMNS} />
+              </section>
+            </>
+          )}
+        </TabsContent>
+      )}
+      {enabledTabSet.has("vysvedceni-grafy") && (
+        <TabsContent value="vysvedceni-grafy" className="mt-0 hidden md:block">
+          <VysvedceniGrafy childId={childId} childName={_childName} />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }
