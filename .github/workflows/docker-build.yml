@@ -49,3 +49,19 @@ jobs:
             POSTGRES_PRISMA_URL=${{ secrets.POSTGRES_PRISMA_URL }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Trigger Coolify deploy (production)
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: j13574gml256ob8bv8mszgug
+        run: |
+          set -euo pipefail
+          if [ -z "${COOLIFY_URL:-}" ] || [ -z "${COOLIFY_API_TOKEN:-}" ]; then
+            echo "COOLIFY_URL nebo COOLIFY_API_TOKEN není nastavený. Deploy v Coolify přeskočen."
+            exit 0
+          fi
+          API_URL="${COOLIFY_URL%/}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=false"
+          curl -fsS -X POST "$API_URL" \
+            -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
+            -H "Content-Type: application/json"
