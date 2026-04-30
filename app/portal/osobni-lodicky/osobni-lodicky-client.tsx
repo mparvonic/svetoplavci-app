@@ -271,7 +271,9 @@ function OsobniLodickyPrototypePageInner({
   );
 
   const [scopeMode, setScopeMode] = useState<ScopeMode>("moje");
-  const [viewMode, setViewMode] = useState<ViewMode>("po_lodickach");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    initialRole === "rodic" || initialRole === "zak" ? "po_lidech" : "po_lodickach",
+  );
   const [viewDate, setViewDate] = useState<string>(semesterBounds.maxDate);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(true);
