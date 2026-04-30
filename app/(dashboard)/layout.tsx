@@ -7,9 +7,9 @@ export default function DashboardLayout({
 }) {
   return (
     <InactivitySignOut>
-      <div className="flex min-h-screen flex-col bg-[#EEF2F7]">
+      <div className="sv-paper-grain flex min-h-screen flex-col bg-[#EEF2F7]">
         <main className="flex-1 overflow-auto">
-          <div className="app-page-container space-y-6 py-6">{children}</div>
+          <div className="app-page-container relative space-y-6 py-6">{children}</div>
         </main>
       </div>
     </InactivitySignOut>

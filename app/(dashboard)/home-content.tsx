@@ -38,15 +38,16 @@ export function HomeContent({
     return (
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <div className="rounded-xl border bg-card p-4 shadow-sm">
-            <h1 className="text-xl font-semibold text-[#0E2A5C]">Výsledky dítěte</h1>
+          <div className="sv-card p-6">
+            <p className="sv-eyebrow text-[#C8372D]">Vysvědčení</p>
+            <h1 className="sv-display-sm mt-1 text-[#0E2A5C]">Výsledky dítěte</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Zatím tu nemáte žádné přiřazené dítě. Kontaktujte správce školy, pokud to není v pořádku.
             </p>
           </div>
-          <div className="rounded-xl border bg-[#0E2A5C] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
+          <div className="sv-card sv-card-ink p-6 text-sm md:col-start-2 md:row-start-1">
             <div className="flex flex-col gap-1">
-              <span className="text-xs uppercase tracking-normal opacity-80">Rodič</span>
+              <span className="sv-eyebrow text-white/70">Rodič</span>
               <span className="text-base font-semibold">{parentName}</span>
               {userEmail && <span className="text-xs opacity-90">{userEmail}</span>}
             </div>
@@ -59,17 +60,18 @@ export function HomeContent({
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="rounded-xl border border-[#0E2A5C] bg-card p-4 shadow-sm">
-          <h1 className="text-2xl font-bold tracking-normal text-[#0E2A5C]">
+        <div className="sv-card p-6">
+          <p className="sv-eyebrow text-[#C8372D]">Vysvědčení</p>
+          <h1 className="sv-display-sm mt-1 text-[#0E2A5C]">
             Vysvědčení dítěte
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Vyberte dítě a zobrazte jeho vysvědčení.
           </p>
         </div>
-        <div className="rounded-xl border border-[#C8372D] bg-[#C8372D] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
+        <div className="sv-card border-[#C8372D] bg-[#C8372D] p-6 text-sm text-white md:col-start-2 md:row-start-1">
           <div className="flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-normal opacity-80">Rodič</span>
+            <span className="sv-eyebrow text-white/70">Rodič</span>
             <span className="text-base font-semibold">{parentName}</span>
             {userEmail && <span className="text-xs opacity-90">{userEmail}</span>}
           </div>
@@ -88,10 +90,10 @@ export function HomeContent({
                 variant="outline"
                 size="sm"
                 className={cn(
-                  "flex h-auto flex-col items-start justify-start rounded-xl border px-4 py-3 text-left shadow-sm",
+                  "sv-card-hover flex h-auto flex-col items-start justify-start rounded-[20px] border px-4 py-3 text-left shadow-[var(--sv-shadow-paper)]",
                   isSelected
                     ? "border-[#0E2A5C] bg-[#0E2A5C] text-white hover:bg-[#07173A]"
-                    : "border-[#0E2A5C] bg-white text-[#0E2A5C] hover:bg-[#eef2ff]"
+                    : "border-[#D6DFF0] bg-white text-[#0E2A5C] hover:border-[#0E2A5C] hover:bg-[#EEF2F7]"
                 )}
                 onClick={() => setSelectedChildId(c.rowId)}
               >

@@ -2,9 +2,9 @@ import { signIn } from "@/src/lib/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { getPostLoginDefaultPath } from "@/src/lib/post-login-path";
 
+import Image from "next/image";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -30,64 +30,94 @@ export default async function SignInPage({
   const emailEnabled = !!(process.env.EMAIL_SERVER ?? process.env.SMTP_URL);
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#0E2A5C] via-[#0E2A5C] to-[#C8372D] p-4 text-white">
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-between gap-8 py-8">
-        <div className="flex w-full items-start justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-normal text-white/70">Školní aplikace</p>
-            <h1 className="text-3xl font-bold tracking-normal">Světoplavci</h1>
-            <p className="max-w-md text-xs text-white/80">
-              Přihlaste se a vyplujte za výsledky svých dětí. Všechno je možné!
-            </p>
-          </div>
-        </div>
+    <main className="sv-paper-grain min-h-screen bg-[#EEF2F7]">
+      <section className="app-page-container relative flex min-h-screen items-center py-8">
+        <div className="grid w-full gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.72fr)]">
+          <div className="relative flex min-h-[34rem] flex-col justify-between overflow-hidden rounded-[32px] border border-[#0E2A5C] bg-[#0E2A5C] p-7 text-white shadow-[var(--sv-shadow-lift)] sm:p-9">
+            <div className="relative z-10 space-y-6">
+              <div className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-normal text-white/80">
+                Školní aplikace
+              </div>
+              <div className="space-y-4">
+                <h1 className="sv-display-lg max-w-[9ch] text-white">Světoplavci</h1>
+                <p className="max-w-xl text-base text-white/80">
+                  Přihlášení do školní aplikace pro lodičky, ostrovy a vysvědčení.
+                </p>
+              </div>
+            </div>
 
-        <div className="grid w-full gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <Card className="border-none bg-white/95 shadow-xl backdrop-blur-sm">
-            <CardHeader className="space-y-3 text-left">
-              <CardTitle className="text-2xl font-bold text-[#0E2A5C]">Přihlášení rodiče</CardTitle>
-              <CardDescription className="text-sm text-[#4b5563]">
-                Vyberte způsob přihlášení. Doporučujeme Google nebo e‑mailový magický odkaz. Pokud nemáte účet
-                Google, můžete se přihlásit prostřednictvím libovolného e‑mailu.
+            <div className="relative z-10 mt-12 grid gap-3 text-sm text-white/80 sm:grid-cols-3">
+              <div className="rounded-[20px] border border-white/15 bg-white/10 p-4">
+                <div className="sv-eyebrow mb-2 text-white/60">Přístup</div>
+                <div className="font-semibold text-white">Rodiče a škola</div>
+              </div>
+              <div className="rounded-[20px] border border-white/15 bg-white/10 p-4">
+                <div className="sv-eyebrow mb-2 text-white/60">Data</div>
+                <div className="font-semibold text-white">Chráněné účtem</div>
+              </div>
+              <div className="rounded-[20px] border border-white/15 bg-white/10 p-4">
+                <div className="sv-eyebrow mb-2 text-white/60">Čas</div>
+                <div className="font-semibold text-white">Odhlášení po nečinnosti</div>
+              </div>
+            </div>
+
+            <div className="pointer-events-none absolute -right-16 -top-16 size-52 rounded-full border border-white/10" />
+            <div className="pointer-events-none absolute bottom-8 right-8 w-56 opacity-[0.12] sm:w-72">
+              <Image
+                src="/svetoplavci_logo.svg"
+                alt=""
+                width={320}
+                height={160}
+                className="h-auto w-full invert brightness-0 saturate-0"
+              />
+            </div>
+          </div>
+
+          <Card className="self-center overflow-hidden rounded-[32px] border-[#D6DFF0] bg-white py-0 shadow-[var(--sv-shadow-lift)]">
+            <CardHeader className="space-y-3 px-6 pt-7 text-left sm:px-8 sm:pt-8">
+              <div className="sv-eyebrow text-[#C8372D]">Přihlášení</div>
+              <CardTitle className="sv-display-sm text-[#0E2A5C]">Vstup do aplikace</CardTitle>
+              <CardDescription className="text-sm text-[#4A5A7C]">
+                Použijte Google účet nebo e‑mailový odkaz.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
-          {isInactivity && (
-            <div
-              className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
-              role="alert"
-            >
-              Byli jste odhlášeni po 30 minutách nečinnosti. Přihlaste se znovu.
-            </div>
-          )}
-          {isNoRole && (
-            <div
-              className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              role="alert"
-            >
-              Uživatel nemá přidělenou žádnou roli. Zkontrolujte, zda používáte stejnou adresu jako v systému
-              Edookit. Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy
-              (kancelar@svetoplavci.cz).
-            </div>
-          )}
-          {isNoEnvRole && (
-            <div
-              className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-              role="alert"
-            >
-              Váš účet nemá roli potřebnou pro toto prostředí aplikace. Pokud potřebujete přístup, obraťte se na
-              správce aplikace.
-            </div>
-          )}
-          {tooFast && (
-            <div
-              className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
-              role="alert"
-            >
-              Další přihlašovací odkaz můžete požadovat nejdříve za několik sekund. Zkuste to prosím znovu za
-              chvíli.
-            </div>
-          )}
+            <CardContent className="space-y-5 px-6 pb-7 sm:px-8 sm:pb-8">
+              {isInactivity && (
+                <div
+                  className="rounded-[12px] border border-[#E8A33B]/50 bg-[#FFF7E8] px-3 py-2 text-sm text-[#8A5A00]"
+                  role="alert"
+                >
+                  Byli jste odhlášeni po 30 minutách nečinnosti. Přihlaste se znovu.
+                </div>
+              )}
+              {isNoRole && (
+                <div
+                  className="rounded-[12px] border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                  role="alert"
+                >
+                  Uživatel nemá přidělenou žádnou roli. Zkontrolujte, zda používáte stejnou adresu jako v systému
+                  Edookit. Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy
+                  (kancelar@svetoplavci.cz).
+                </div>
+              )}
+              {isNoEnvRole && (
+                <div
+                  className="rounded-[12px] border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                  role="alert"
+                >
+                  Váš účet nemá roli potřebnou pro toto prostředí aplikace. Pokud potřebujete přístup, obraťte se na
+                  správce aplikace.
+                </div>
+              )}
+              {tooFast && (
+                <div
+                  className="rounded-[12px] border border-[#E8A33B]/50 bg-[#FFF7E8] px-3 py-2 text-sm text-[#8A5A00]"
+                  role="alert"
+                >
+                  Další přihlašovací odkaz můžete požadovat nejdříve za několik sekund. Zkuste to prosím znovu za
+                  chvíli.
+                </div>
+              )}
 
               <form
                 action={async () => {
@@ -95,118 +125,71 @@ export default async function SignInPage({
                   await signIn("google", { redirectTo: callbackUrl });
                 }}
               >
-                <Button
-                  type="submit"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#0E2A5C] bg-[#0E2A5C] px-4 py-6 text-sm font-semibold uppercase tracking-normal text-white shadow-sm hover:bg-[#07173A]"
-                  size="lg"
-                >
+                <Button type="submit" className="w-full py-6" size="lg">
                   <GoogleIcon className="size-5" />
-                  <span>Přihlásit se přes Google</span>
+                  <span>Přihlásit přes Google</span>
                 </Button>
               </form>
 
-          {emailEnabled && (
-            <>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <Separator className="w-full bg-slate-200" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="rounded-full bg-white px-3 py-0.5 text-[10px] font-semibold tracking-normal text-slate-500">
-                    nebo
-                  </span>
-                </div>
-              </div>
+              {emailEnabled && (
+                <>
+                  <div className="sv-divider-dot text-[11px] font-semibold uppercase tracking-normal">
+                    <span className="rounded-full bg-white px-3 text-[#7F88A0]">nebo</span>
+                  </div>
 
-              <form
-                action={async (formData: FormData) => {
-                  "use server";
-                  const email = formData.get("email");
-                  if (typeof email !== "string") return;
-                  const key = email.trim().toLowerCase();
-                  const now = Date.now();
-                  const lastSent = magicLastSent.get(key);
-                  if (lastSent && now - lastSent < 30_000) {
-                    redirect("/auth/signin?tooFast=1");
-                  }
+                  <form
+                    action={async (formData: FormData) => {
+                      "use server";
+                      const email = formData.get("email");
+                      if (typeof email !== "string") return;
+                      const key = email.trim().toLowerCase();
+                      const now = Date.now();
+                      const lastSent = magicLastSent.get(key);
+                      if (lastSent && now - lastSent < 30_000) {
+                        redirect("/auth/signin?tooFast=1");
+                      }
 
-                  await signIn("nodemailer", {
-                    email,
-                    redirectTo: callbackUrl,
-                  });
+                      await signIn("nodemailer", {
+                        email,
+                        redirectTo: callbackUrl,
+                      });
 
-                  magicLastSent.set(key, now);
-                }}
-                className="space-y-3"
-              >
-                <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-[#0E2A5C]">
-                    E‑mail
-                  </label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="vas@email.cz"
-                    required
-                    autoComplete="email"
-                    className="w-full rounded-xl border border-[#0E2A5C]/40 bg-white/80 text-[#0E2A5C] placeholder:text-slate-400 focus-visible:ring-[#0E2A5C]"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  variant="outline"
-                  className="w-full rounded-xl border-[#C8372D] bg-white px-4 py-6 text-sm font-semibold uppercase tracking-normal text-[#C8372D] hover:bg-[#FAEAE9]"
-                  size="lg"
-                >
-                  Poslat odkaz k přihlášení
-                </Button>
-              </form>
-              <p className="text-center text-xs text-slate-500">
-                Na zadaný e‑mail přijde odkaz pro přihlášení.
-              </p>
-            </>
-          )}
-          {!emailEnabled && (
-            <p className="text-center text-sm text-slate-500">
-              Přihlášení e‑mailem: nastavte v .env proměnné EMAIL_SERVER a EMAIL_FROM (SMTP).
-            </p>
-          )}
-        </CardContent>
-      </Card>
-          <div className="hidden h-full flex-col justify-between gap-4 rounded-3xl border border-white/40 bg-white/10 p-6 text-xs shadow-xl backdrop-blur-sm md:flex">
-            <div className="space-y-3">
-              <p className="text-[10px] uppercase tracking-normal text-white/70">Jak to funguje</p>
-              <h2 className="text-lg font-semibold">Výsledky dítěte na jednom místě</h2>
-              <p className="text-xs text-white/80">
-                Po přihlášení uvidíte výsledky svých dětí v přehledných dlaždicích – lodičky, vysvědčení a
-                grafy v jednoduchém a srozumitelném rozhraní.
-              </p>
-            </div>
-            <div className="space-y-1 text-white/80">
-              <p className="text-[10px] uppercase tracking-normal">Tip</p>
-              <ul className="list-disc space-y-1 pl-4 text-xs">
-                <li>Používejte stejný e‑mail, který máte evidovaný v systému Edookit.</li>
-                <li>
-                  Pokud chcete přidat přístup pro další e‑mail, obraťte se na kancelář školy na adrese{" "}
-                  <span className="underline">kancelar@svetoplavci.cz</span>.
-                </li>
-                <li>Odkaz z e‑mailu je platný 24 hodin.</li>
-                <li>Po 30 minutách nečinnosti budete automaticky odhlášeni.</li>
-                <li>Data jsou zpracovávána v souladu s pravidly GDPR a interními směrnicemi školy.</li>
-              </ul>
-            </div>
-          </div>
-      </div>
-        <div className="flex w-full justify-center">
-          <img
-            src="/svetoplavci_logo.svg"
-            alt="Světoplavci"
-            className="h-24 w-auto max-w-[320px] object-contain invert brightness-0 saturate-0 sm:h-40 sm:max-w-[640px] lg:h-72 lg:max-w-[1400px]"
-          />
+                      magicLastSent.set(key, now);
+                    }}
+                    className="space-y-3"
+                  >
+                    <div className="space-y-2">
+                      <label htmlFor="email" className="sv-form-label">
+                        E‑mail
+                      </label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        placeholder="vas@email.cz"
+                        required
+                        autoComplete="email"
+                      />
+                    </div>
+                    <Button type="submit" variant="outline" className="w-full border-[#C8372D] py-6 text-[#C8372D] hover:bg-[#FAEAE9]" size="lg">
+                      Poslat odkaz k přihlášení
+                    </Button>
+                  </form>
+                  <p className="text-center text-xs text-[#7F88A0]">
+                    Na zadaný e‑mail přijde odkaz pro přihlášení.
+                  </p>
+                </>
+              )}
+              {!emailEnabled && (
+                <p className="text-center text-sm text-[#7F88A0]">
+                  Přihlášení e‑mailem: nastavte v .env proměnné EMAIL_SERVER a EMAIL_FROM (SMTP).
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </div>
-    </div>
-    </div>
+      </section>
+    </main>
   );
 }
 

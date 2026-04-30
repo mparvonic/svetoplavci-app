@@ -114,13 +114,13 @@ export async function DevAppMenu() {
       <div className="app-page-container py-3">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
-            <Link href={homeHref} className="flex min-w-0 items-center gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0E2A5C] text-sm font-bold text-white shadow-sm">
+            <Link href={homeHref} className="group flex min-w-0 items-center gap-3">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-[20px] border border-[#D6DFF0] bg-white text-[1.4rem] font-semibold leading-none text-[#C8372D] shadow-[var(--sv-shadow-paper)] transition group-hover:-translate-y-px">
                 S
               </span>
               <span className="min-w-0">
-                <span className="sv-eyebrow block">{isDevMenu ? "Testovací přístup" : "Školní aplikace"}</span>
-                <span className="block truncate text-base font-semibold text-[#0E2A5C]">Světoplavci</span>
+                <span className="sv-eyebrow block text-[#4A5A7C]">{isDevMenu ? "Testovací přístup" : "Školní aplikace"}</span>
+                <span className="sv-display block truncate text-2xl leading-none text-[#0E2A5C]">Světoplavci</span>
               </span>
             </Link>
 
@@ -132,7 +132,7 @@ export async function DevAppMenu() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-[#0E2A5C] transition hover:bg-[#EEF2F7]"
+                      className="inline-flex h-10 items-center gap-2 rounded-full border border-transparent px-3.5 text-sm font-semibold text-[#0E2A5C] transition duration-200 ease-[var(--sv-ease)] hover:border-[#D6DFF0] hover:bg-[#EEF2F7]"
                     >
                       <Icon className="size-4" aria-hidden={true} />
                       <span>{item.label}</span>
@@ -148,17 +148,17 @@ export async function DevAppMenu() {
               <form
                 action="/api/dev-auth/select"
                 method="post"
-                className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-1.5"
+                className="flex min-w-0 flex-wrap items-center gap-2 rounded-full border border-[#D6DFF0] bg-[#EEF2F7] p-1.5"
               >
                 <label className="flex min-w-0 items-center gap-2">
-                  <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-[#0E2A5C]">
+                  <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-white text-[#0E2A5C]">
                     <UserRound className="size-4" aria-hidden={true} />
                   </span>
                   <span className="sr-only">Dočasný uživatel</span>
                   <select
                     name="personId"
                     defaultValue={selectedUser?.personId ?? devUsers[0]?.personId}
-                    className="h-8 max-w-[calc(100vw-7rem)] rounded-lg border border-[#D6DFF0] bg-white px-2 text-xs font-medium text-[#0E2A5C] sm:max-w-[20rem]"
+                    className="h-8 max-w-[calc(100vw-7rem)] rounded-full border border-[#D6DFF0] bg-white px-3 text-xs font-medium text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20 sm:max-w-[20rem]"
                   >
                     {devUsers.map((user) => (
                       <option key={user.personId} value={user.personId}>
@@ -169,7 +169,7 @@ export async function DevAppMenu() {
                 </label>
                 <button
                   type="submit"
-                  className="h-8 rounded-lg bg-[#0E2A5C] px-3 text-xs font-semibold text-white transition hover:bg-[#07173A]"
+                  className="h-8 rounded-full border-[1.5px] border-[#0E2A5C] bg-[#0E2A5C] px-3 text-xs font-semibold text-white transition duration-200 ease-[var(--sv-ease)] hover:-translate-y-px hover:bg-[#07173A]"
                 >
                   Přepnout
                 </button>
@@ -177,7 +177,7 @@ export async function DevAppMenu() {
             )}
 
             {userName && (
-              <div className="flex min-w-0 items-center gap-2 rounded-xl border border-[#D6DFF0] bg-white px-3 py-2 text-xs text-[#4A5A7C]">
+              <div className="flex min-w-0 items-center gap-2 rounded-full border border-[#D6DFF0] bg-white px-3 py-2 text-xs text-[#4A5A7C]">
                 <UserRound className="size-4 shrink-0 text-[#C8372D]" aria-hidden={true} />
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-[#0E2A5C]">{userName}</div>
@@ -191,7 +191,7 @@ export async function DevAppMenu() {
             <form action={menuSignOutAction}>
               <button
                 type="submit"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#C8372D] bg-white px-3 text-sm font-semibold text-[#C8372D] transition hover:bg-[#FAEAE9]"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border-[1.5px] border-[#C8372D] bg-white px-4 text-sm font-semibold text-[#C8372D] transition duration-200 ease-[var(--sv-ease)] hover:-translate-y-px hover:bg-[#FAEAE9]"
               >
                 <LogOut className="size-4" aria-hidden={true} />
                 <span>Odhlásit</span>

@@ -268,10 +268,10 @@ export default function OstrovyClient() {
 
   return (
     <section className="space-y-5">
-      <header className="flex flex-col gap-3 border-b-2 border-[#0E2A5C] pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <header className="sv-section-header flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="sv-eyebrow text-[#C8372D]">Volitelná výuka</p>
-          <h1 className="sv-display mt-1 text-4xl text-[#0E2A5C]">Ostrovy</h1>
+          <h1 className="sv-display-md mt-1 text-[#0E2A5C]">Ostrovy</h1>
           <p className="mt-2 text-sm text-[#4A5A7C]">Nadcházející nabídka a vaše aktuální zápisy.</p>
         </div>
         <Button type="button" variant="outline" onClick={() => void load(selectedChildId || undefined, { showLoading: false, includeChildren: false })}>
@@ -336,7 +336,7 @@ export default function OstrovyClient() {
                 const capacityLabel = `${event.occupied}/${event.registrationPolicy?.capacity ?? "bez limitu"}`;
                 const guides = eventGuides(event);
                 return (
-                  <article key={event.id} className="flex min-h-[260px] flex-col overflow-hidden rounded-[20px] border border-[#D6DFF0] bg-white shadow-[var(--sv-shadow-paper)]">
+                  <article key={event.id} className="sv-card sv-card-hover flex min-h-[260px] flex-col overflow-hidden">
                     {image ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -346,7 +346,7 @@ export default function OstrovyClient() {
                         onError={() => markImageError(event.id)}
                       />
                     ) : (
-                      <div className="flex h-28 items-center justify-center bg-[#EEF2F7] text-sm font-semibold text-[#0E2A5C]">
+                      <div className="sv-placeholder h-28 min-h-0">
                         Ostrovy
                       </div>
                     )}

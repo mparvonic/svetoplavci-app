@@ -1253,10 +1253,10 @@ export default function OstrovyGuideClient() {
 
   return (
     <section className="space-y-5">
-      <header className="flex flex-col gap-3 border-b-2 border-[#0E2A5C] pb-5 sm:flex-row sm:items-end sm:justify-between">
+      <header className="sv-section-header flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="sv-eyebrow text-[#C8372D]">Průvodce</p>
-          <h1 className="sv-display mt-1 text-4xl text-[#0E2A5C]">Správa Ostrovů</h1>
+          <h1 className="sv-display-md mt-1 text-[#0E2A5C]">Správa Ostrovů</h1>
           <p className="mt-2 text-sm text-[#4A5A7C]">Jednorázové termíny, nabídka ostrovů a zápisy dětí.</p>
         </div>
         <Button
@@ -1368,7 +1368,7 @@ export default function OstrovyGuideClient() {
                   {selectedTerm.events.length > 0 && (
                     <>
                       <select
-                        className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm"
+                        className="h-10 rounded-[12px] border border-[#D6DFF0] bg-white px-3 text-sm text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20"
                         value={termMoveTargetId}
                         onChange={(event) => setTermMoveTargetId(event.target.value)}
                       >
@@ -1503,7 +1503,7 @@ export default function OstrovyGuideClient() {
                   <label className="grid gap-1 text-sm md:col-span-2">
                     <span className="font-medium text-slate-700">Popis</span>
                     <textarea
-                      className="min-h-20 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      className="min-h-24 rounded-[12px] border border-[#D6DFF0] bg-white px-3 py-2 text-sm text-[#0E2A5C] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
                       value={eventDraft.description}
                       onChange={(event) => updateDraft("description", event.target.value)}
                     />
@@ -1527,7 +1527,7 @@ export default function OstrovyGuideClient() {
                   <label className="grid gap-1 text-sm">
                     <span className="font-medium text-slate-700">Zaměření</span>
                     <select
-                      className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
+                      className="h-10 rounded-[12px] border border-[#D6DFF0] bg-white px-3 text-sm text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20"
                       value={eventDraft.focus}
                       onChange={(event) => updateDraft("focus", event.target.value)}
                     >
@@ -1535,7 +1535,7 @@ export default function OstrovyGuideClient() {
                     </select>
                   </label>
 
-                  <div className="space-y-3 rounded-md border border-[#D6DFF0] bg-white p-3 text-sm md:col-span-2">
+                  <div className="space-y-3 rounded-[20px] border border-[#D6DFF0] bg-white p-4 text-sm shadow-[var(--sv-shadow-paper)] md:col-span-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-slate-700">Obrázek</span>
                       {imageSearchInfo && <span className="text-xs text-slate-500">{imageSearchInfo}</span>}
@@ -1544,7 +1544,7 @@ export default function OstrovyGuideClient() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={eventDraft.thumbnailUrl} alt="" className="h-36 w-full rounded-md object-cover" />
                     ) : (
-                      <div className="flex h-36 items-center justify-center rounded-md border border-dashed border-[#D6DFF0] bg-[#EEF2F7] text-slate-400">
+                      <div className="sv-placeholder h-36 min-h-0 border border-dashed border-[#D6DFF0] text-slate-400">
                         <ImageIcon className="size-6" aria-hidden="true" />
                       </div>
                     )}
@@ -1564,7 +1564,7 @@ export default function OstrovyGuideClient() {
                         Najít
                       </Button>
                       <label className={cn(
-                        "inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground",
+                        "inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-full border-[1.5px] border-[#D6DFF0] bg-white px-4 py-2 text-sm font-semibold text-[#0E2A5C] transition hover:border-[#0E2A5C] hover:bg-[#EEF2F7]",
                         imageUploading && "pointer-events-none opacity-60",
                       )}>
                         {imageUploading ? <Loader2 className="size-4 animate-spin" /> : <UploadCloud className="size-4" />}
@@ -1589,7 +1589,7 @@ export default function OstrovyGuideClient() {
                             key={`${option.imageUrl}-${index}`}
                             type="button"
                             className={cn(
-                              "group overflow-hidden rounded-md border bg-white text-left shadow-xs transition hover:border-[#0E2A5C] hover:bg-[#EEF2F7] disabled:cursor-wait disabled:opacity-70",
+                              "group overflow-hidden rounded-[12px] border bg-white text-left shadow-[var(--sv-shadow-paper)] transition hover:border-[#0E2A5C] hover:bg-[#EEF2F7] disabled:cursor-wait disabled:opacity-70",
                               imageSavingUrl === option.imageUrl ? "border-[#0E2A5C] ring-2 ring-[#0E2A5C]/15" : "border-[#D6DFF0]",
                             )}
                             disabled={Boolean(imageSavingUrl)}
@@ -1621,7 +1621,7 @@ export default function OstrovyGuideClient() {
                     )}
                   </div>
 
-                  <div className="space-y-3 rounded-md border border-[#D6DFF0] bg-white p-3 text-sm md:col-span-2">
+                  <div className="space-y-3 rounded-[20px] border border-[#D6DFF0] bg-white p-4 text-sm shadow-[var(--sv-shadow-paper)] md:col-span-2">
                     <span className="font-medium text-slate-700">Průvodci</span>
                     {selectedGuides.length > 0 && (
                       <div className="flex flex-wrap gap-2">
@@ -1686,7 +1686,7 @@ export default function OstrovyGuideClient() {
                     </div>
                   </div>
 
-                  <div className="space-y-3 rounded-md border border-[#D6DFF0] bg-white p-3 text-sm md:col-span-2">
+                  <div className="space-y-3 rounded-[20px] border border-[#D6DFF0] bg-white p-4 text-sm shadow-[var(--sv-shadow-paper)] md:col-span-2">
                     <span className="font-medium text-slate-700">Cílové skupiny</span>
                     {selectedAudienceGroups.length > 0 && (
                       <div className="flex flex-wrap gap-2">
