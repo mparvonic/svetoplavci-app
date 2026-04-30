@@ -3,7 +3,6 @@ import { Instrument_Serif, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/g
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Providers } from "@/components/providers";
 import { DevAppMenu } from "@/components/dev-app-menu";
-import { DevAuthSelector } from "@/components/dev-auth-selector";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -42,7 +41,6 @@ export default function RootLayout({
           <TooltipProvider delayDuration={0}>
             <DevAppMenu />
             {children}
-            <DevAuthSelector />
           </TooltipProvider>
         </Providers>
       </body>

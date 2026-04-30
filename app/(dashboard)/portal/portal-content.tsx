@@ -16,11 +16,9 @@ interface Child {
 export function PortalContent({
   parentName,
   children,
-  signOutAction,
 }: {
   parentName: string;
   children: Child[];
-  signOutAction: () => Promise<void>;
 }) {
   return (
     <div className="space-y-6">
@@ -28,11 +26,6 @@ export function PortalContent({
         <p className="text-sm text-muted-foreground">
           Přihlášen jako: <span className="font-medium text-foreground">{parentName}</span>
         </p>
-        <form action={signOutAction}>
-          <Button type="submit" variant="outline" size="sm">
-            Odhlásit
-          </Button>
-        </form>
       </header>
 
       <div>

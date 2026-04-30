@@ -84,7 +84,21 @@ let devAuthUsersCache: {
   users: DevAuthUserOption[];
 } | null = null;
 
+function isProductionApplicationUrl(): boolean {
+  const configuredUrl = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "";
+  if (!configuredUrl) return false;
+
+  try {
+    const hostname = new URL(configuredUrl).hostname.toLowerCase();
+    return hostname === "app.svetoplavci.cz";
+  } catch {
+    return configuredUrl.toLowerCase().includes("app.svetoplavci.cz");
+  }
+}
+
 export function isDevAuthBypassEnabled(): boolean {
+  if (isProductionApplicationUrl()) return false;
+  if (process.env.AUTH_BYPASS === "1") return true;
   return process.env.NODE_ENV === "development" && process.env.AUTH_BYPASS !== "0";
 }
 

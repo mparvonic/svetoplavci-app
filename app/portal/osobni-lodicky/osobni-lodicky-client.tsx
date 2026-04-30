@@ -2,7 +2,6 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { signOut } from "next-auth/react";
 import Image from "next/image";
 import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -1314,15 +1313,6 @@ function OsobniLodickyPrototypePageInner({
                 </div>
               )}
 
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="border-[#D6DFF0]"
-                onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
-              >
-                Odhlásit se
-              </Button>
             </div>
           </div>
         </header>

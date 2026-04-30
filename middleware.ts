@@ -18,11 +18,12 @@ function hasRole(roles: string[], allowed: string[]): boolean {
   return roles.some((role) => allowed.includes(role));
 }
 
-function isLocalDevAuthBypass(host: string): boolean {
-  if (process.env.NODE_ENV !== "development" || process.env.AUTH_BYPASS === "0") {
-    return false;
-  }
-  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+function isAuthBypassEnabledForHost(host: string): boolean {
+  const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
+  const isTestHost = host === "test-app.svetoplavci.cz" || host === "app-test.svetoplavci.cz";
+  if (host === "app.svetoplavci.cz") return false;
+  if (process.env.AUTH_BYPASS === "1") return isLocalHost || isTestHost;
+  return process.env.NODE_ENV === "development" && process.env.AUTH_BYPASS !== "0" && isLocalHost;
 }
 
 export default auth((req) => {
@@ -33,7 +34,7 @@ export default auth((req) => {
   const testDefaultPath = "/portal/osobni-lodicky";
   const testAllowedPathPrefixes = ["/portal/osobni-lodicky", "/ostrovy", "/admin"];
 
-  if (isLocalDevAuthBypass(host)) {
+  if (isAuthBypassEnabledForHost(host)) {
     return;
   }
 
