@@ -258,7 +258,7 @@
     font-family: var(--font-geist-mono);
     font-size: 0.6875rem;
     font-weight: 500;
-    letter-spacing: 0;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     color: currentColor;
   }
@@ -275,7 +275,7 @@
     font-family: var(--font-geist-mono);
     font-size: 0.6875rem;
     font-weight: 500;
-    letter-spacing: 0;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
   }
 
