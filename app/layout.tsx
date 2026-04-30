@@ -14,6 +14,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 const instrumentSerif = Instrument_Serif({
   subsets: ["latin", "latin-ext"],
   weight: "400",
+  style: ["normal", "italic"],
   variable: "--font-sv-display",
   display: "swap",
 });
