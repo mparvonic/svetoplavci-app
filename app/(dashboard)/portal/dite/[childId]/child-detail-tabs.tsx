@@ -548,7 +548,7 @@ export function ChildDetailTabs({
   tableData,
   initialTab = "lodicky",
   enabledTabs = DEFAULT_CHILD_DETAIL_TABS,
-  vysvedceniApiBasePath = "/api/coda/child",
+  vysvedceniApiBasePath = "/api/reports/child",
 }: {
   childId: string;
   childName: string;
