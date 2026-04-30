@@ -84,7 +84,7 @@ let devAuthUsersCache: {
   users: DevAuthUserOption[];
 } | null = null;
 
-function isProductionApplicationUrl(): boolean {
+export function isProductionApplicationUrl(): boolean {
   const configuredUrl = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "";
   if (!configuredUrl) return false;
 

@@ -233,7 +233,7 @@ function OsobniLodickyPrototypePageInner({
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const queryRole = searchParams.get("role");
+  const queryRole = adminToolsEnabled ? searchParams.get("role") : null;
   const sessionRoleOptions = mapSessionRolesToProto(sessionUser.roles, sessionUser.role);
   const preferredSessionRole: ProtoRoleId = sessionRoleOptions.includes("rodic")
     ? "rodic"
@@ -248,7 +248,7 @@ function OsobniLodickyPrototypePageInner({
       ? queryRoleCandidate
       : preferredSessionRole;
   const [activeRole, setActiveRole] = useState<ProtoRoleId>(initialRole);
-  const queryUserId = searchParams.get("user") ?? "";
+  const queryUserId = adminToolsEnabled ? (searchParams.get("user") ?? "") : "";
   const [datasetVersion, setDatasetVersion] = useState(0);
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
@@ -1299,7 +1299,7 @@ function OsobniLodickyPrototypePageInner({
                 </Badge>
               )}
 
-              {sessionRoleOptions.length > 1 && (
+              {adminToolsEnabled && sessionRoleOptions.length > 1 && (
                 <div className="inline-flex rounded-xl border border-[#D6DFF0] bg-white p-1">
                   {sessionRoleOptions.map((roleId) => (
                     <button
@@ -1865,15 +1865,17 @@ function OsobniLodickyPrototypePageInner({
         onClose={() => setDetailSheet({ type: "none" })}
       />
 
-      <ProtoDebugPanel
-        events={debugEvents}
-        onClear={() => {
-          setDebugEvents([]);
-          setStatusUndoActions({});
-        }}
-        onUndoAction={adminToolsEnabled ? undoDebugAction : undefined}
-        canUndoAction={adminToolsEnabled ? canUndoDebugAction : undefined}
-      />
+      {adminToolsEnabled && (
+        <ProtoDebugPanel
+          events={debugEvents}
+          onClear={() => {
+            setDebugEvents([]);
+            setStatusUndoActions({});
+          }}
+          onUndoAction={undoDebugAction}
+          canUndoAction={canUndoDebugAction}
+        />
+      )}
     </main>
   );
 }
