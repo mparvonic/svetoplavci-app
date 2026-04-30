@@ -241,6 +241,134 @@ async function getInternalReportContext(input: ReportActorAccessInput): Promise<
   };
 }
 
+// ─── Křivka (mirror_krivka) ───────────────────────────────────────────────────
+
+const KRIVKA_COL_ROCNIK = "c-Gnf85M6reH";
+const KRIVKA_COL_POLOLETI = "c-5u_BrMxW9w";
+const KRIVKA_COL_STEPEN = "c-NXbv0udM99";
+const KRIVKA_COL_OBDOBI = "c-opsHmPPnEm";
+const KRIVKA_COL_NORMA = "c-ctMybhCUbr";
+const KRIVKA_COL_NORMA_ZKRACENA = "c-kRj7A9aitl";
+
+export type CurveResult = {
+  rocnik: string;
+  stepen_key: string;
+  highlight: number | null;
+  milestones: (number | null)[];
+  milestones2: (number | null)[];
+};
+
+function toFloatPct(x: unknown): number | null {
+  if (x == null) return null;
+  if (typeof x === "number") return Number.isFinite(x) ? x : null;
+  const s = String(x).replace(/[ \s%]/g, "").replace(/,/g, ".");
+  const v = parseFloat(s);
+  return Number.isFinite(v) ? v : null;
+}
+
+function toNum(x: unknown, def: number): number {
+  if (x == null) return def;
+  if (typeof x === "number") return Number.isFinite(x) ? x : def;
+  const s = String(x).replace(/[ \s%]/g, "").replace(/,/g, ".");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : def;
+}
+
+async function getCurveFromMirror(rocnik: string): Promise<CurveResult | null> {
+  const allRaw = await prisma.mirrorKrivka.findMany();
+  const rows = allRaw as MirrorRow[];
+  const normalizedRocnik = rocnik.trim();
+
+  const highlightRow = rows.find((row) => {
+    const d = asRecord(row.data);
+    return (
+      String(d[KRIVKA_COL_ROCNIK] ?? "").trim() === normalizedRocnik &&
+      String(d[KRIVKA_COL_POLOLETI] ?? "").trim() === "1. pololetí"
+    );
+  });
+  if (!highlightRow) return null;
+
+  const hd = asRecord(highlightRow.data);
+  const stepenKey = String(hd[KRIVKA_COL_STEPEN] ?? "").trim();
+  if (!stepenKey) return null;
+
+  const sameStep = rows
+    .filter((row) => String(asRecord(row.data)[KRIVKA_COL_STEPEN] ?? "").trim() === stepenKey)
+    .sort((a, b) => Number(asRecord(a.data)[KRIVKA_COL_OBDOBI] ?? 0) - Number(asRecord(b.data)[KRIVKA_COL_OBDOBI] ?? 0));
+
+  return {
+    rocnik: normalizedRocnik,
+    stepen_key: stepenKey,
+    highlight: toFloatPct(hd[KRIVKA_COL_NORMA]),
+    milestones: sameStep.map((row) => toFloatPct(asRecord(row.data)[KRIVKA_COL_NORMA])),
+    milestones2: sameStep.map((row) => toFloatPct(asRecord(row.data)[KRIVKA_COL_NORMA_ZKRACENA])),
+  };
+}
+
+export type GrafyPredmet = {
+  predmet: string;
+  hodnoceni: unknown;
+  predchozi_hodnoceni: unknown;
+  tempo_zmeny: unknown;
+  oblasti: Array<{
+    oblast: unknown;
+    podpredmet: unknown;
+    predchozi_body: unknown;
+    body_celkem: unknown;
+    zbyva_bodu: unknown;
+  }>;
+};
+
+export async function getChildVysvedceniGrafyForActor(
+  input: ReportActorAccessInput,
+  childId: string,
+): Promise<{ child: ReportChild; curve: CurveResult | null; predmety: GrafyPredmet[] } | null> {
+  const vysvedceni = await getChildVysvedceniForActor(input, childId);
+  if (!vysvedceni) return null;
+
+  const curve = await getCurveFromMirror(vysvedceni.child.rocnik).catch(() => null);
+
+  const areasBySubject = new Map<string, ReportTableRow[]>();
+  for (const row of vysvedceni.oblasti) {
+    const subj = String(row.values["Předmět"] ?? "").trim();
+    if (!areasBySubject.has(subj)) areasBySubject.set(subj, []);
+    areasBySubject.get(subj)!.push(row);
+  }
+
+  const predmety: GrafyPredmet[] = vysvedceni.predmetu
+    .map((s) => {
+      const predmet = String(s.values["Předmět"] ?? "").trim();
+      const oblasti = (areasBySubject.get(predmet) ?? [])
+        .map((a) => {
+          const bodyCelkem = toNum(a.values["Body celkem"], 0);
+          const oblastCelkem = toNum(a.values["Oblast celkem"], 0);
+          return {
+            oblast: a.values["Oblast"],
+            podpredmet: a.values["Podpředmět"] ?? "",
+            predchozi_body: toNum(a.values["Historické lodičky"], 0),
+            body_celkem: bodyCelkem,
+            zbyva_bodu: Math.max(0, oblastCelkem - bodyCelkem),
+          };
+        })
+        .sort((a, b) => {
+          const pp = String(a.podpredmet || "").localeCompare(String(b.podpredmet || ""), "cs");
+          return pp !== 0 ? pp : String(a.oblast || "").localeCompare(String(b.oblast || ""), "cs");
+        });
+      return {
+        predmet,
+        hodnoceni: s.values["Hodnocení"],
+        predchozi_hodnoceni: s.values["Předchozí hodnocení"] ?? "",
+        tempo_zmeny: s.values["Tempo změny"] ?? "",
+        oblasti,
+      };
+    })
+    .sort((a, b) => a.predmet.localeCompare(b.predmet, "cs"));
+
+  return { child: vysvedceni.child, curve, predmety };
+}
+
+// ─── Vysvědčení (tabulková data) ─────────────────────────────────────────────
+
 export async function getChildVysvedceniForActor(
   input: ReportActorAccessInput,
   childId: string,

@@ -253,7 +253,7 @@ export function VysvedceniGrafy({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch(`/api/coda/child/${childId}/vysvedceni-grafy`)
+    fetch(`/api/reports/child/${childId}/vysvedceni-grafy`)
       .then((r) => {
         if (!r.ok) return r.json().then((d) => Promise.reject(new Error(d.error ?? "Chyba")));
         return r.json();
