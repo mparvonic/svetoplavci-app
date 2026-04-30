@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { spawn } from "node:child_process";
+import { hostname } from "node:os";
 
 import {
   getApiSessionContext,
@@ -14,6 +16,34 @@ const MAX_IMAGE_OPTIONS = 3;
 const FAST_SEARCH_QUERY_LIMIT = 5;
 const FIND_CACHE_TTL_MS = 10 * 60 * 1000;
 const FIND_CACHE_VERSION = "open-visual-intent-v3";
+const CLAUDE_EXECUTION_HOST = "gx10";
+
+// Inline Node.js script executed on gx10 via SSH.
+// Reads prompt from stdin, calls Claude API using gx10's ANTHROPIC_API_KEY, prints text to stdout.
+const REMOTE_CLAUDE_SCRIPT = `
+const chunks = [];
+process.stdin.on('data', c => chunks.push(c));
+process.stdin.on('end', async () => {
+  const prompt = Buffer.concat(chunks).toString();
+  const model = process.env.CLAUDE_IMAGE_MODEL || 'claude-haiku-4-5-20251001';
+  const key = process.env.ANTHROPIC_API_KEY || '';
+  if (!key) { process.exit(1); }
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ model, max_tokens: 512, messages: [{ role: 'user', content: prompt }] }),
+    signal: AbortSignal.timeout(7000),
+  });
+  if (!res.ok) { process.stderr.write(await res.text()); process.exit(1); }
+  const data = await res.json();
+  const text = data.content?.find(b => b.type === 'text')?.text ?? '';
+  process.stdout.write(text);
+});
+`.trim();
 
 type ImageCandidate = {
   imageUrl: string;
@@ -196,34 +226,93 @@ function fallbackQueries(title: string, description: string): string[] {
   ].filter((item): item is string => Boolean(item?.trim()));
 }
 
-async function callClaude(prompt: string, maxTokens: number, timeoutMs: number): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured.");
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
 
-  const model = process.env.CLAUDE_IMAGE_MODEL?.trim() || "claude-haiku-4-5-20251001";
+function isClaudeExecutionHost(): boolean {
+  const localHostnames = [hostname(), process.env.HOSTNAME ?? ""]
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  return localHostnames.some(
+    (value) => value === CLAUDE_EXECUTION_HOST || value.startsWith(`${CLAUDE_EXECUTION_HOST}.`),
+  );
+}
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      messages: [{ role: "user", content: prompt }],
-    }),
-    signal: AbortSignal.timeout(timeoutMs),
-  });
+function claudeCommand(): { bin: string; args: string[] } {
+  const nodeScript = REMOTE_CLAUDE_SCRIPT;
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(`Claude API error ${response.status}: ${errorText}`);
+  if (isClaudeExecutionHost()) {
+    return {
+      bin: process.env.NODE_BIN?.trim() || "node",
+      args: ["-e", nodeScript],
+    };
   }
 
-  const data = await response.json() as { content?: Array<{ type: string; text?: string }> };
-  return data.content?.find((b) => b.type === "text")?.text ?? "";
+  const sshBin = process.env.CLAUDE_REMOTE_SSH_BIN?.trim() || "ssh";
+  const sshHost = process.env.CLAUDE_REMOTE_HOST?.trim() || CLAUDE_EXECUTION_HOST;
+  const sshExtraArgs = (process.env.CLAUDE_REMOTE_SSH_OPTIONS ?? "")
+    .split(/\s+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const sshConnectTimeout = process.env.CLAUDE_REMOTE_CONNECT_TIMEOUT_SECONDS?.trim() || "8";
+  const remoteCommand = `node -e ${shellQuote(nodeScript)}`;
+
+  return {
+    bin: sshBin,
+    args: [
+      "-o", "BatchMode=yes",
+      "-o", `ConnectTimeout=${sshConnectTimeout}`,
+      ...sshExtraArgs,
+      sshHost,
+      remoteCommand,
+    ],
+  };
+}
+
+async function runClaudeRemote(prompt: string, timeoutMs: number): Promise<string> {
+  const { stdout, stderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+    const command = claudeCommand();
+    const child = spawn(command.bin, command.args, {
+      cwd: process.cwd(),
+      env: { ...process.env, NO_COLOR: "1" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      settled = true;
+      child.kill("SIGTERM");
+      reject(new Error("Claude remote call timed out."));
+    }, timeoutMs);
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => { stdout += chunk; });
+    child.stderr.on("data", (chunk: string) => { stderr += chunk; });
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        reject(new Error(`Claude remote exited with code ${code}. stderr: ${stderr.slice(0, 200)}`));
+      }
+    });
+    child.stdin.end(prompt);
+  });
+
+  return `${stdout}\n${stderr}`;
 }
 
 async function buildClaudeImageQueries(title: string, description: string): Promise<string[]> {
@@ -239,7 +328,7 @@ async function buildClaudeImageQueries(title: string, description: string): Prom
   ].join("\n");
 
   try {
-    const text = await callClaude(prompt, 256, CLAUDE_QUERY_TIMEOUT_MS);
+    const text = await runClaudeRemote(prompt, CLAUDE_QUERY_TIMEOUT_MS);
     return extractImageQueries(text);
   } catch {
     return [];
@@ -272,7 +361,12 @@ function sourceScore(candidate: ImageCandidate): number {
   if (text.includes("unsplash.com")) score += 20;
   if (text.includes("freepik.com") || text.includes("premium ai") || text.includes("depositphotos.com")) score -= 20;
   if (text.includes("dreamstime.com") || text.includes("alamy.com")) score -= 10;
-  if (text.includes("stock video") || text.includes("free stock video") || text.includes("fashion") || text.includes("model photo")) score -= 40;
+  if (
+    text.includes("stock video") ||
+    text.includes("free stock video") ||
+    text.includes("fashion") ||
+    text.includes("model photo")
+  ) score -= 40;
   if (candidate.previewUrl) score += 5;
   return score;
 }
