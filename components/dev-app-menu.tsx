@@ -1,7 +1,7 @@
 import Link from "next/link";
-import type { ComponentType } from "react";
+import Image from "next/image";
 import type { Session } from "next-auth";
-import { FileText, LogOut, Sailboat, Sparkles, UserRound } from "lucide-react";
+import { LogOut, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { auth, signOut } from "@/src/lib/auth";
@@ -22,7 +22,6 @@ const ISLAND_ROLES = new Set([...CHILD_VIEW_ROLES, ...GUIDE_ROLES]);
 type DevNavItem = {
   href: string;
   label: string;
-  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   roles: ReadonlySet<string>;
   kind?: "ostrovy";
 };
@@ -31,19 +30,16 @@ const DEV_NAV_ITEMS: DevNavItem[] = [
   {
     href: "/portal/osobni-lodicky",
     label: "Lodičky",
-    icon: Sailboat,
     roles: LODICKY_ROLES,
   },
   {
     href: "/vysvedceni",
     label: "Vysvědčení",
-    icon: FileText,
     roles: REPORT_ROLES,
   },
   {
     href: "/ostrovy",
     label: "Ostrovy",
-    icon: Sparkles,
     roles: ISLAND_ROLES,
     kind: "ostrovy",
   },
@@ -126,35 +122,33 @@ export async function DevAppMenu() {
   if (visibleItems.length === 0 && !userName && !isDevMenu) return null;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#D6DFF0] bg-white/95 shadow-[var(--sv-shadow-paper)] backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-[#D6DFF0] bg-white/95 backdrop-blur-xl">
       <div className="app-page-container py-3">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
-            <Link href={homeHref} className="group flex min-w-0 items-center gap-3">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-[20px] border border-[#D6DFF0] bg-white text-[1.4rem] font-semibold leading-none text-[#C8372D] shadow-[var(--sv-shadow-paper)] transition group-hover:-translate-y-px">
-                S
-              </span>
-              <span className="min-w-0">
-                <span className="sv-eyebrow block text-[#4A5A7C]">{isDevMenu ? "Testovací přístup" : "Školní aplikace"}</span>
-                <span className="sv-display block truncate text-2xl leading-none text-[#0E2A5C]">Světoplavci</span>
-              </span>
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:gap-7">
+            <Link href={homeHref} className="group flex w-fit shrink-0 items-center">
+              <Image
+                src="/svetoplavci_logo.png"
+                alt="Světoplavci"
+                width={260}
+                height={92}
+                priority
+                className="h-auto w-[10.5rem] transition duration-200 ease-[var(--sv-ease)] group-hover:-translate-y-px sm:w-[12.5rem]"
+              />
+              {isDevMenu && <span className="sr-only">Testovací přístup</span>}
             </Link>
 
             {visibleItems.length > 0 && (
-              <nav aria-label="Hlavní navigace" className="flex flex-wrap items-center gap-1.5">
-                {visibleItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="inline-flex h-10 items-center gap-2 rounded-full border border-transparent px-3.5 text-sm font-semibold text-[#0E2A5C] transition duration-200 ease-[var(--sv-ease)] hover:border-[#D6DFF0] hover:bg-[#EEF2F7]"
-                    >
-                      <Icon className="size-4" aria-hidden={true} />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
+              <nav aria-label="Hlavní navigace" className="flex flex-wrap items-center gap-1">
+                {visibleItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="inline-flex h-10 items-center rounded-full border border-transparent px-3.5 text-sm font-medium text-[#0E2A5C] transition duration-200 ease-[var(--sv-ease)] hover:bg-[#0E2A5C] hover:text-white"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
               </nav>
             )}
           </div>
