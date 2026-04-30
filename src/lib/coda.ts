@@ -370,10 +370,17 @@ function findRowsByNames(
   names: string[],
   nameToId: Record<string, string>
 ): CodaRelationItem[] {
-  const normalizedNames = new Set(
+  const normalizedNames = Array.from(new Set(
     names.map((n) => n.trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, ""))
-  );
-  const result: CodaRelationItem[] = [];
+  ));
+  const candidatesByName = new Map<string, CodaRelationItem[]>();
+  const addCandidate = (key: string, item: CodaRelationItem) => {
+    if (!key) return;
+    const candidates = candidatesByName.get(key) ?? [];
+    candidates.push(item);
+    candidatesByName.set(key, candidates);
+  };
+
   for (const row of allRows) {
     const values = row.values as Record<string, unknown>;
     const jmeno = String(getRowValue(values, "Jméno", nameToId) ?? row.name ?? "").trim();
@@ -384,16 +391,25 @@ function findRowsByNames(
         .normalize("NFD")
         .replace(/\p{Diacritic}/gu, "");
     if (!jmeno && !prezdivka) continue;
-    const match =
-      normalizedNames.has(norm(jmeno)) ||
-      (prezdivka ? normalizedNames.has(norm(prezdivka)) : false);
-    if (match) {
-      result.push({
-        id: row.id,
-        rowId: row.id,
-        name: prezdivka || jmeno,
-      });
-    }
+    const item = {
+      id: row.id,
+      rowId: row.id,
+      name: prezdivka || jmeno,
+    };
+    addCandidate(norm(jmeno), item);
+    addCandidate(norm(prezdivka), item);
+  }
+
+  const result: CodaRelationItem[] = [];
+  const seen = new Set<string>();
+  for (const normalizedName of normalizedNames) {
+    const candidates = candidatesByName.get(normalizedName) ?? [];
+    if (candidates.length !== 1) continue;
+    const candidate = candidates[0];
+    const id = (candidate.rowId ?? candidate.id)?.toString();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    result.push(candidate);
   }
   return result;
 }
@@ -617,6 +633,35 @@ function normalizeForMatch(s: string): string {
   return s.trim().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
 }
 
+async function getDuplicatePersonLookupNames(): Promise<Set<string>> {
+  const docId = getDocId();
+  const tableId = getTableSeznamOsob();
+  const cacheKey = `duplicatePersonLookupNames:${docId}:${tableId}`;
+  const cached = getCached<string[]>(cacheKey);
+  if (cached) return new Set(cached);
+
+  const nameToId = await getColumnNameToIdMap(docId, tableId);
+  const all = await getTableRowsAll(docId, tableId);
+  const counts = new Map<string, number>();
+  for (const row of all) {
+    const values = row.values as Record<string, unknown>;
+    for (const value of [
+      getRowValue(values, "Jméno", nameToId),
+      getRowValue(values, "Přezdívka", nameToId),
+    ]) {
+      const normalized = normalizeForMatch(String(value ?? ""));
+      if (!normalized) continue;
+      counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+    }
+  }
+
+  const duplicates = [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([name]) => name);
+  setCache(cacheKey, duplicates);
+  return new Set(duplicates);
+}
+
 /** Vrátí true, pokud hodnota sloupce Jméno odpovídá dítěti (relation nebo text přezdívka/jméno). */
 function jmenoValueMatchesChild(
   rel: unknown,
@@ -632,8 +677,6 @@ function jmenoValueMatchesChild(
   const nName = childName ? normalizeForMatch(childName) : "";
   if (nNick && normalized === nNick) return true;
   if (nName && normalized === nName) return true;
-  if (nNick && (normalized.includes(nNick) || nNick.includes(normalized))) return true;
-  if (nName && (normalized.includes(nName) || nName.includes(normalized))) return true;
   return false;
 }
 
@@ -662,13 +705,25 @@ export async function getChildTableData(
 
   const useSourceTable = tableId in TABLE_ROW_SOURCE && !viewTableId;
   const useLodickyViewOrSource = useSourceTable || !!viewTableId;
-  const searchTerm =
-    (childNickname ?? childName)
-      ? (childNickname || childName!.split(/\s+/)[0] || "").trim()
-      : undefined;
-
   const jmenoColId = nameToId["jméno"] ?? nameToId["jmeno"];
   const prezdivkaColId = nameToId["přezdívka"] ?? nameToId["prezdivka"];
+  const duplicatePersonLookupNames = await getDuplicatePersonLookupNames();
+  const safeChildNickname =
+    childNickname && !duplicatePersonLookupNames.has(normalizeForMatch(childNickname))
+      ? childNickname
+      : undefined;
+  const safeChildName =
+    childName && !duplicatePersonLookupNames.has(normalizeForMatch(childName))
+      ? childName
+      : undefined;
+  const searchTerm =
+    (safeChildNickname ?? safeChildName)
+      ? (safeChildNickname || safeChildName || "").trim()
+      : undefined;
+  const searchColumnId = safeChildNickname
+    ? (prezdivkaColId ?? jmenoColId)
+    : (jmenoColId ?? prezdivkaColId);
+
   const relationColIdForQuery = (() => {
     const tableCols = TABLE_RELATION_COLUMNS[tableId] ?? [];
     const relationColNames = [...new Set([...tableCols, ...GLOBAL_RELATION_COL_NAMES])];
@@ -685,10 +740,9 @@ export async function getChildTableData(
       setCache(cacheKey, []);
       return [];
     }
-    const filterColId = prezdivkaColId ?? jmenoColId;
     queryFilter =
-      filterColId && searchTerm
-        ? `${filterColId}:"${String(searchTerm).replace(/"/g, '\\"')}"`
+      searchColumnId && searchTerm
+        ? `${searchColumnId}:"${String(searchTerm).replace(/"/g, '\\"')}"`
         : undefined;
     if (!queryFilter) {
       setCache(cacheKey, []);
@@ -701,18 +755,16 @@ export async function getChildTableData(
     if (isHodnoceni && searchTerm) {
       // Pro hodnocení tabulky: zkusíme filtrovat podle přezdívky nebo jména
       queryFilter =
-        prezdivkaColId && searchTerm
-          ? `${prezdivkaColId}:"${String(searchTerm).replace(/"/g, '\\"')}"`
-          : (jmenoColId && searchTerm
-              ? `${jmenoColId}:"${String(searchTerm).replace(/"/g, '\\"')}"`
-              : undefined);
+        searchColumnId && searchTerm
+          ? `${searchColumnId}:"${String(searchTerm).replace(/"/g, '\\"')}"`
+          : undefined;
     } else if (relationColIdForQuery && !isHodnoceni) {
       // Pro ostatní tabulky s relation: bez filtru, filtrujeme v paměti
       queryFilter = undefined;
     } else {
       queryFilter =
-        jmenoColId && searchTerm
-          ? `${jmenoColId}:"${String(searchTerm).replace(/"/g, '\\"')}"`
+        searchColumnId && searchTerm
+          ? `${searchColumnId}:"${String(searchTerm).replace(/"/g, '\\"')}"`
           : undefined;
     }
   }
@@ -763,7 +815,7 @@ export async function getChildTableData(
   if (relationColId != null) {
     filtered = all.filter((row) => {
       const rel = (row.values as Record<string, unknown>)[relationColId!];
-      return jmenoValueMatchesChild(rel, childRowId, childName, childNickname);
+      return jmenoValueMatchesChild(rel, childRowId, safeChildName, safeChildNickname);
     });
   } else {
     filtered = all.filter((row) => {
@@ -771,9 +823,9 @@ export async function getChildTableData(
       for (const val of Object.values(values)) {
         if (relationContainsRowId(val, childRowId)) return true;
       }
-      if (childName != null || childNickname != null) {
+      if (safeChildName != null || safeChildNickname != null) {
         for (const val of Object.values(values)) {
-          if (typeof val === "string" && jmenoValueMatchesChild(val, childRowId, childName, childNickname))
+          if (typeof val === "string" && jmenoValueMatchesChild(val, childRowId, safeChildName, safeChildNickname))
             return true;
         }
       }

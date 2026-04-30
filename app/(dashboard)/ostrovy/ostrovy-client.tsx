@@ -26,12 +26,6 @@ type MyRegistration = {
   status: RegistrationStatus;
 } | null;
 
-type RegisteredChild = {
-  personId: string;
-  displayName: string;
-  status: RegistrationStatus;
-};
-
 type OfferGroup = {
   id: string;
   name: string;
@@ -52,7 +46,6 @@ type OstrovEvent = {
   registrationPolicy: RegistrationPolicy | null;
   eligible: boolean;
   occupied: number;
-  registeredChildren: RegisteredChild[];
   myRegistration: MyRegistration;
 };
 
@@ -393,14 +386,10 @@ export default function OstrovyClient() {
                             <UsersRound className="size-4" />
                             Přihlášení
                           </div>
-                          {event.registeredChildren.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">
-                              {event.registeredChildren.map((child) => (
-                                <Badge key={child.personId} variant="outline" className="bg-white">
-                                  {child.displayName}
-                                </Badge>
-                              ))}
-                            </div>
+                          {event.occupied > 0 ? (
+                            <p className="text-sm text-slate-600">
+                              Přihlášeno: {capacityLabel}
+                            </p>
                           ) : (
                             <p className="text-sm text-slate-500">Zatím není nikdo přihlášený.</p>
                           )}

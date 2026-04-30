@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 
-import { getApiSessionContext } from "@/src/lib/api/session";
+import {
+  CHILD_VIEW_ROLE_CODES,
+  getApiSessionContext,
+  hasAnySessionRole,
+} from "@/src/lib/api/session";
 import { getReportParentAndChildrenForActor } from "@/src/lib/reports-db";
 
 export async function GET() {
   const context = await getApiSessionContext();
   if (!context) {
     return NextResponse.json({ error: "Nepřihlášen" }, { status: 401 });
+  }
+  if (!hasAnySessionRole(context.roles, CHILD_VIEW_ROLE_CODES)) {
+    return NextResponse.json({ error: "Přístup zamítnut." }, { status: 403 });
   }
 
   try {

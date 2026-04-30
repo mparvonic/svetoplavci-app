@@ -149,7 +149,7 @@ function rowMatchesChild(row: MirrorRow, sourceNameKey: string, matchNames: Set<
 async function enrichReportChildren(children: PortalChild[]): Promise<InternalReportChild[]> {
   if (children.length === 0) return [];
 
-  const [people, activeStudentNicknames] = await Promise.all([
+  const [people, activeStudents] = await Promise.all([
     prisma.appPerson.findMany({
       where: {
         id: { in: children.map((child) => child.id) },
@@ -167,20 +167,23 @@ async function enrichReportChildren(children: PortalChild[]): Promise<InternalRe
       },
       select: {
         nickname: true,
+        displayName: true,
       },
     }),
   ]);
   const peopleById = new Map(people.map((person) => [person.id, person]));
-  const nicknameCounts = new Map<string, number>();
-  for (const person of activeStudentNicknames) {
-    const normalized = normalizeName(person.nickname);
-    if (!normalized) continue;
-    nicknameCounts.set(normalized, (nicknameCounts.get(normalized) ?? 0) + 1);
+  const lookupNameCounts = new Map<string, number>();
+  for (const person of activeStudents) {
+    for (const value of [person.nickname, person.displayName]) {
+      const normalized = normalizeName(value);
+      if (!normalized) continue;
+      lookupNameCounts.set(normalized, (lookupNameCounts.get(normalized) ?? 0) + 1);
+    }
   }
-  const duplicateNicknames = new Set(
-    [...nicknameCounts.entries()]
+  const duplicateLookupNames = new Set(
+    [...lookupNameCounts.entries()]
       .filter(([, count]) => count > 1)
-      .map(([nickname]) => nickname),
+      .map(([name]) => name),
   );
 
   return children.map((child) => {
@@ -189,10 +192,10 @@ async function enrichReportChildren(children: PortalChild[]): Promise<InternalRe
     const nickname = person?.nickname?.trim() || "";
     const currentYear = formatRocnik(child.rocnik);
     const normalizedNickname = normalizeName(nickname);
+    const normalizedName = normalizeName(name);
     const matchNames = [
-      normalizedNickname && !duplicateNicknames.has(normalizedNickname) ? nickname : "",
-      name,
-      child.name,
+      normalizedNickname && !duplicateLookupNames.has(normalizedNickname) ? nickname : "",
+      normalizedName && !duplicateLookupNames.has(normalizedName) ? name : "",
     ]
       .map(normalizeName)
       .filter(Boolean);

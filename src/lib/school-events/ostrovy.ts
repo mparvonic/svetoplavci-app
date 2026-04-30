@@ -1368,22 +1368,6 @@ export async function listOstrovyForChild(personId: string, params: { from?: str
     orderBy: [{ startsAt: "asc" }, { title: "asc" }],
   });
 
-  const registeredPersonIds = new Set<string>();
-  for (const event of events) {
-    for (const registration of event.registrations) {
-      if (isActiveRegistrationStatus(registration.status)) {
-        registeredPersonIds.add(registration.personId);
-      }
-    }
-  }
-  const registeredPeople = registeredPersonIds.size > 0
-    ? await prisma.appPerson.findMany({
-        where: { id: { in: [...registeredPersonIds] } },
-        select: { id: true, displayName: true },
-      })
-    : [];
-  const registeredPersonById = new Map(registeredPeople.map((person) => [person.id, person]));
-
   const now = new Date();
   const audienceContext = await buildAudienceMatchContext(prisma, personId, events, now);
   const enriched = [];
@@ -1394,22 +1378,11 @@ export async function listOstrovyForChild(personId: string, params: { from?: str
       isActiveRegistrationStatus(registration.status),
     );
     const occupied = activeRegistrations.length;
-    const registeredChildren = activeRegistrations
-      .map((registration) => {
-        const person = registeredPersonById.get(registration.personId);
-        return {
-          personId: registration.personId,
-          displayName: person?.displayName ?? "Neznámé dítě",
-          status: registration.status,
-        };
-      })
-      .sort((a, b) => a.displayName.localeCompare(b.displayName, "cs"));
     if (eligible || myRegistration) {
       enriched.push({
         ...event,
         eligible,
         occupied,
-        registeredChildren,
         myRegistration,
       });
     }
