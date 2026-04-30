@@ -274,7 +274,7 @@ function OsobniLodickyPrototypePageInner({
   const [viewMode, setViewMode] = useState<ViewMode>("po_lodickach");
   const [viewDate, setViewDate] = useState<string>(semesterBounds.maxDate);
   const [toolsOpen, setToolsOpen] = useState(false);
-  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const [filtersCollapsed, setFiltersCollapsed] = useState(true);
 
   const [peopleStupenFilter, setPeopleStupenFilter] = useState<string[]>([]);
   const [peopleRocnikFilter, setPeopleRocnikFilter] = useState<string[]>([]);
@@ -1284,14 +1284,9 @@ function OsobniLodickyPrototypePageInner({
               </p>
             </div>
 
+            {(Boolean(dbLoadProgress && dbLoadProgress.loaded < dbLoadProgress.total) ||
+              (adminToolsEnabled && sessionRoleOptions.length > 1)) && (
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <Badge className="bg-[#EEF2F7] text-[#1E3F7A] hover:bg-[#EEF2F7]">{sessionUser.displayName}</Badge>
-              {sessionUser.email && (
-                <Badge className="bg-[#F8FAFC] text-slate-700 hover:bg-[#F8FAFC]">{sessionUser.email}</Badge>
-              )}
-              <Badge className="bg-[#F8FAFC] text-slate-700 hover:bg-[#F8FAFC]">
-                Aktivní role: {getProtoRoleLabel(activeRole)}
-              </Badge>
               {dbLoadProgress && dbLoadProgress.loaded < dbLoadProgress.total && (
                 <Badge className="bg-[#FFF7E8] text-[#8A5A00] hover:bg-[#FFF7E8]">
                   Načítám detailní data: {dbLoadProgress.loaded}/{dbLoadProgress.total}
@@ -1315,8 +1310,8 @@ function OsobniLodickyPrototypePageInner({
                   ))}
                 </div>
               )}
-
             </div>
+            )}
           </div>
         </header>
 

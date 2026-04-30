@@ -598,8 +598,8 @@ export default function OstrovyGuideClient() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [eventDraft, setEventDraft] = useState<EventDraft>(EMPTY_EVENT_DRAFT);
   const [newTermStartsAt, setNewTermStartsAt] = useState(() => defaultDateTimeLocal(7, 8, 30));
-  const [newTermEndsAt, setNewTermEndsAt] = useState(() => defaultDateTimeLocal(7, 15, 30));
-  const [newTermDurationHours, setNewTermDurationHours] = useState("7");
+  const [newTermEndsAt, setNewTermEndsAt] = useState(() => defaultDateTimeLocal(7, 10, 0));
+  const [newTermDurationHours, setNewTermDurationHours] = useState("1.5");
   const [editTermStartsAt, setEditTermStartsAt] = useState("");
   const [editTermEndsAt, setEditTermEndsAt] = useState("");
   const [editTermDurationHours, setEditTermDurationHours] = useState("");

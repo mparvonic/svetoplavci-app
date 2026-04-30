@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Monitor, UserCog } from "lucide-react";
+import { LayoutDashboard, Monitor } from "lucide-react";
 
 import {
   Sidebar,
@@ -19,7 +19,6 @@ import {
 const navItems = [
   { href: "/", label: "Přehled", icon: LayoutDashboard },
   { href: "/portal", label: "Portál", icon: Monitor },
-  { href: "/admin", label: "Admin", icon: UserCog },
 ];
 
 export function AppSidebar() {

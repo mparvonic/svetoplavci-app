@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ComponentType } from "react";
 import type { Session } from "next-auth";
-import { CalendarDays, FileText, LogOut, Sailboat, Shield, Sparkles, UserRound } from "lucide-react";
+import { FileText, LogOut, Sailboat, Sparkles, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { auth, signOut } from "@/src/lib/auth";
@@ -12,28 +12,22 @@ import {
   getSelectedDevAuthUser,
   isDevAuthBypassEnabled,
 } from "@/src/lib/dev-auth";
-import type { AppRole } from "@/src/lib/user-directory";
 
 const CHILD_VIEW_ROLES = new Set(["admin", "tester", "rodic", "zak"]);
 const REPORT_ROLES = new Set(["admin", "tester", "rodic"]);
 const GUIDE_ROLES = new Set(["admin", "tester", "ucitel", "zamestnanec", "pruvodce", "garant"]);
 const LODICKY_ROLES = new Set([...CHILD_VIEW_ROLES, ...GUIDE_ROLES]);
-const ADMIN_ROLES = new Set(["admin", "tester"]);
+const ISLAND_ROLES = new Set([...CHILD_VIEW_ROLES, ...GUIDE_ROLES]);
 
 type DevNavItem = {
   href: string;
   label: string;
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   roles: ReadonlySet<string>;
+  kind?: "ostrovy";
 };
 
 const DEV_NAV_ITEMS: DevNavItem[] = [
-  {
-    href: "/vysvedceni",
-    label: "Vysvědčení",
-    icon: FileText,
-    roles: REPORT_ROLES,
-  },
   {
     href: "/portal/osobni-lodicky",
     label: "Lodičky",
@@ -41,22 +35,17 @@ const DEV_NAV_ITEMS: DevNavItem[] = [
     roles: LODICKY_ROLES,
   },
   {
+    href: "/vysvedceni",
+    label: "Vysvědčení",
+    icon: FileText,
+    roles: REPORT_ROLES,
+  },
+  {
     href: "/ostrovy",
     label: "Ostrovy",
     icon: Sparkles,
-    roles: CHILD_VIEW_ROLES,
-  },
-  {
-    href: "/ostrovy/sprava",
-    label: "Správa ostrovů",
-    icon: CalendarDays,
-    roles: GUIDE_ROLES,
-  },
-  {
-    href: "/admin",
-    label: "Admin",
-    icon: Shield,
-    roles: ADMIN_ROLES,
+    roles: ISLAND_ROLES,
+    kind: "ostrovy",
   },
 ] satisfies DevNavItem[];
 
@@ -74,8 +63,33 @@ function collectSessionRoles(session: Session | null): string[] {
   return [...roles];
 }
 
-function formatRoleLabel(role: string): string {
-  return getDevAuthRoleLabel(role as AppRole);
+function resolveNavHref(item: DevNavItem, userRoles: string[]): string {
+  if (item.kind === "ostrovy" && hasAllowedRole(userRoles, GUIDE_ROLES)) {
+    return "/ostrovy/sprava";
+  }
+  return item.href;
+}
+
+function formatHeaderName(rawName: string, email: string): string {
+  const fallback = email.trim();
+  if (!rawName.trim()) return fallback;
+
+  const compact = rawName.trim().replace(/\s+/g, " ");
+  const descriptorPattern = /\bRodič s žákem v evidenci\b.*$/i;
+  const hadDirectoryDescriptor = descriptorPattern.test(rawName) || /\s{2,}/.test(rawName);
+  const withoutDescriptor = rawName
+    .split(/\s{2,}/)[0]
+    .replace(descriptorPattern, "")
+    .trim()
+    .replace(/\s+/g, " ");
+  const name = withoutDescriptor || compact;
+  const parts = name.split(" ").filter(Boolean);
+
+  if (hadDirectoryDescriptor && parts.length === 2) {
+    return `${parts[1]} ${parts[0]}`;
+  }
+
+  return name;
 }
 
 async function menuSignOutAction() {
@@ -96,15 +110,17 @@ export async function DevAppMenu() {
     : [null, []];
   const session = selectedUser ? null : await auth();
   const userRoles = selectedUser?.roles ?? collectSessionRoles(session);
-  const visibleItems = DEV_NAV_ITEMS.filter((item) => hasAllowedRole(userRoles, item.roles));
-  const userName =
+  const visibleItems = DEV_NAV_ITEMS
+    .filter((item) => hasAllowedRole(userRoles, item.roles))
+    .map((item) => ({ ...item, href: resolveNavHref(item, userRoles) }));
+  const rawUserName =
     selectedUser?.displayName ??
     session?.user?.jmeno?.trim() ??
     session?.user?.name?.trim() ??
     session?.user?.email ??
     "";
   const userEmail = selectedUser?.email ?? session?.user?.email ?? "";
-  const primaryRole = selectedUser?.role ?? session?.user?.role ?? userRoles[0] ?? "";
+  const userName = formatHeaderName(rawUserName, userEmail);
   const homeHref = visibleItems[0]?.href ?? "/";
 
   if (visibleItems.length === 0 && !userName && !isDevMenu) return null;
@@ -181,9 +197,7 @@ export async function DevAppMenu() {
                 <UserRound className="size-4 shrink-0 text-[#C8372D]" aria-hidden={true} />
                 <div className="min-w-0">
                   <div className="truncate font-semibold text-[#0E2A5C]">{userName}</div>
-                  <div className="truncate">
-                    {[primaryRole ? formatRoleLabel(primaryRole) : "", userEmail].filter(Boolean).join(" | ")}
-                  </div>
+                  {userEmail && <div className="truncate">{userEmail}</div>}
                 </div>
               </div>
             )}
