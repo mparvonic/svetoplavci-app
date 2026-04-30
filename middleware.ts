@@ -18,12 +18,24 @@ function hasRole(roles: string[], allowed: string[]): boolean {
   return roles.some((role) => allowed.includes(role));
 }
 
+function isLocalDevAuthBypass(host: string): boolean {
+  if (process.env.NODE_ENV !== "development" || process.env.AUTH_BYPASS === "0") {
+    return false;
+  }
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
   const host = (req.headers.get("host") ?? "").split(":")[0].toLowerCase();
-  const isTestHost = host === "test-app.svetoplavci.cz";
-  const testPortalEntryPath = "/portal/osobni-lodicky";
+  const isTestHost = host === "test-app.svetoplavci.cz" || host === "app-test.svetoplavci.cz";
+  const testDefaultPath = "/portal/osobni-lodicky";
+  const testAllowedPathPrefixes = ["/portal/osobni-lodicky", "/ostrovy", "/admin"];
+
+  if (isLocalDevAuthBypass(host)) {
+    return;
+  }
 
   // Veřejné cesty – bez kontroly
   if (pathname === "/" || pathname.startsWith("/auth/")) {
@@ -56,14 +68,14 @@ export default auth((req) => {
     }
   }
 
-  // test-app: tvrdě zamknout navigaci jen na osobní lodičky
+  // test-app: držet jen schválené testované části aplikace
   if (
     isTestHost &&
-    pathname !== testPortalEntryPath &&
     pathname !== "/" &&
-    !pathname.startsWith("/auth/")
+    !pathname.startsWith("/auth/") &&
+    !testAllowedPathPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
   ) {
-    return Response.redirect(new URL(testPortalEntryPath, req.nextUrl.origin));
+    return Response.redirect(new URL(testDefaultPath, req.nextUrl.origin));
   }
 
   // /kiosk/* a /portal/* – přístup pro všechny přihlášené (už ověřeno výše)

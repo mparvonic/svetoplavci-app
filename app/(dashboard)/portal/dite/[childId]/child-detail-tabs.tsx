@@ -36,7 +36,7 @@ const STAV_ORDER = ["Nezahájeno", "Zahájeno", "S dopomocí", "Částečně", "
 const STAV_COLORS: Record<string, string> = {
   Nezahájeno: "bg-slate-100 text-slate-700 border-slate-300",
   Zahájeno: "bg-[#fff4e5] text-[#b45309] border-[#fdba74]",
-  "S dopomocí": "bg-[#e0ecff] text-[#002060] border-[#93c5fd]",
+  "S dopomocí": "bg-[#EEF2F7] text-[#0E2A5C] border-[#D6DFF0]",
   Částečně: "bg-[#e0f2fe] text-[#075985] border-[#7dd3fc]",
   Samostatně: "bg-[#dcfce7] text-[#166534] border-[#4ade80]",
 };
@@ -216,12 +216,12 @@ function DataTable({
   return (
     <div className="overflow-x-auto rounded-md border">
       <Table>
-        <TableHeader className="bg-[#002060]">
+        <TableHeader className="bg-[#0E2A5C]">
           <TableRow>
             {columns.map((col) => (
               <TableHead
                 key={col.key}
-                className="whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-white"
+                className="whitespace-nowrap text-xs font-semibold uppercase tracking-normal text-white"
               >
                 {col.label}
               </TableHead>
@@ -290,12 +290,10 @@ function CollapsibleLodickyTable({
 }) {
   const columnKeys = useMemo(() => columns.map((c) => c.key), [columns]);
   const tree = useMemo(() => buildLodickyTree(rows), [rows]);
-  const { allKeys, predmetyOnlyKeys } = useMemo(() => {
+  const allKeys = useMemo(() => {
     const keys = new Set<string>();
     const predmety = Array.from(tree.keys()).sort((a, b) => (a || "").localeCompare(b || "", "cs"));
-    const onlyP = new Set<string>();
     for (const p of predmety) {
-      onlyP.add(`p:${p}`);
       keys.add(`p:${p}`);
       const byPod = tree.get(p)!;
       const skipPP = isSkipPodpredmet(p, byPod);
@@ -304,13 +302,14 @@ function CollapsibleLodickyTable({
         if (!skipPP) keys.add(`p:${p}|pp:${pp}`);
       }
     }
-    return { allKeys: keys, predmetyOnlyKeys: onlyP };
+    return keys;
   }, [tree]);
   // Výchozí stav: vše plně rozbalené (všechny Předměty i Podpředměty)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(allKeys));
 
   // Po změně dat (např. filtr, jiné dítě) znovu vše rozbalit
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpanded(new Set(allKeys));
   }, [allKeys]);
   const toggle = useCallback((key: string) => {
@@ -336,7 +335,7 @@ function CollapsibleLodickyTable({
               {columns.map((col) => (
                 <TableHead
                   key={colKey(col.key)}
-                  className="whitespace-nowrap bg-[#002060] text-xs font-semibold uppercase tracking-wide text-white"
+                  className="whitespace-nowrap bg-[#0E2A5C] text-xs font-semibold uppercase tracking-normal text-white"
                 >
                   {col.label}
                 </TableHead>
@@ -377,11 +376,11 @@ function CollapsibleLodickyTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-8 shrink-0 bg-[#002060]" />
+              <TableHead className="w-8 shrink-0 bg-[#0E2A5C]" />
               {columns.map((col) => (
                 <TableHead
                   key={colKey(col.key)}
-                  className="whitespace-nowrap bg-[#002060] text-xs font-semibold uppercase tracking-wide text-white"
+                  className="whitespace-nowrap bg-[#0E2A5C] text-xs font-semibold uppercase tracking-normal text-white"
                 >
                   {col.label}
                 </TableHead>
@@ -401,8 +400,8 @@ function CollapsibleLodickyTable({
               const subjectColorIndex = predmetIdx % 2;
               const subjectVariant =
                 subjectColorIndex === 0
-                  ? "border-l-4 border-l-[#002060] bg-[#f3f4ff] text-[#002060] hover:bg-[#e5e7ff]"
-                  : "border-l-4 border-l-[#DA0100] bg-[#fff1f0] text-[#7f0000] hover:bg-[#ffe4e1]";
+                  ? "border-l-4 border-l-[#0E2A5C] bg-[#EEF2F7] text-[#0E2A5C] hover:bg-[#D6DFF0]"
+                  : "border-l-4 border-l-[#C8372D] bg-[#FAEAE9] text-[#A42A22] hover:bg-[#FAEAE9]";
 
               return (
                 <React.Fragment key={keyP}>
@@ -456,10 +455,10 @@ function CollapsibleLodickyTable({
                           <TableRow
                             key={keyPP}
                             className={cn(
-                              "cursor-pointer border-t border-slate-100 bg-white text-[#002060] hover:bg-[#f9fafb]",
+                              "cursor-pointer border-t border-slate-100 bg-white text-[#0E2A5C] hover:bg-[#f9fafb]",
                               subjectColorIndex === 0
-                                ? "border-l-4 border-l-[#002060]"
-                                : "border-l-4 border-l-[#DA0100]"
+                                ? "border-l-4 border-l-[#0E2A5C]"
+                                : "border-l-4 border-l-[#C8372D]"
                             )}
                             onClick={() => toggle(keyPP)}
                           >
@@ -644,31 +643,31 @@ export function ChildDetailTabs({
       <TabsList className="mx-2 flex w-full flex-col gap-3 bg-transparent text-sm h-auto md:mx-0 md:flex-row md:grid md:grid-cols-4 md:px-1">
         <TabsTrigger
           value="lodicky"
-          className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#DA0100] data-[state=active]:bg-[#DA0100] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#DA0100] data-[state=active]:border-[#DA0100] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
+          className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
         >
           Lodičky dítěte
         </TabsTrigger>
         <TabsTrigger
           value="lodicky-po-plavbach"
-          className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#DA0100] data-[state=active]:bg-[#DA0100] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#DA0100] data-[state=active]:border-[#DA0100] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
+          className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
         >
           Lodičky po plavbách
         </TabsTrigger>
         <TabsTrigger
           value="vysvedceni"
-          className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#DA0100] data-[state=active]:bg-[#DA0100] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#DA0100] data-[state=active]:border-[#DA0100] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
+          className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
         >
           Vysvědčení – data
         </TabsTrigger>
         <TabsTrigger
           value="vysvedceni-grafy"
-          className="hidden w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#DA0100] data-[state=active]:bg-[#DA0100] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#DA0100] data-[state=active]:border-[#DA0100] focus-visible:ring-offset-0 data-[state=active]:shadow-none md:flex"
+          className="hidden w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none md:flex"
         >
           Vysvědčení – grafy
         </TabsTrigger>
       </TabsList>
       <TabsContent value="lodicky" className="mt-0 space-y-4">
-        <div className="mt-4 rounded-xl border border-[#002060] bg-white p-4">
+        <div className="mt-4 rounded-xl border border-[#0E2A5C] bg-white p-4">
           <div className="flex flex-wrap gap-4">
             <FilterSelect label="Předmět" value={f1Predmet} options={tab1Filters.predmet} onChange={setF1Predmet} />
             <FilterSelect label="Podpředmět" value={f1Podpredmet} options={tab1Filters.podpredmet} onChange={setF1Podpredmet} />
@@ -680,7 +679,7 @@ export function ChildDetailTabs({
         <CollapsibleLodickyTable rows={lodickyFiltered} columns={TAB1_COLUMNS} />
       </TabsContent>
       <TabsContent value="lodicky-po-plavbach" className="mt-0 space-y-4">
-        <div className="mt-4 rounded-xl border border-[#002060] bg-white p-4">
+        <div className="mt-4 rounded-xl border border-[#0E2A5C] bg-white p-4">
           <div className="flex flex-wrap gap-4">
             <FilterSelect label="Předmět" value={f2Predmet} options={tab2Filters.predmet} onChange={setF2Predmet} />
             <FilterSelect label="Podpředmět" value={f2Podpredmet} options={tab2Filters.podpredmet} onChange={setF2Podpredmet} />

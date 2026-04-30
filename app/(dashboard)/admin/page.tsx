@@ -4,7 +4,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Admin</h1>
+        <h1 className="text-2xl font-bold tracking-normal">Admin</h1>
         <p className="text-muted-foreground">
           Správa školy, uživatelů a nastavení aplikace.
         </p>

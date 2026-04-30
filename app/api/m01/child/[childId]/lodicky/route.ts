@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/src/lib/auth";
-import { getPortalChildLodickyByEmail } from "@/src/lib/portal-db";
+import { getApiSessionContext } from "@/src/lib/api/session";
+import { getPortalChildLodickyForActor } from "@/src/lib/portal-db";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ childId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.email) {
+  const context = await getApiSessionContext();
+  if (!context) {
     return NextResponse.json({ error: "Nepřihlášen" }, { status: 401 });
   }
 
@@ -17,7 +17,14 @@ export async function GET(
   }
 
   try {
-    const result = await getPortalChildLodickyByEmail(session.user.email, childId);
+    const result = await getPortalChildLodickyForActor(
+      {
+        email: context.email,
+        personIds: context.personIds,
+        roles: context.roles,
+      },
+      childId,
+    );
     if (!result) {
       return NextResponse.json({ error: "Toto dítě vám není přiřazeno." }, { status: 403 });
     }

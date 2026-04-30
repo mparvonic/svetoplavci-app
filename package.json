@@ -9,7 +9,7 @@
     "lint": "eslint",
     "coda:columns": "node scripts/list-coda-columns.mjs",
     "photos:migrate-db": "node scripts/migrate-person-photos-to-db.mjs",
-    "db:tunnel": "ssh -N -L 5433:localhost:5432 root@194.182.84.146",
+    "db:tunnel": "node scripts/db-tunnel.mjs",
     "db:push": "prisma db push --env-file .env.local"
   },
   "dependencies": {

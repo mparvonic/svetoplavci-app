@@ -1,23 +1,27 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/src/lib/auth";
-import { getPortalParentAndChildrenByEmail } from "@/src/lib/portal-db";
+import { getApiSessionContext } from "@/src/lib/api/session";
+import { getPortalParentAndChildrenForActor } from "@/src/lib/portal-db";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.email) {
+  const context = await getApiSessionContext();
+  if (!context) {
     return NextResponse.json({ error: "Nepřihlášen" }, { status: 401 });
   }
 
   try {
-    const context = await getPortalParentAndChildrenByEmail(session.user.email);
-    if (!context) {
+    const portalContext = await getPortalParentAndChildrenForActor({
+      email: context.email,
+      personIds: context.personIds,
+      roles: context.roles,
+    });
+    if (!portalContext) {
       return NextResponse.json({ error: "Přístup zamítnut." }, { status: 403 });
     }
 
     return NextResponse.json({
-      parent: context.parent,
-      userEmail: session.user.email,
-      children: context.children,
+      parent: portalContext.parent,
+      userEmail: context.email,
+      children: portalContext.children,
     });
   } catch (error) {
     console.error("[api/m01/my-children]", error);

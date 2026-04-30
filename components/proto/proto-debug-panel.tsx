@@ -42,14 +42,14 @@ export function ProtoDebugPanel({
   const latest = useMemo(() => events[0] ?? null, [events]);
 
   return (
-    <aside className="fixed right-3 bottom-3 z-40 w-[420px] max-w-[calc(100vw-24px)] rounded-2xl border border-[#D9E4F2] bg-white/95 shadow-2xl backdrop-blur-sm">
+    <aside className="fixed right-3 bottom-3 z-40 w-[420px] max-w-[calc(100vw-24px)] rounded-2xl border border-[#D6DFF0] bg-white/95 shadow-2xl backdrop-blur-sm">
       <div className="flex items-center justify-between border-b border-[#E8EEF8] px-3 py-2">
         <div className="flex items-center gap-2">
-          <span className="inline-flex size-7 items-center justify-center rounded-lg bg-[#EAF2FF] text-[#0A4DA6]">
+          <span className="inline-flex size-7 items-center justify-center rounded-lg bg-[#EEF2F7] text-[#1E3F7A]">
             <Bug className="size-4" />
           </span>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">Debug</p>
+            <p className="text-xs font-semibold uppercase tracking-normal text-[#1E3F7A]">Debug</p>
             <p className="text-[11px] text-slate-500">{events.length} záznamů</p>
           </div>
         </div>
@@ -80,8 +80,8 @@ export function ProtoDebugPanel({
           {!latest && <p className="text-xs text-slate-500">Zatím bez interakce.</p>}
 
           {latest && (
-            <div className="rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-2">
-              <p className="text-[11px] font-semibold text-[#05204A]">Poslední interakce</p>
+            <div className="rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-2">
+              <p className="text-[11px] font-semibold text-[#0E2A5C]">Poslední interakce</p>
               <p className="mt-1 text-xs text-slate-700">
                 <span className="font-semibold">{latest.elementId}</span> · {latest.action}
               </p>
@@ -125,7 +125,7 @@ export function ProtoDebugPanel({
               <div key={event.id} className="border-t border-[#EEF3FA] px-2 py-1.5 first:border-t-0">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-[11px] font-semibold text-[#05204A]">{event.elementId}</p>
+                    <p className="text-[11px] font-semibold text-[#0E2A5C]">{event.elementId}</p>
                     <p className="text-[11px] text-slate-600">{event.action}</p>
                   </div>
                   <div className="flex items-center gap-2">

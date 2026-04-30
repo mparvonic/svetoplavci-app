@@ -34,6 +34,124 @@ enum AppPolicyScope {
   role
 }
 
+enum AppCalendarProvider {
+  GOOGLE_WORKSPACE
+}
+
+enum AppCalendarTarget {
+  STUDENT
+  GROUP
+  BOTH
+}
+
+enum AppCalendarBehavior {
+  NONE
+  SEPARATE_EVENT
+  UPDATE_LINKED_LESSON
+}
+
+enum AppScheduleLinkPolicy {
+  NONE
+  OPTIONAL
+  REQUIRED
+}
+
+enum AppEventGroupSource {
+  NONE
+  SMECKA
+  POSADKA
+  KURZ
+}
+
+enum AppCalendarEventLinkStatus {
+  ACTIVE
+  CANCELED
+  DELETED
+}
+
+enum AppCalendarSyncJobType {
+  ENSURE_STUDENT_CALENDAR
+  ENSURE_GROUP_CALENDAR
+  INITIAL_STUDENT_SYNC
+  REFRESH_STUDENT_DAY
+  REFRESH_GROUP_DAY
+  PROCESS_CHANGE_DELTA
+  UPSERT_SCHOOL_EVENT
+}
+
+enum AppCalendarSyncJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum AppSchoolEventTargetType {
+  PERSON
+  GROUP
+}
+
+enum AppSchoolEventVisibility {
+  PRIVATE
+  INVITE_ONLY
+  PUBLIC
+}
+
+enum AppSchoolEventLifecycleStatus {
+  DRAFT
+  PUBLISHED
+  REGISTRATION_CLOSED
+  COMPLETED
+  CANCELED
+  ARCHIVED
+}
+
+enum AppSchoolEventAudienceRuleType {
+  PERSON
+  GROUP
+  ROLE
+  EXPRESSION
+  PUBLIC
+}
+
+enum AppSchoolEventSnapshotReason {
+  PUBLISHED
+  REGISTRATION_CLOSED
+  MANUAL
+}
+
+enum AppSchoolEventRegistrationWindowMode {
+  ABSOLUTE
+  RELATIVE_TO_EVENT_START
+}
+
+enum AppSchoolEventRegistrationStatus {
+  REGISTERED
+  UNREGISTERED
+  WAITLIST
+  CANCELED_BY_GUIDE
+}
+
+enum AppSchoolEventAttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+  LATE
+  LEFT_EARLY
+}
+
+enum AppSchoolEventOfferSelectionMode {
+  AT_MOST_ONE
+  EXACTLY_ONE
+}
+
+enum AppSchoolEventModuleLinkTargetType {
+  EVENT
+  REGISTRATION
+  ATTENDANCE
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -172,15 +290,19 @@ model AppPerson {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  sourceRecords AppPersonSourceRecord[]
-  loginLinks    AppLoginPersonLink[]
-  roles         AppRoleAssignment[]
-  parentLinks   AppPersonRelation[]     @relation("ParentPerson")
-  childLinks    AppPersonRelation[]     @relation("ChildPerson")
-  studentStates AppStudentState[]
-  memberships   AppGroupMembership[]
-  violations    AppMembershipViolation[]
-  photoFile     AppPersonPhoto?
+  sourceRecords       AppPersonSourceRecord[]
+  loginLinks          AppLoginPersonLink[]
+  roles               AppRoleAssignment[]
+  parentLinks         AppPersonRelation[]      @relation("ParentPerson")
+  childLinks          AppPersonRelation[]      @relation("ChildPerson")
+  studentStates       AppStudentState[]
+  memberships         AppGroupMembership[]
+  violations          AppMembershipViolation[]
+  photoFile           AppPersonPhoto?
+  studentCalendars    AppStudentCalendar[]
+  schoolEventsCreated AppSchoolEvent[]         @relation("AppSchoolEventCreatedBy")
+  schoolEventsUpdated AppSchoolEvent[]         @relation("AppSchoolEventUpdatedBy")
+  schoolEventTargets  AppSchoolEventTarget[]
 
   @@index([identifier], map: "app_person_identifier_idx")
   @@index([plus4uId], map: "app_person_plus4u_id_idx")
@@ -190,15 +312,15 @@ model AppPerson {
 }
 
 model AppPersonPhoto {
-  personId    String   @id @map("person_id")
-  mimeType    String   @map("mime_type")
-  content     Bytes
-  sizeBytes   Int      @map("size_bytes")
-  sourceUrl   String?  @map("source_url")
-  sourceHash  String?  @map("source_hash")
-  fetchedAt   DateTime @default(now()) @map("fetched_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  personId   String   @id @map("person_id")
+  mimeType   String   @map("mime_type")
+  content    Bytes
+  sizeBytes  Int      @map("size_bytes")
+  sourceUrl  String?  @map("source_url")
+  sourceHash String?  @map("source_hash")
+  fetchedAt  DateTime @default(now()) @map("fetched_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
 
@@ -405,13 +527,13 @@ model AppGroup {
 
 model AppGroupLink {
   id            String    @id @default(cuid())
-  parentGroupId String   @map("parent_group_id")
-  childGroupId  String   @map("child_group_id")
-  relationType  String   @map("relation_type")
-  validFrom     DateTime @default(now()) @map("valid_from")
+  parentGroupId String    @map("parent_group_id")
+  childGroupId  String    @map("child_group_id")
+  relationType  String    @map("relation_type")
+  validFrom     DateTime  @default(now()) @map("valid_from")
   validTo       DateTime? @map("valid_to")
-  createdBy     String?  @map("created_by")
-  createdAt     DateTime @default(now()) @map("created_at")
+  createdBy     String?   @map("created_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
   parentGroup AppGroup @relation("GroupLinkParent", fields: [parentGroupId], references: [id], onDelete: Cascade)
   childGroup  AppGroup @relation("GroupLinkChild", fields: [childGroupId], references: [id], onDelete: Cascade)
@@ -438,9 +560,9 @@ model AppStudentState {
   createdAt          DateTime        @default(now()) @map("created_at")
   updatedAt          DateTime        @updatedAt @map("updated_at")
 
-  person            AppPerson      @relation(fields: [personId], references: [id], onDelete: Cascade)
-  schoolYear        AppSchoolYear? @relation(fields: [schoolYearId], references: [id], onDelete: SetNull)
-  changedBySyncRun  AppUserSyncRun? @relation("SyncRunStudentState", fields: [changedBySyncRunId], references: [id], onDelete: SetNull)
+  person           AppPerson       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  schoolYear       AppSchoolYear?  @relation(fields: [schoolYearId], references: [id], onDelete: SetNull)
+  changedBySyncRun AppUserSyncRun? @relation("SyncRunStudentState", fields: [changedBySyncRunId], references: [id], onDelete: SetNull)
 
   @@index([personId], map: "app_student_state_person_id_idx")
   @@index([effectiveFrom], map: "app_student_state_effective_from_idx")
@@ -498,8 +620,8 @@ model AppGroupMembership {
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
-  person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
-  group  AppGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  person AppPerson                 @relation(fields: [personId], references: [id], onDelete: Cascade)
+  group  AppGroup                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   events AppGroupMembershipEvent[]
 
   @@index([personId], map: "app_group_membership_person_id_idx")
@@ -547,4 +669,484 @@ model AppMembershipViolation {
   @@index([personId], map: "app_membership_violation_person_id_idx")
   @@index([resolvedAt], map: "app_membership_violation_resolved_at_idx")
   @@map("app_membership_violation")
+}
+
+model AppCalendarProviderConfig {
+  id                    String              @id @default(cuid())
+  provider              AppCalendarProvider @default(GOOGLE_WORKSPACE)
+  name                  String
+  serviceAccountEmail   String              @map("service_account_email")
+  impersonatedUserEmail String              @map("impersonated_user_email")
+  workspaceDomain       String?             @map("workspace_domain")
+  isActive              Boolean             @default(true) @map("is_active")
+  metadata              Json?
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  studentCalendars AppStudentCalendar[]
+  groupCalendars   AppGroupCalendar[]
+  syncJobs         AppCalendarSyncJob[]
+
+  @@unique([provider, name], map: "app_calendar_provider_config_provider_name_key")
+  @@index([isActive], map: "app_calendar_provider_config_is_active_idx")
+  @@map("app_calendar_provider_config")
+}
+
+model AppStudentCalendar {
+  id                String    @id @default(cuid())
+  providerConfigId  String    @map("provider_config_id")
+  personId          String    @map("person_id")
+  calendarId        String    @map("calendar_id")
+  calendarSummary   String?   @map("calendar_summary")
+  timezone          String    @default("Europe/Prague")
+  syncEnabled       Boolean   @default(true) @map("sync_enabled")
+  isActive          Boolean   @default(true) @map("is_active")
+  lastProvisionedAt DateTime? @map("last_provisioned_at") @db.Timestamptz(3)
+  lastSyncAt        DateTime? @map("last_sync_at") @db.Timestamptz(3)
+  lastSyncStatus    String?   @map("last_sync_status")
+  lastSyncError     String?   @map("last_sync_error")
+  metadata          Json?
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  providerConfig AppCalendarProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
+  person         AppPerson                 @relation(fields: [personId], references: [id], onDelete: Cascade)
+  eventLinks     AppCalendarEventLink[]
+  syncJobs       AppCalendarSyncJob[]
+
+  @@unique([personId], map: "app_student_calendar_person_id_key")
+  @@unique([calendarId], map: "app_student_calendar_calendar_id_key")
+  @@index([providerConfigId], map: "app_student_calendar_provider_config_id_idx")
+  @@index([isActive, syncEnabled], map: "app_student_calendar_active_sync_idx")
+  @@map("app_student_calendar")
+}
+
+model AppGroupCalendar {
+  id               String   @id @default(cuid())
+  providerConfigId String   @map("provider_config_id")
+  groupKind        String   @map("group_kind")
+  groupCode        String   @map("group_code")
+  groupName        String?  @map("group_name")
+  calendarId       String   @map("calendar_id")
+  calendarSummary  String?  @map("calendar_summary")
+  timezone         String   @default("Europe/Prague")
+  syncEnabled      Boolean  @default(true) @map("sync_enabled")
+  isActive         Boolean  @default(true) @map("is_active")
+  metadata         Json?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  providerConfig AppCalendarProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
+  eventLinks     AppCalendarEventLink[]
+  syncJobs       AppCalendarSyncJob[]
+
+  @@unique([providerConfigId, groupKind, groupCode], map: "app_group_calendar_provider_kind_code_key")
+  @@unique([calendarId], map: "app_group_calendar_calendar_id_key")
+  @@index([isActive, syncEnabled], map: "app_group_calendar_active_sync_idx")
+  @@map("app_group_calendar")
+}
+
+model AppSchoolEventType {
+  id                 String                @id @default(cuid())
+  code               String                @unique
+  name               String
+  description        String?
+  calendarBehavior   AppCalendarBehavior   @default(SEPARATE_EVENT) @map("calendar_behavior")
+  scheduleLinkPolicy AppScheduleLinkPolicy @default(OPTIONAL) @map("schedule_link_policy")
+  calendarTarget     AppCalendarTarget     @default(STUDENT) @map("calendar_target")
+  groupSource        AppEventGroupSource   @default(NONE) @map("group_source")
+  sortOrder          Int?                  @map("sort_order")
+  isActive           Boolean               @default(true) @map("is_active")
+  metadata           Json?
+  createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  events    AppSchoolEvent[]
+  templates AppSchoolEventTemplate[]
+  series    AppSchoolEventSeries[]
+
+  @@index([isActive], map: "app_school_event_type_is_active_idx")
+  @@map("app_school_event_type")
+}
+
+model AppSchoolEventTemplate {
+  id                      String                   @id @default(cuid())
+  code                    String                   @unique
+  name                    String
+  eventTypeId             String?                  @map("event_type_id")
+  defaultTitle            String?                  @map("default_title")
+  defaultDescription      String?                  @map("default_description")
+  defaultLocation         String?                  @map("default_location")
+  defaultAllDay           Boolean                  @default(false) @map("default_all_day")
+  defaultDurationMinutes  Int?                     @map("default_duration_minutes")
+  defaultVisibility       AppSchoolEventVisibility @default(INVITE_ONLY) @map("default_visibility")
+  defaultLinkedToSchedule Boolean                  @default(false) @map("default_linked_to_schedule")
+  defaultMetadata         Json?                    @map("default_metadata")
+  isActive                Boolean                  @default(true) @map("is_active")
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  eventType AppSchoolEventType? @relation(fields: [eventTypeId], references: [id], onDelete: SetNull)
+  events    AppSchoolEvent[]
+
+  @@index([eventTypeId], map: "app_school_event_template_event_type_id_idx")
+  @@index([isActive], map: "app_school_event_template_is_active_idx")
+  @@map("app_school_event_template")
+}
+
+model AppSchoolEventSeries {
+  id                String    @id @default(cuid())
+  code              String?
+  name              String
+  eventTypeId       String?   @map("event_type_id")
+  timezone          String    @default("Europe/Prague")
+  recurrenceRule    String    @map("recurrence_rule")
+  startsAt          DateTime  @map("starts_at") @db.Timestamptz(3)
+  endsAt            DateTime  @map("ends_at") @db.Timestamptz(3)
+  recurrenceUntilAt DateTime? @map("recurrence_until_at") @db.Timestamptz(3)
+  recurrenceCount   Int?      @map("recurrence_count")
+  isActive          Boolean   @default(true) @map("is_active")
+  metadata          Json?
+  createdByPersonId String?   @map("created_by_person_id")
+  updatedByPersonId String?   @map("updated_by_person_id")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  eventType AppSchoolEventType? @relation(fields: [eventTypeId], references: [id], onDelete: SetNull)
+  events    AppSchoolEvent[]
+
+  @@unique([code], map: "app_school_event_series_code_key")
+  @@index([eventTypeId], map: "app_school_event_series_event_type_id_idx")
+  @@index([isActive], map: "app_school_event_series_is_active_idx")
+  @@map("app_school_event_series")
+}
+
+model AppSchoolEventOfferGroup {
+  id                     String                           @id @default(cuid())
+  schoolYearId           String?                          @map("school_year_id")
+  code                   String?
+  name                   String
+  description            String?
+  startsAt               DateTime?                        @map("starts_at") @db.Timestamptz(3)
+  endsAt                 DateTime?                        @map("ends_at") @db.Timestamptz(3)
+  selectionMode          AppSchoolEventOfferSelectionMode @default(AT_MOST_ONE) @map("selection_mode")
+  maxSelectionsPerPerson Int                              @default(1) @map("max_selections_per_person")
+  allowNoSelection       Boolean                          @default(true) @map("allow_no_selection")
+  isActive               Boolean                          @default(true) @map("is_active")
+  metadata               Json?
+  createdAt              DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  events AppSchoolEvent[]
+
+  @@index([schoolYearId], map: "app_school_event_offer_group_school_year_id_idx")
+  @@index([isActive], map: "app_school_event_offer_group_is_active_idx")
+  @@map("app_school_event_offer_group")
+}
+
+model AppSchoolEvent {
+  id                      String                        @id @default(cuid())
+  schoolYearId            String?                       @map("school_year_id")
+  eventTypeId             String                        @map("event_type_id")
+  templateId              String?                       @map("template_id")
+  seriesId                String?                       @map("series_id")
+  seriesOriginalStartAt   DateTime?                     @map("series_original_start_at") @db.Timestamptz(3)
+  offerGroupId            String?                       @map("offer_group_id")
+  title                   String
+  description             String?
+  location                String?
+  startsAt                DateTime                      @map("starts_at") @db.Timestamptz(3)
+  endsAt                  DateTime                      @map("ends_at") @db.Timestamptz(3)
+  allDay                  Boolean                       @default(false) @map("all_day")
+  timezone                String                        @default("Europe/Prague")
+  visibility              AppSchoolEventVisibility      @default(INVITE_ONLY)
+  lifecycleStatus         AppSchoolEventLifecycleStatus @default(DRAFT) @map("lifecycle_status")
+  isActive                Boolean                       @default(true) @map("is_active")
+  isLinkedToSchedule      Boolean                       @default(false) @map("is_linked_to_schedule")
+  linkedLessonId          Int?                          @map("linked_lesson_id")
+  linkedLessonDate        DateTime?                     @map("linked_lesson_date") @db.Date
+  linkedCourseId          Int?                          @map("linked_course_id")
+  linkedCourseCode        String?                       @map("linked_course_code")
+  linkedTeacherPersonId   Int?                          @map("linked_teacher_person_id")
+  linkedRoomId            Int?                          @map("linked_room_id")
+  linkedLessonSnapshot    Json?                         @map("linked_lesson_snapshot")
+  lastLessonRefreshAt     DateTime?                     @map("last_lesson_refresh_at") @db.Timestamptz(3)
+  timeOverrideLock        Boolean                       @default(false) @map("time_override_lock")
+  titleOverrideLock       Boolean                       @default(false) @map("title_override_lock")
+  descriptionOverrideLock Boolean                       @default(false) @map("description_override_lock")
+  locationOverrideLock    Boolean                       @default(false) @map("location_override_lock")
+  publishedAt             DateTime?                     @map("published_at") @db.Timestamptz(3)
+  registrationClosedAt    DateTime?                     @map("registration_closed_at") @db.Timestamptz(3)
+  completedAt             DateTime?                     @map("completed_at") @db.Timestamptz(3)
+  canceledAt              DateTime?                     @map("canceled_at") @db.Timestamptz(3)
+  source                  String                        @default("app")
+  sourceRef               String?                       @map("source_ref")
+  metadata                Json?
+  createdByPersonId       String?                       @map("created_by_person_id")
+  updatedByPersonId       String?                       @map("updated_by_person_id")
+  createdAt               DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  eventType               AppSchoolEventType                    @relation(fields: [eventTypeId], references: [id], onDelete: Restrict)
+  template                AppSchoolEventTemplate?               @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  series                  AppSchoolEventSeries?                 @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  offerGroup              AppSchoolEventOfferGroup?             @relation(fields: [offerGroupId], references: [id], onDelete: SetNull)
+  createdByPerson         AppPerson?                            @relation("AppSchoolEventCreatedBy", fields: [createdByPersonId], references: [id], onDelete: SetNull)
+  updatedByPerson         AppPerson?                            @relation("AppSchoolEventUpdatedBy", fields: [updatedByPersonId], references: [id], onDelete: SetNull)
+  targets                 AppSchoolEventTarget[]
+  audienceRules           AppSchoolEventAudienceRule[]
+  audienceSnapshotBatches AppSchoolEventAudienceSnapshotBatch[]
+  registrationPolicy      AppSchoolEventRegistrationPolicy?
+  registrations           AppSchoolEventRegistration[]
+  attendances             AppSchoolEventAttendance[]
+  moduleLinks             AppSchoolEventModuleLink[]
+  eventLinks              AppCalendarEventLink[]
+
+  @@index([eventTypeId, startsAt], map: "app_school_event_type_starts_idx")
+  @@index([templateId], map: "app_school_event_template_id_idx")
+  @@index([seriesId, seriesOriginalStartAt], map: "app_school_event_series_instance_idx")
+  @@index([offerGroupId], map: "app_school_event_offer_group_id_idx")
+  @@index([linkedLessonId, linkedLessonDate], map: "app_school_event_linked_lesson_idx")
+  @@index([schoolYearId], map: "app_school_event_school_year_id_idx")
+  @@index([lifecycleStatus], map: "app_school_event_lifecycle_status_idx")
+  @@map("app_school_event")
+}
+
+model AppSchoolEventTarget {
+  id            String                   @id @default(cuid())
+  schoolEventId String                   @map("school_event_id")
+  targetType    AppSchoolEventTargetType @map("target_type")
+  personId      String?                  @map("person_id")
+  groupKind     String?                  @map("group_kind")
+  groupCode     String?                  @map("group_code")
+  metadata      Json?
+  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
+  person      AppPerson?     @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  @@index([schoolEventId], map: "app_school_event_target_school_event_id_idx")
+  @@index([personId], map: "app_school_event_target_person_id_idx")
+  @@index([groupKind, groupCode], map: "app_school_event_target_group_idx")
+  @@map("app_school_event_target")
+}
+
+model AppSchoolEventAudienceRule {
+  id            String                         @id @default(cuid())
+  schoolEventId String                         @map("school_event_id")
+  ruleType      AppSchoolEventAudienceRuleType @map("rule_type")
+  personId      String?                        @map("person_id")
+  groupKind     String?                        @map("group_kind")
+  groupCode     String?                        @map("group_code")
+  roleCode      String?                        @map("role_code")
+  expression    Json?
+  isActive      Boolean                        @default(true) @map("is_active")
+  metadata      Json?
+  createdAt     DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  schoolEvent   AppSchoolEvent                       @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
+  snapshotItems AppSchoolEventAudienceSnapshotItem[]
+
+  @@index([schoolEventId], map: "app_school_event_audience_rule_school_event_id_idx")
+  @@index([ruleType], map: "app_school_event_audience_rule_rule_type_idx")
+  @@index([personId], map: "app_school_event_audience_rule_person_id_idx")
+  @@index([groupKind, groupCode], map: "app_school_event_audience_rule_group_idx")
+  @@index([roleCode], map: "app_school_event_audience_rule_role_code_idx")
+  @@map("app_school_event_audience_rule")
+}
+
+model AppSchoolEventAudienceSnapshotBatch {
+  id                String                       @id @default(cuid())
+  schoolEventId     String                       @map("school_event_id")
+  reason            AppSchoolEventSnapshotReason
+  snapshotAt        DateTime                     @map("snapshot_at") @db.Timestamptz(3)
+  sourceRef         String?                      @map("source_ref")
+  createdByPersonId String?                      @map("created_by_person_id")
+  metadata          Json?
+  createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  schoolEvent AppSchoolEvent                       @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
+  items       AppSchoolEventAudienceSnapshotItem[]
+
+  @@index([schoolEventId, snapshotAt], map: "app_school_event_snapshot_batch_event_snapshot_idx")
+  @@map("app_school_event_audience_snapshot_batch")
+}
+
+model AppSchoolEventAudienceSnapshotItem {
+  id           String   @id @default(cuid())
+  batchId      String   @map("batch_id")
+  personId     String   @map("person_id")
+  sourceRuleId String?  @map("source_rule_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  batch      AppSchoolEventAudienceSnapshotBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  sourceRule AppSchoolEventAudienceRule?         @relation(fields: [sourceRuleId], references: [id], onDelete: SetNull)
+
+  @@unique([batchId, personId], map: "app_school_event_snapshot_item_batch_person_key")
+  @@index([personId], map: "app_school_event_snapshot_item_person_id_idx")
+  @@index([sourceRuleId], map: "app_school_event_snapshot_item_source_rule_id_idx")
+  @@map("app_school_event_audience_snapshot_item")
+}
+
+model AppSchoolEventRegistrationPolicy {
+  id                      String                               @id @default(cuid())
+  schoolEventId           String                               @unique @map("school_event_id")
+  isEnabled               Boolean                              @default(false) @map("is_enabled")
+  windowMode              AppSchoolEventRegistrationWindowMode @default(ABSOLUTE) @map("window_mode")
+  opensAt                 DateTime?                            @map("opens_at") @db.Timestamptz(3)
+  closesAt                DateTime?                            @map("closes_at") @db.Timestamptz(3)
+  unregisterClosesAt      DateTime?                            @map("unregister_closes_at") @db.Timestamptz(3)
+  opensOffsetMinutes      Int?                                 @map("opens_offset_minutes")
+  closesOffsetMinutes     Int?                                 @map("closes_offset_minutes")
+  unregisterOffsetMinutes Int?                                 @map("unregister_offset_minutes")
+  capacity                Int?
+  waitlistCapacity        Int?                                 @map("waitlist_capacity")
+  allowWaitlist           Boolean                              @default(false) @map("allow_waitlist")
+  allowGuideException     Boolean                              @default(true) @map("allow_guide_exception")
+  metadata                Json?
+  createdAt               DateTime                             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
+
+  @@map("app_school_event_registration_policy")
+}
+
+model AppSchoolEventRegistration {
+  id                String                           @id @default(cuid())
+  schoolEventId     String                           @map("school_event_id")
+  personId          String                           @map("person_id")
+  status            AppSchoolEventRegistrationStatus @default(REGISTERED)
+  isException       Boolean                          @default(false) @map("is_exception")
+  exceptionReason   String?                          @map("exception_reason")
+  note              String?
+  changedByPersonId String?                          @map("changed_by_person_id")
+  changedAt         DateTime                         @default(now()) @map("changed_at") @db.Timestamptz(3)
+  metadata          Json?
+  createdAt         DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolEventId, personId], map: "app_school_event_registration_event_person_key")
+  @@index([personId], map: "app_school_event_registration_person_id_idx")
+  @@index([status], map: "app_school_event_registration_status_idx")
+  @@map("app_school_event_registration")
+}
+
+model AppSchoolEventAttendance {
+  id                 String                         @id @default(cuid())
+  schoolEventId      String                         @map("school_event_id")
+  personId           String                         @map("person_id")
+  status             AppSchoolEventAttendanceStatus
+  note               String?
+  recordedByPersonId String?                        @map("recorded_by_person_id")
+  recordedAt         DateTime                       @default(now()) @map("recorded_at") @db.Timestamptz(3)
+  metadata           Json?
+  createdAt          DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolEventId, personId], map: "app_school_event_attendance_event_person_key")
+  @@index([personId], map: "app_school_event_attendance_person_id_idx")
+  @@index([status], map: "app_school_event_attendance_status_idx")
+  @@map("app_school_event_attendance")
+}
+
+model AppSchoolEventModuleLink {
+  id            String                             @id @default(cuid())
+  schoolEventId String                             @map("school_event_id")
+  moduleCode    String                             @map("module_code")
+  targetType    AppSchoolEventModuleLinkTargetType @default(EVENT) @map("target_type")
+  targetRef     String?                            @map("target_ref")
+  linkConfig    Json?                              @map("link_config")
+  isActive      Boolean                            @default(true) @map("is_active")
+  createdAt     DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolEventId, moduleCode, targetType, targetRef], map: "app_school_event_module_link_unique")
+  @@index([moduleCode], map: "app_school_event_module_link_module_code_idx")
+  @@index([isActive], map: "app_school_event_module_link_is_active_idx")
+  @@map("app_school_event_module_link")
+}
+
+model AppCalendarEventLink {
+  id                String                     @id @default(cuid())
+  sourceType        String                     @map("source_type")
+  sourceKey         String                     @map("source_key")
+  sourceRevision    String?                    @map("source_revision")
+  sourceStartsAt    DateTime?                  @map("source_starts_at") @db.Timestamptz(3)
+  sourceEndsAt      DateTime?                  @map("source_ends_at") @db.Timestamptz(3)
+  studentCalendarId String?                    @map("student_calendar_id")
+  groupCalendarId   String?                    @map("group_calendar_id")
+  schoolEventId     String?                    @map("school_event_id")
+  googleEventId     String                     @map("google_event_id")
+  googleICalUid     String?                    @map("google_ical_uid")
+  googleEtag        String?                    @map("google_etag")
+  payloadHash       String?                    @map("payload_hash")
+  status            AppCalendarEventLinkStatus @default(ACTIVE)
+  canceledAt        DateTime?                  @map("canceled_at") @db.Timestamptz(3)
+  lastSyncedAt      DateTime?                  @map("last_synced_at") @db.Timestamptz(3)
+  metadata          Json?
+  createdAt         DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  studentCalendar AppStudentCalendar? @relation(fields: [studentCalendarId], references: [id], onDelete: Cascade)
+  groupCalendar   AppGroupCalendar?   @relation(fields: [groupCalendarId], references: [id], onDelete: Cascade)
+  schoolEvent     AppSchoolEvent?     @relation(fields: [schoolEventId], references: [id], onDelete: SetNull)
+
+  @@unique([studentCalendarId, sourceType, sourceKey], map: "app_calendar_event_link_student_source_key")
+  @@unique([groupCalendarId, sourceType, sourceKey], map: "app_calendar_event_link_group_source_key")
+  @@index([sourceType, sourceKey], map: "app_calendar_event_link_source_idx")
+  @@index([googleEventId], map: "app_calendar_event_link_google_event_id_idx")
+  @@index([schoolEventId], map: "app_calendar_event_link_school_event_id_idx")
+  @@map("app_calendar_event_link")
+}
+
+model AppCalendarSyncCursor {
+  id          String    @id @default(cuid())
+  cursorKey   String    @unique @map("cursor_key")
+  cursorValue String?   @map("cursor_value")
+  windowFrom  DateTime? @map("window_from") @db.Timestamptz(3)
+  windowTo    DateTime? @map("window_to") @db.Timestamptz(3)
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("app_calendar_sync_cursor")
+}
+
+model AppCalendarSyncJob {
+  id                String                   @id @default(cuid())
+  providerConfigId  String?                  @map("provider_config_id")
+  studentCalendarId String?                  @map("student_calendar_id")
+  groupCalendarId   String?                  @map("group_calendar_id")
+  jobType           AppCalendarSyncJobType   @map("job_type")
+  status            AppCalendarSyncJobStatus @default(PENDING)
+  priority          Int                      @default(100)
+  runAfter          DateTime                 @default(now()) @map("run_after") @db.Timestamptz(3)
+  startedAt         DateTime?                @map("started_at") @db.Timestamptz(3)
+  finishedAt        DateTime?                @map("finished_at") @db.Timestamptz(3)
+  attempts          Int                      @default(0)
+  maxAttempts       Int                      @default(10) @map("max_attempts")
+  lockToken         String?                  @map("lock_token")
+  lockedBy          String?                  @map("locked_by")
+  payload           Json
+  lastError         String?                  @map("last_error")
+  createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  providerConfig  AppCalendarProviderConfig? @relation(fields: [providerConfigId], references: [id], onDelete: SetNull)
+  studentCalendar AppStudentCalendar?        @relation(fields: [studentCalendarId], references: [id], onDelete: SetNull)
+  groupCalendar   AppGroupCalendar?          @relation(fields: [groupCalendarId], references: [id], onDelete: SetNull)
+
+  @@index([status, runAfter], map: "app_calendar_sync_job_status_run_after_idx")
+  @@index([jobType], map: "app_calendar_sync_job_job_type_idx")
+  @@index([studentCalendarId], map: "app_calendar_sync_job_student_calendar_id_idx")
+  @@index([groupCalendarId], map: "app_calendar_sync_job_group_calendar_id_idx")
+  @@map("app_calendar_sync_job")
 }

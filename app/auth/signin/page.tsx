@@ -30,12 +30,12 @@ export default async function SignInPage({
   const emailEnabled = !!(process.env.EMAIL_SERVER ?? process.env.SMTP_URL);
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#002060] via-[#002060] to-[#DA0100] p-4 text-white">
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#0E2A5C] via-[#0E2A5C] to-[#C8372D] p-4 text-white">
       <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-between gap-8 py-8">
         <div className="flex w-full items-start justify-between gap-4">
           <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.2em] text-white/70">Školní aplikace</p>
-            <h1 className="text-3xl font-bold tracking-tight">Světoplavci</h1>
+            <p className="text-xs uppercase tracking-normal text-white/70">Školní aplikace</p>
+            <h1 className="text-3xl font-bold tracking-normal">Světoplavci</h1>
             <p className="max-w-md text-xs text-white/80">
               Přihlaste se a vyplujte za výsledky svých dětí. Všechno je možné!
             </p>
@@ -45,7 +45,7 @@ export default async function SignInPage({
         <div className="grid w-full gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <Card className="border-none bg-white/95 shadow-xl backdrop-blur-sm">
             <CardHeader className="space-y-3 text-left">
-              <CardTitle className="text-2xl font-bold text-[#002060]">Přihlášení rodiče</CardTitle>
+              <CardTitle className="text-2xl font-bold text-[#0E2A5C]">Přihlášení rodiče</CardTitle>
               <CardDescription className="text-sm text-[#4b5563]">
                 Vyberte způsob přihlášení. Doporučujeme Google nebo e‑mailový magický odkaz. Pokud nemáte účet
                 Google, můžete se přihlásit prostřednictvím libovolného e‑mailu.
@@ -97,7 +97,7 @@ export default async function SignInPage({
               >
                 <Button
                   type="submit"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#002060] bg-[#002060] px-4 py-6 text-sm font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-[#001747]"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#0E2A5C] bg-[#0E2A5C] px-4 py-6 text-sm font-semibold uppercase tracking-normal text-white shadow-sm hover:bg-[#07173A]"
                   size="lg"
                 >
                   <GoogleIcon className="size-5" />
@@ -112,7 +112,7 @@ export default async function SignInPage({
                   <Separator className="w-full bg-slate-200" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="rounded-full bg-white px-3 py-0.5 text-[10px] font-semibold tracking-[0.18em] text-slate-500">
+                  <span className="rounded-full bg-white px-3 py-0.5 text-[10px] font-semibold tracking-normal text-slate-500">
                     nebo
                   </span>
                 </div>
@@ -140,7 +140,7 @@ export default async function SignInPage({
                 className="space-y-3"
               >
                 <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-[#002060]">
+                  <label htmlFor="email" className="text-sm font-medium text-[#0E2A5C]">
                     E‑mail
                   </label>
                   <Input
@@ -150,13 +150,13 @@ export default async function SignInPage({
                     placeholder="vas@email.cz"
                     required
                     autoComplete="email"
-                    className="w-full rounded-xl border border-[#002060]/40 bg-white/80 text-[#002060] placeholder:text-slate-400 focus-visible:ring-[#002060]"
+                    className="w-full rounded-xl border border-[#0E2A5C]/40 bg-white/80 text-[#0E2A5C] placeholder:text-slate-400 focus-visible:ring-[#0E2A5C]"
                   />
                 </div>
                 <Button
                   type="submit"
                   variant="outline"
-                  className="w-full rounded-xl border-[#DA0100] bg-white px-4 py-6 text-sm font-semibold uppercase tracking-wide text-[#DA0100] hover:bg-[#fff1f0]"
+                  className="w-full rounded-xl border-[#C8372D] bg-white px-4 py-6 text-sm font-semibold uppercase tracking-normal text-[#C8372D] hover:bg-[#FAEAE9]"
                   size="lg"
                 >
                   Poslat odkaz k přihlášení
@@ -176,7 +176,7 @@ export default async function SignInPage({
       </Card>
           <div className="hidden h-full flex-col justify-between gap-4 rounded-3xl border border-white/40 bg-white/10 p-6 text-xs shadow-xl backdrop-blur-sm md:flex">
             <div className="space-y-3">
-              <p className="text-[10px] uppercase tracking-[0.25em] text-white/70">Jak to funguje</p>
+              <p className="text-[10px] uppercase tracking-normal text-white/70">Jak to funguje</p>
               <h2 className="text-lg font-semibold">Výsledky dítěte na jednom místě</h2>
               <p className="text-xs text-white/80">
                 Po přihlášení uvidíte výsledky svých dětí v přehledných dlaždicích – lodičky, vysvědčení a
@@ -184,7 +184,7 @@ export default async function SignInPage({
               </p>
             </div>
             <div className="space-y-1 text-white/80">
-              <p className="text-[10px] uppercase tracking-[0.25em]">Tip</p>
+              <p className="text-[10px] uppercase tracking-normal">Tip</p>
               <ul className="list-disc space-y-1 pl-4 text-xs">
                 <li>Používejte stejný e‑mail, který máte evidovaný v systému Edookit.</li>
                 <li>

@@ -717,7 +717,7 @@ export async function getChildTableData(
     }
   }
 
-  let all: CodaRow[] = [];
+  const all: CodaRow[] = [];
   let pageToken: string | undefined;
   
   // Pro tabulky hodnocení: zkusíme filtrovaný dotaz podle jména/přezdívky (rychlejší než načítat vše)

@@ -71,7 +71,7 @@ export function HomePageClient() {
         <div className="rounded-md border border-green-500/50 bg-green-500/10 px-4 py-3 text-sm text-green-800 dark:text-green-200">
           Přihlášení proběhlo úspěšně.
         </div>
-        <SailboatLoading message="Načítám data z Coda…" />
+        <SailboatLoading message="Načítám data…" />
       </div>
     );
   }
@@ -89,7 +89,7 @@ export function HomePageClient() {
       <HomeContent
         parentName={data.parent.name}
         userEmail={data.userEmail ?? undefined}
-        children={data.children}
+        childrenList={data.children}
       />
     </div>
   );

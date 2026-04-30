@@ -54,6 +54,10 @@ interface PredmetData {
   oblasti: AreaData[];
 }
 
+type PlotlyApi = Pick<typeof import("plotly.js"), "newPlot">;
+type PlotlyModule = PlotlyApi & { default?: PlotlyApi };
+type PlotlyNewPlotArgs = Parameters<PlotlyApi["newPlot"]>;
+
 function chooseCurveSet(
   curve: CurveData,
   subjectName: string,
@@ -80,9 +84,8 @@ function chooseCurveSet(
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function buildAreaPlot(
-  Plotly: any,
+  Plotly: PlotlyApi,
   divId: string,
   area: AreaData,
   curve: CurveData,
@@ -224,12 +227,16 @@ async function buildAreaPlot(
 
   const el = document.getElementById(divId);
   if (!el) return;
-  await Plotly.newPlot(divId, traces, layout, config);
+  await Plotly.newPlot(
+    el,
+    traces as PlotlyNewPlotArgs[1],
+    layout as PlotlyNewPlotArgs[2],
+    config as PlotlyNewPlotArgs[3]
+  );
 }
 
 export function VysvedceniGrafy({
   childId,
-  childName,
 }: {
   childId: string;
   childName: string;
@@ -267,10 +274,11 @@ export function VysvedceniGrafy({
 
   const drawPlots = useCallback(async () => {
     if (plotRefs.current.length === 0) return;
-    const Plotly = await import("plotly.js-basic-dist-min");
+    const PlotlyModule = (await import("plotly.js-basic-dist-min")) as PlotlyModule;
+    const Plotly = PlotlyModule.default ?? PlotlyModule;
     for (const { plotId, area, curve, subjectName } of plotRefs.current) {
       try {
-        await buildAreaPlot(Plotly.default, plotId, area, curve, subjectName);
+        await buildAreaPlot(Plotly, plotId, area, curve, subjectName);
       } catch (e) {
         console.error("Plot", plotId, e);
       }
@@ -315,7 +323,7 @@ export function VysvedceniGrafy({
       {predmety.map((p, si) => (
         <div key={p.predmet} className="subject space-y-4 border-t pt-4 first:border-t-0 first:pt-0">
           <div className="flex flex-wrap items-baseline gap-4">
-            <h2 className="text-2xl font-semibold uppercase tracking-tight">{p.predmet}</h2>
+            <h2 className="text-2xl font-semibold uppercase tracking-normal">{p.predmet}</h2>
             <p className="text-muted-foreground">
               <strong>Hodnocení:</strong> {String(p.hodnoceni ?? "—")}
             </p>

@@ -200,6 +200,8 @@ const SESSION_ROLE_TO_PROTO_ROLE: Record<string, ProtoRoleId> = {
   admin: "spravce",
   zamestnanec: "spravce",
   ucitel: "garant",
+  pruvodce: "garant",
+  garant: "garant",
   rodic: "rodic",
   zak: "zak",
   tester: "spravce",
@@ -251,6 +253,11 @@ function OsobniLodickyPrototypePageInner({
   const [datasetVersion, setDatasetVersion] = useState(0);
   const [dbLoading, setDbLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
+  const [dbLoadProgress, setDbLoadProgress] = useState<{
+    loaded: number;
+    total: number;
+    failed: number;
+  } | null>(null);
   const initialRoleRef = useRef<ProtoRoleId>(initialRole);
   const initialQueryUserIdRef = useRef(queryUserId);
   const usersForRoleRaw = useMemo(() => getActorsByRole(activeRole), [activeRole, datasetVersion]);
@@ -327,59 +334,93 @@ function OsobniLodickyPrototypePageInner({
 
         const childrenBody = (await childrenRes.json()) as ChildrenResponse;
         const rowsByChild: Record<string, LodickaRow[]> = {};
+        let failedCount = 0;
 
-        const childResults = await Promise.allSettled(
-          childrenBody.children.map(async (child) => {
-            const lodickyRes = await fetch(`/api/m01/child/${child.id}/lodicky`, { cache: "no-store" });
-            if (!lodickyRes.ok) {
-              const body = await lodickyRes.json().catch(() => ({}));
-              throw new Error(body.error ?? `Nepodařilo se načíst lodičky pro ${child.name}.`);
-            }
-            const lodickyBody = (await lodickyRes.json()) as LodickyResponse;
-            rowsByChild[child.id] = lodickyBody.lodicky;
-          }),
-        );
+        const commitDataset = (dataset: ProtoDatasetFromDb, resetUserSelection: boolean) => {
+          if (cancelled) return;
 
-        const failed = childResults.filter((item) => item.status === "rejected");
-        if (failed.length > 0) {
-          console.error("[portal/osobni-lodicky] partial load failure", failed);
+          applyProtoDataset(dataset);
+
+          if (resetUserSelection) {
+            const nextRole: ProtoRoleId = initialRoleRef.current;
+            const usersForNextRole = getActorsByRole(nextRole);
+            const preferredQueryUserId = initialQueryUserIdRef.current;
+            const nextUserId =
+              (preferredQueryUserId &&
+                usersForNextRole.some((item) => item.id === preferredQueryUserId) &&
+                preferredQueryUserId) ||
+              (usersForNextRole.some((item) => item.id === dataset.parentActorId) ? dataset.parentActorId : "") ||
+              usersForNextRole[0]?.id ||
+              dataset.parentActorId;
+
+            setActiveRole(nextRole);
+            setSelectedUserId(nextUserId);
+            setInvalidatedEventIds([]);
+            setStatusUndoActions({});
+          }
+
+          setEvents([...dataset.events]);
+          setDatasetVersion((prev) => prev + 1);
+        };
+
+        commitDataset(buildProtoDatasetFromDb(childrenBody, rowsByChild), true);
+        setDbLoading(false);
+        setDbLoadProgress({
+          loaded: 0,
+          total: childrenBody.children.length,
+          failed: 0,
+        });
+
+        const batchSize = 8;
+        for (let index = 0; index < childrenBody.children.length; index += batchSize) {
+          const batch = childrenBody.children.slice(index, index + batchSize);
+          const childResults = await Promise.allSettled(
+            batch.map(async (child) => {
+              const lodickyRes = await fetch(`/api/m01/child/${child.id}/lodicky`, { cache: "no-store" });
+              if (!lodickyRes.ok) {
+                const body = await lodickyRes.json().catch(() => ({}));
+                throw new Error(body.error ?? `Nepodařilo se načíst lodičky pro ${child.name}.`);
+              }
+              const lodickyBody = (await lodickyRes.json()) as LodickyResponse;
+              rowsByChild[child.id] = lodickyBody.lodicky;
+            }),
+          );
+
+          const failed = childResults.filter((item) => item.status === "rejected");
+          failedCount += failed.length;
+          if (failed.length > 0) {
+            console.error("[portal/osobni-lodicky] partial load failure", failed);
+          }
+
+          const nextDataset = buildProtoDatasetFromDb(childrenBody, rowsByChild);
+          commitDataset(nextDataset, false);
+
+          const loaded = Math.min(index + batch.length, childrenBody.children.length);
+          setDbLoadProgress({
+            loaded,
+            total: childrenBody.children.length,
+            failed: failedCount,
+          });
+
+          pushDebug({
+            elementId: "API-M01-HYDRATE",
+            label: "Hydratace proto UI z DB",
+            action: "load",
+            hierarchy: "OSOBNI_LODICKY > INIT",
+            payload: `children=${childrenBody.children.length}; loaded=${loaded}; rows=${nextDataset.lodickyRowsCount}; failed=${failedCount}`,
+          });
         }
 
-        const nextDataset = buildProtoDatasetFromDb(childrenBody, rowsByChild);
-        applyProtoDataset(nextDataset);
-
-        if (cancelled) return;
-
-        const nextRole: ProtoRoleId = initialRoleRef.current;
-        const usersForNextRole = getActorsByRole(nextRole);
-        const preferredQueryUserId = initialQueryUserIdRef.current;
-        const nextUserId =
-          (preferredQueryUserId &&
-            usersForNextRole.some((item) => item.id === preferredQueryUserId) &&
-            preferredQueryUserId) ||
-          (usersForNextRole.some((item) => item.id === nextDataset.parentActorId) ? nextDataset.parentActorId : "") ||
-          usersForNextRole[0]?.id ||
-          nextDataset.parentActorId;
-
-        setActiveRole(nextRole);
-        setSelectedUserId(nextUserId);
-        setEvents([...PROTO_OSOBNI_LODICKA_EVENTS]);
-        setInvalidatedEventIds([]);
-        setStatusUndoActions({});
-        setDatasetVersion((prev) => prev + 1);
-
-        pushDebug({
-          elementId: "API-M01-HYDRATE",
-          label: "Hydratace proto UI z DB",
-          action: "load",
-          hierarchy: "OSOBNI_LODICKY > INIT",
-          payload: `children=${childrenBody.children.length}; rows=${nextDataset.lodickyRowsCount}; failed=${failed.length}`,
-        });
+        if (!cancelled) {
+          setDbLoadProgress(null);
+        }
       } catch (error) {
         if (cancelled) return;
         setDbError(error instanceof Error ? error.message : "Nepodařilo se načíst osobní lodičky.");
       } finally {
-        if (!cancelled) setDbLoading(false);
+        if (!cancelled) {
+          setDbLoading(false);
+        }
       }
     }
 
@@ -428,6 +469,16 @@ function OsobniLodickyPrototypePageInner({
   const effectiveScope: ScopeMode = activeRole === "garant" || activeRole === "spravce" ? scopeMode : "moje";
   const isReadonly = activeRole === "rodic" || activeRole === "zak";
   const showGarantControls = effectiveScope !== "moje";
+  const pageTitle = activeRole === "zak"
+    ? "Moje osobní lodičky"
+    : activeRole === "rodic"
+      ? "Osobní lodičky dítěte"
+      : activeRole === "garant"
+        ? "Kompaktní pohled pro práci garanta"
+        : "Správa osobních lodiček";
+  const pageDescription = isReadonly
+    ? "Přehled aktuálních lodiček, stavu a posledních záznamů."
+    : "Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal.";
 
   const filterOptions = useMemo(() => {
     const rocniky = [...new Set(PROTO_STUDENTS.map((student) => String(student.rocnik)))].sort(
@@ -1198,7 +1249,7 @@ function OsobniLodickyPrototypePageInner({
 
   if (dbLoading) {
     return (
-      <main className="min-h-screen bg-slate-50">
+      <main className="min-h-screen bg-[#EEF2F7]">
         <section className="app-page-container py-6">
           <p className="text-sm text-slate-600">Načítám osobní lodičky…</p>
         </section>
@@ -1208,9 +1259,9 @@ function OsobniLodickyPrototypePageInner({
 
   if (dbError) {
     return (
-      <main className="min-h-screen bg-slate-50">
+      <main className="min-h-screen bg-[#EEF2F7]">
         <section className="app-page-container py-6">
-          <div className="rounded-md border border-[#DA0100]/30 bg-[#FFF4F4] p-4 text-sm text-[#A12A2A]">
+          <div className="rounded-md border border-[#C8372D]/30 bg-[#FAEAE9] p-4 text-sm text-[#A42A22]">
             {dbError}
           </div>
         </section>
@@ -1219,36 +1270,42 @@ function OsobniLodickyPrototypePageInner({
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-44">
+    <main className="min-h-screen bg-[#EEF2F7] pb-44">
       <section className="app-page-container space-y-4 py-6">
         <header className="space-y-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0A4DA6]">Osobní lodičky</p>
-              <h1 className="text-2xl font-semibold text-[#05204A]">Kompaktní pohled pro práci Garanta</h1>
-              <p className="text-sm text-slate-600">
-                Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal.
+              <p className="sv-eyebrow text-[#C8372D]">Osobní lodičky</p>
+              <h1 className="sv-display text-4xl text-[#0E2A5C]">{pageTitle}</h1>
+              <p className="text-sm text-[#4A5A7C]">
+                {pageDescription}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <Badge className="bg-[#F2F7FF] text-[#0A4DA6] hover:bg-[#F2F7FF]">{sessionUser.displayName}</Badge>
+              <Badge className="bg-[#EEF2F7] text-[#1E3F7A] hover:bg-[#EEF2F7]">{sessionUser.displayName}</Badge>
               {sessionUser.email && (
                 <Badge className="bg-[#F8FAFC] text-slate-700 hover:bg-[#F8FAFC]">{sessionUser.email}</Badge>
               )}
               <Badge className="bg-[#F8FAFC] text-slate-700 hover:bg-[#F8FAFC]">
                 Aktivní role: {getProtoRoleLabel(activeRole)}
               </Badge>
+              {dbLoadProgress && dbLoadProgress.loaded < dbLoadProgress.total && (
+                <Badge className="bg-[#FFF7E8] text-[#8A5A00] hover:bg-[#FFF7E8]">
+                  Načítám detailní data: {dbLoadProgress.loaded}/{dbLoadProgress.total}
+                  {dbLoadProgress.failed > 0 ? `, chyb ${dbLoadProgress.failed}` : ""}
+                </Badge>
+              )}
 
               {sessionRoleOptions.length > 1 && (
-                <div className="inline-flex rounded-xl border border-[#D9E4F2] bg-white p-1">
+                <div className="inline-flex rounded-xl border border-[#D6DFF0] bg-white p-1">
                   {sessionRoleOptions.map((roleId) => (
                     <button
                       key={roleId}
                       type="button"
                       onClick={() => handleSessionRoleChange(roleId)}
                       className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-                        activeRole === roleId ? "bg-[#002060] text-white" : "text-slate-600 hover:bg-[#F3F7FF]"
+                        activeRole === roleId ? "bg-[#0E2A5C] text-white" : "text-slate-600 hover:bg-[#EEF2F7]"
                       }`}
                     >
                       {getProtoRoleLabel(roleId)}
@@ -1261,7 +1318,7 @@ function OsobniLodickyPrototypePageInner({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="border-[#D9E4F2]"
+                className="border-[#D6DFF0]"
                 onClick={() => void signOut({ callbackUrl: "/auth/signin" })}
               >
                 Odhlásit se
@@ -1271,15 +1328,15 @@ function OsobniLodickyPrototypePageInner({
         </header>
 
         {adminToolsEnabled && (
-          <Card className="border-[#D9E4F2]">
+          <Card className="border-[#D6DFF0]">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-[#05204A]">Nástroje</CardTitle>
+                <CardTitle className="text-[#0E2A5C]">Nástroje</CardTitle>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="border-[#D9E4F2]"
+                  className="border-[#D6DFF0]"
                   onClick={() => setToolsOpen((prev) => !prev)}
                 >
                   {toolsOpen ? "Skrýt nástroje" : "Zobrazit nástroje"}
@@ -1290,7 +1347,7 @@ function OsobniLodickyPrototypePageInner({
             {toolsOpen && (
               <CardContent className="grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-normal text-slate-500">
                     Role
                   </span>
                   <select
@@ -1300,7 +1357,7 @@ function OsobniLodickyPrototypePageInner({
                       if (!isProtoRoleId(nextRole)) return;
                       handleAdminRoleChange(nextRole);
                     }}
-                    className="w-full rounded-lg border border-[#D9E4F2] bg-white px-3 py-2 text-sm text-slate-700"
+                    className="w-full rounded-lg border border-[#D6DFF0] bg-white px-3 py-2 text-sm text-slate-700"
                   >
                     {PROTO_ROLE_OPTIONS.map((option) => (
                       <option key={option.id} value={option.id}>
@@ -1311,13 +1368,13 @@ function OsobniLodickyPrototypePageInner({
                 </label>
 
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-normal text-slate-500">
                     Uživatel
                   </span>
                   <select
                     value={activeUserId}
                     onChange={(event) => handleAdminUserChange(event.target.value)}
-                    className="w-full rounded-lg border border-[#D9E4F2] bg-white px-3 py-2 text-sm text-slate-700"
+                    className="w-full rounded-lg border border-[#D6DFF0] bg-white px-3 py-2 text-sm text-slate-700"
                   >
                     {usersForRoleRaw.map((user) => (
                       <option key={user.id} value={user.id}>
@@ -1331,16 +1388,16 @@ function OsobniLodickyPrototypePageInner({
           </Card>
         )}
 
-        <Card className="border-[#D9E4F2]">
+        <Card className="border-[#D6DFF0]">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-[#05204A]">Řízení pohledu a filtry</CardTitle>
+              <CardTitle className="text-[#0E2A5C]">Řízení pohledu a filtry</CardTitle>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="border-[#D9E4F2]"
+                  className="border-[#D6DFF0]"
                   onClick={clearAllFilters}
                 >
                   Vymazat filtry
@@ -1349,7 +1406,7 @@ function OsobniLodickyPrototypePageInner({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="border-[#D9E4F2]"
+                  className="border-[#D6DFF0]"
                   onClick={() => setFiltersCollapsed((prev) => !prev)}
                 >
                   {filtersCollapsed ? (
@@ -1416,15 +1473,15 @@ function OsobniLodickyPrototypePageInner({
                 />
 
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-normal text-slate-500">
                     Datum pohledu
                   </span>
                   <div
                     className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
-                      hasHistoricalViewDate ? "border-[#DA0100] bg-[#FFF3F3]" : "border-[#D9E4F2] bg-[#F8FBFF]"
+                      hasHistoricalViewDate ? "border-[#C8372D] bg-[#FAEAE9]" : "border-[#D6DFF0] bg-[#EEF2F7]"
                     }`}
                   >
-                    <CalendarDays className={`size-4 ${hasHistoricalViewDate ? "text-[#DA0100]" : "text-[#0A4DA6]"}`} />
+                    <CalendarDays className={`size-4 ${hasHistoricalViewDate ? "text-[#C8372D]" : "text-[#1E3F7A]"}`} />
                     <input
                       type="date"
                       min={semesterBounds.minDate}
@@ -1458,8 +1515,8 @@ function OsobniLodickyPrototypePageInner({
               </div>
 
               <div className="relative">
-                <div className="flex items-center gap-2 rounded-2xl border border-[#D9E4F2] bg-white px-3 py-2">
-                  <Search className="size-4 text-[#0A4DA6]" />
+                <div className="flex items-center gap-2 rounded-2xl border border-[#D6DFF0] bg-white px-3 py-2">
+                  <Search className="size-4 text-[#1E3F7A]" />
                   <input
                     value={searchInput}
                     onFocus={() => setSuggestionsOpen(true)}
@@ -1496,14 +1553,14 @@ function OsobniLodickyPrototypePageInner({
                       <X className="size-3.5" />
                     </button>
                   )}
-                  <Badge className="bg-[#F2F7FF] text-[#0A4DA6] hover:bg-[#F2F7FF]">
+                  <Badge className="bg-[#EEF2F7] text-[#1E3F7A] hover:bg-[#EEF2F7]">
                     <Filter className="mr-1 size-3.5" />
                     fulltext
                   </Badge>
                 </div>
 
                 {suggestionsOpen && suggestions.length > 0 && (
-                  <div className="absolute top-[calc(100%+6px)] z-20 w-full rounded-xl border border-[#D9E4F2] bg-white p-1 shadow-xl">
+                  <div className="absolute top-[calc(100%+6px)] z-20 w-full rounded-xl border border-[#D6DFF0] bg-white p-1 shadow-xl">
                     {suggestions.map((suggestion, index) => (
                       <button
                         key={suggestion.id}
@@ -1522,7 +1579,7 @@ function OsobniLodickyPrototypePageInner({
               <div className="grid gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
                 <Card className="border-[#E3ECF9]">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base text-[#05204A]">Filtry po dětech</CardTitle>
+                    <CardTitle className="text-base text-[#0E2A5C]">Filtry po dětech</CardTitle>
                   </CardHeader>
                   <CardContent className="grid gap-3">
                     <MultiToggleSelect
@@ -1550,7 +1607,7 @@ function OsobniLodickyPrototypePageInner({
 
                 <Card className="border-[#E3ECF9]">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base text-[#05204A]">Filtry po lodičkách</CardTitle>
+                    <CardTitle className="text-base text-[#0E2A5C]">Filtry po lodičkách</CardTitle>
                   </CardHeader>
                   <CardContent className="grid gap-3">
                     <MultiToggleSelect
@@ -1586,8 +1643,8 @@ function OsobniLodickyPrototypePageInner({
                       />
                     )}
                     <div>
-                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Seskupování</p>
-                      <div className="flex flex-wrap gap-2 rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-2.5">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-slate-500">Seskupování</p>
+                      <div className="flex flex-wrap gap-2 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-2.5">
                         <GroupToggle label="Předmět" enabled={groupLodickyPredmet} onToggle={setGroupLodickyPredmet} />
                         <GroupToggle
                           label="Podpředmět"
@@ -1612,13 +1669,13 @@ function OsobniLodickyPrototypePageInner({
           className="grid min-h-0 gap-4 min-[1180px]:items-start min-[1180px]:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]"
         >
           <Card
-            className="min-w-0 border-[#D9E4F2] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
+            className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
             style={paneCardStyle}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-[#05204A]">{viewMode === "po_lodickach" ? "Lodičky" : "Děti"}</CardTitle>
+                  <CardTitle className="text-[#0E2A5C]">{viewMode === "po_lodickach" ? "Lodičky" : "Děti"}</CardTitle>
                 </div>
                 <div className="flex items-center gap-2">
                   <SortSelect
@@ -1686,13 +1743,13 @@ function OsobniLodickyPrototypePageInner({
           </Card>
 
           <Card
-            className="min-w-0 border-[#D9E4F2] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
+            className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
             style={paneCardStyle}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-[#05204A]">
+                  <CardTitle className="text-[#0E2A5C]">
                     {viewMode === "po_lodickach" ? "Děti pro vybranou lodičku" : "Lodičky vybraného dítěte"}
                   </CardTitle>
                 </div>
@@ -1749,12 +1806,12 @@ function OsobniLodickyPrototypePageInner({
           </Card>
 
           <Card
-            className="min-w-0 border-[#D9E4F2] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
+            className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
             style={paneCardStyle}
           >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-[#05204A]">
+                <CardTitle className="text-[#0E2A5C]">
                   {selectedPersonalRow
                     ? getStudentDisplayName(selectedPersonalRow.student, activeRole)
                     : "Historie osobní lodičky"}
@@ -1763,7 +1820,7 @@ function OsobniLodickyPrototypePageInner({
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="border-[#D9E4F2]"
+                  className="border-[#D6DFF0]"
                   disabled={!selectedPersonalRow}
                   onClick={() => {
                     if (!selectedPersonalRow) return;
@@ -1838,7 +1895,7 @@ export default function OsobniLodickyPrototypePage({
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-slate-50">
+        <main className="min-h-screen bg-[#EEF2F7]">
           <section className="app-page-container py-6">
             <p className="text-sm text-slate-600">Načítám osobní lodičky…</p>
           </section>
@@ -1907,17 +1964,17 @@ function DetailSheet({
               <SheetDescription>{student.prezdivka}</SheetDescription>
             </SheetHeader>
             <div className="space-y-4 p-4 pt-0">
-              <div className="flex items-start gap-4 rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-3">
+              <div className="flex items-start gap-4 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
                 <Image
                   src={getStudentPhotoUrl(student)}
                   alt={`Fotka ${student.jmeno}`}
                   width={80}
                   height={80}
                   unoptimized
-                  className="h-20 w-20 rounded-xl border border-[#D9E4F2] bg-white object-cover"
+                  className="h-20 w-20 rounded-xl border border-[#D6DFF0] bg-white object-cover"
                 />
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-[#05204A]">{student.prezdivka}</p>
+                  <p className="text-sm font-semibold text-[#0E2A5C]">{student.prezdivka}</p>
                   <p className="text-sm text-slate-700">{student.jmeno}</p>
                   <p className="text-sm text-slate-700">
                     {student.rocnik}. ročník · {student.smecka}
@@ -1935,7 +1992,7 @@ function DetailSheet({
               <SheetDescription>{lodicka.nazev}</SheetDescription>
             </SheetHeader>
             <div className="space-y-4 p-4 pt-0">
-              <div className="grid gap-2 rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-3">
+              <div className="grid gap-2 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
                 <InfoCell label="Kód" value={lodicka.kod} />
                 <InfoCell label="Předmět" value={lodicka.predmet} />
                 <InfoCell label="Podpředmět" value={lodicka.podpředmět ?? "-"} />
@@ -1958,7 +2015,7 @@ function DetailSheet({
               </SheetDescription>
             </SheetHeader>
             <div className="space-y-4 p-4 pt-0">
-              <div className="grid gap-2 rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-3">
+              <div className="grid gap-2 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
                 <InfoCell label="Dítě" value={student.jmeno} />
                 <InfoCell label="Přezdívka" value={student.prezdivka} />
                 <InfoCell label="Ročník" value={`${student.rocnik}. ročník`} />
@@ -2055,9 +2112,18 @@ function buildProtoDatasetFromDb(
     id: parentActorId,
     jmeno: parentName,
     email: parentEmail,
-    roles: ["rodic"],
+    roles: ["rodic", "spravce"],
   };
   actorsMap.set(parentActor.id, parentActor);
+  for (const student of students) {
+    actorsMap.set(`u-zak-${student.id}`, {
+      id: `u-zak-${student.id}`,
+      jmeno: student.jmeno,
+      email: "",
+      roles: ["zak"],
+      linkedStudentId: student.id,
+    });
+  }
 
   function ensureActor(id: string, name: string, role: ProtoRoleId) {
     const trimmedId = id.trim();
@@ -2325,8 +2391,8 @@ function SegmentControl({
 }) {
   return (
     <div>
-      <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <div className="inline-flex rounded-xl border border-[#D9E4F2] bg-white p-1">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-normal text-slate-500">{label}</p>
+      <div className="inline-flex rounded-xl border border-[#D6DFF0] bg-white p-1">
         {options.map((option) => (
           <button
             key={option.id}
@@ -2334,7 +2400,7 @@ function SegmentControl({
             disabled={disabled}
             onClick={() => onChange(option.id)}
             className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
-              value === option.id ? "bg-[#002060] text-white" : "text-slate-600 hover:bg-[#F3F7FF]"
+              value === option.id ? "bg-[#0E2A5C] text-white" : "text-slate-600 hover:bg-[#EEF2F7]"
             } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
           >
             {option.label}
@@ -2360,7 +2426,7 @@ function SortSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as PaneSort)}
-        className="rounded-lg border border-[#D9E4F2] bg-white px-2 py-1 text-xs text-slate-700"
+        className="rounded-lg border border-[#D6DFF0] bg-white px-2 py-1 text-xs text-slate-700"
       >
         {options.map((option) => (
           <option key={option.id} value={option.id}>
@@ -2389,7 +2455,7 @@ function InlineSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-[#D9E4F2] bg-white px-2 py-1 text-xs text-slate-700"
+        className="rounded-lg border border-[#D6DFF0] bg-white px-2 py-1 text-xs text-slate-700"
       >
         {options.map((option) => (
           <option key={option.id} value={option.id}>
@@ -2417,7 +2483,7 @@ function MultiToggleSelect({
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-normal text-slate-500">{label}</p>
         {value.length > 0 && (
           <button
             type="button"
@@ -2430,7 +2496,7 @@ function MultiToggleSelect({
           </button>
         )}
       </div>
-      <div className="flex flex-wrap gap-1.5 rounded-xl border border-[#D9E4F2] bg-[#F8FBFF] p-2">
+      <div className="flex flex-wrap gap-1.5 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-2">
         {options.map((option) => {
           const selected = value.includes(option);
           return (
@@ -2446,8 +2512,8 @@ function MultiToggleSelect({
               }}
               className={`rounded-lg border px-2 py-1 text-xs font-medium transition ${
                 selected
-                  ? "border-[#002060] bg-[#002060] text-white hover:border-[#002060] hover:bg-[#002060]"
-                  : "border-[#D9E4F2] bg-white text-slate-700 hover:bg-[#F3F7FF]"
+                  ? "border-[#0E2A5C] bg-[#0E2A5C] text-white hover:border-[#0E2A5C] hover:bg-[#0E2A5C]"
+                  : "border-[#D6DFF0] bg-white text-slate-700 hover:bg-[#EEF2F7]"
               }`}
             >
               {renderOptionLabel ? renderOptionLabel(option) : option}
@@ -2474,8 +2540,8 @@ function GroupToggle({
       onClick={() => onToggle(!enabled)}
       className={`rounded-lg border px-2 py-1 text-xs font-medium transition ${
         enabled
-          ? "border-[#002060] bg-[#002060] text-white hover:border-[#002060] hover:bg-[#002060]"
-          : "border-[#D9E4F2] bg-white text-slate-700 hover:bg-[#F3F7FF]"
+          ? "border-[#0E2A5C] bg-[#0E2A5C] text-white hover:border-[#0E2A5C] hover:bg-[#0E2A5C]"
+          : "border-[#D6DFF0] bg-white text-slate-700 hover:bg-[#EEF2F7]"
       }`}
     >
       {label}: {enabled ? "ano" : "ne"}
@@ -2485,9 +2551,9 @@ function GroupToggle({
 
 function InfoCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#D9E4F2] bg-white px-3 py-2">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-medium text-[#05204A]">{value}</p>
+    <div className="rounded-xl border border-[#D6DFF0] bg-white px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase tracking-normal text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-medium text-[#0E2A5C]">{value}</p>
     </div>
   );
 }
@@ -2562,7 +2628,7 @@ function renderLeftPaneRows({
       if (lodickaGroupKeys.length > 0) {
         rows.push(
           <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
-            <TableCell colSpan={showGarantControls ? 3 : 2} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
+            <TableCell colSpan={showGarantControls ? 3 : 2} className="text-xs font-semibold uppercase tracking-normal text-[#1E3F7A]">
               {groupName} ({groupItems.length})
             </TableCell>
           </TableRow>,
@@ -2586,14 +2652,14 @@ function renderLeftPaneRows({
               )
             }
           >
-            <TableCell className="font-medium text-[#05204A]">
+            <TableCell className="font-medium text-[#0E2A5C]">
               <div className="inline-flex items-center gap-1.5">
                 <span>{item.lodicka.nazev}</span>
                 <Button
                   type="button"
                   size="xs"
                   variant="ghost"
-                  className="h-5 w-5 p-0 text-slate-500 hover:text-[#0A4DA6]"
+                  className="h-5 w-5 p-0 text-slate-500 hover:text-[#1E3F7A]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenLodickaDetail(item.lodicka.id, String(rowCounter), tableId);
@@ -2625,7 +2691,7 @@ function renderLeftPaneRows({
     if (peopleGroupBy !== "none") {
       rows.push(
         <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
-          <TableCell colSpan={2} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
+          <TableCell colSpan={2} className="text-xs font-semibold uppercase tracking-normal text-[#1E3F7A]">
             {groupName} ({groupItems.length})
           </TableCell>
         </TableRow>,
@@ -2650,14 +2716,14 @@ function renderLeftPaneRows({
             )
           }
         >
-          <TableCell className="font-medium text-[#05204A]">
+          <TableCell className="font-medium text-[#0E2A5C]">
             <div className="inline-flex items-center gap-1.5">
               <span>{displayName}</span>
               <Button
                 type="button"
                 size="xs"
                 variant="ghost"
-                className="h-5 w-5 p-0 text-slate-500 hover:text-[#0A4DA6]"
+                className="h-5 w-5 p-0 text-slate-500 hover:text-[#1E3F7A]"
                 onClick={(event) => {
                   event.stopPropagation();
                   onOpenStudentDetail(item.student.id, String(rowCounter), tableId);
@@ -2719,7 +2785,7 @@ function renderRightPaneRows({
     if (hasGroupHeader) {
       result.push(
         <TableRow key={`${groupName}-group`} className="bg-[#F7FAFF]">
-          <TableCell colSpan={3} className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0A4DA6]">
+          <TableCell colSpan={3} className="text-xs font-semibold uppercase tracking-normal text-[#1E3F7A]">
             {groupName} ({groupItems.length})
           </TableCell>
         </TableRow>,
@@ -2745,7 +2811,7 @@ function renderRightPaneRows({
             )
           }
         >
-          <TableCell className="font-medium text-[#05204A]">
+          <TableCell className="font-medium text-[#0E2A5C]">
             <div className="inline-flex items-center gap-1.5">
               <span>{rowLabel}</span>
               {viewMode === "po_lodickach" ? (
@@ -2753,7 +2819,7 @@ function renderRightPaneRows({
                   type="button"
                   size="xs"
                   variant="ghost"
-                  className="h-5 w-5 p-0 text-slate-500 hover:text-[#0A4DA6]"
+                  className="h-5 w-5 p-0 text-slate-500 hover:text-[#1E3F7A]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenStudentDetail(row.student.id, String(rowCounter), tableId);
@@ -2766,7 +2832,7 @@ function renderRightPaneRows({
                   type="button"
                   size="xs"
                   variant="ghost"
-                  className="h-5 w-5 p-0 text-slate-500 hover:text-[#0A4DA6]"
+                  className="h-5 w-5 p-0 text-slate-500 hover:text-[#1E3F7A]"
                   onClick={(event) => {
                     event.stopPropagation();
                     onOpenLodickaDetail(row.lodicka.id, String(rowCounter), tableId);
@@ -3032,7 +3098,7 @@ function stavBadgeClass(stav: LodickaStav): string {
 
 function statusButtonClass(value: LodickaStav, isCurrent: boolean): string {
   if (isCurrent) {
-    return "!border-[#002060] !bg-[#002060] !text-white !hover:border-[#002060] !hover:bg-[#002060] !hover:text-white";
+    return "!border-[#0E2A5C] !bg-[#0E2A5C] !text-white !hover:border-[#0E2A5C] !hover:bg-[#0E2A5C] !hover:text-white";
   }
 
   if (value === 4) {

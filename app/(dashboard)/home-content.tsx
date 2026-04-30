@@ -20,14 +20,14 @@ interface Child {
 export function HomeContent({
   parentName,
   userEmail,
-  children,
+  childrenList,
 }: {
   parentName: string;
   userEmail?: string;
-  children: Child[];
+  childrenList: Child[];
 }) {
   const [selectedChildId, setSelectedChildId] = useState<string>(
-    children[0]?.rowId ?? ""
+    childrenList[0]?.rowId ?? ""
   );
   const [tableData, setTableData] = useState<Record<string, CodaRow[]> | null>(
     null
@@ -35,7 +35,7 @@ export function HomeContent({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const selectedChild = children.find((c) => c.rowId === selectedChildId);
+  const selectedChild = childrenList.find((c) => c.rowId === selectedChildId);
 
   const loadData = useCallback(async (childId: string) => {
     if (!childId) {
@@ -75,26 +75,26 @@ export function HomeContent({
     else setTableData(null);
   }, [selectedChildId, loadData]);
 
-  if (children.length === 0) {
+  if (childrenList.length === 0) {
     return (
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div className="rounded-xl border bg-card p-4 shadow-sm">
-            <h1 className="text-xl font-semibold text-[#002060]">Výsledky dítěte</h1>
+            <h1 className="text-xl font-semibold text-[#0E2A5C]">Výsledky dítěte</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Zatím tu nemáte žádné přiřazené dítě. Kontaktujte správce školy, pokud to není v pořádku.
             </p>
           </div>
-          <div className="rounded-xl border bg-[#002060] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
+          <div className="rounded-xl border bg-[#0E2A5C] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
             <div className="flex flex-col gap-1">
-              <span className="text-xs uppercase tracking-wide opacity-80">Rodič</span>
+              <span className="text-xs uppercase tracking-normal opacity-80">Rodič</span>
               <span className="text-base font-semibold">{parentName}</span>
               {userEmail && <span className="text-xs opacity-90">{userEmail}</span>}
             </div>
             <button
               type="button"
               onClick={() => signOut({ callbackUrl: "/auth/signin" })}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-white/40 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide hover:bg-white/20"
+              className="mt-4 inline-flex w-full items-center justify-center rounded-lg border border-white/40 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-normal hover:bg-white/20"
             >
               Odhlásit se
             </button>
@@ -107,25 +107,25 @@ export function HomeContent({
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="rounded-xl border border-[#002060] bg-card p-4 shadow-sm">
-          <h1 className="text-2xl font-bold tracking-tight text-[#002060]">Výsledky dítěte</h1>
+        <div className="rounded-xl border border-[#0E2A5C] bg-card p-4 shadow-sm">
+          <h1 className="text-2xl font-bold tracking-normal text-[#0E2A5C]">Výsledky dítěte</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Vyberte dítě a zobrazte jeho výsledky v přehledných dlaždicích.
           </p>
         </div>
-        <div className="rounded-xl border border-[#DA0100] bg-[#DA0100] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
+        <div className="rounded-xl border border-[#C8372D] bg-[#C8372D] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
           <div className="flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-wide opacity-80">Rodič</span>
+            <span className="text-xs uppercase tracking-normal opacity-80">Rodič</span>
             <span className="text-base font-semibold">{parentName}</span>
             {userEmail && <span className="text-xs opacity-90">{userEmail}</span>}
           </div>
         </div>
       </div>
 
-      {children.length > 0 && (
+      {childrenList.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <span className="sr-only">Dítě:</span>
-          {children.map((c) => {
+          {childrenList.map((c) => {
             const isSelected = selectedChildId === c.rowId;
             return (
               <Button
@@ -136,8 +136,8 @@ export function HomeContent({
                 className={cn(
                   "flex h-auto flex-col items-start justify-start rounded-xl border px-4 py-3 text-left shadow-sm",
                   isSelected
-                    ? "border-[#002060] bg-[#002060] text-white hover:bg-[#001747]"
-                    : "border-[#002060] bg-white text-[#002060] hover:bg-[#eef2ff]"
+                    ? "border-[#0E2A5C] bg-[#0E2A5C] text-white hover:bg-[#07173A]"
+                    : "border-[#0E2A5C] bg-white text-[#0E2A5C] hover:bg-[#eef2ff]"
                 )}
                 onClick={() => setSelectedChildId(c.rowId)}
               >

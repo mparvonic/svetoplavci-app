@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/src/lib/prisma";
 
 export interface PortalParent {
@@ -103,6 +105,14 @@ type ParentCandidate = {
   hasRodicRole: boolean;
   children: PortalChild[];
 };
+
+type PortalActorAccessInput = {
+  email: string;
+  personIds: string[];
+  roles: string[];
+};
+
+const GLOBAL_CHILD_ACCESS_ROLES = new Set(["admin", "tester", "garant", "pruvodce", "ucitel", "zamestnanec"]);
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -230,8 +240,13 @@ function pickParentCandidate(candidates: ParentCandidate[]): ParentCandidate | n
   return sorted[0] ?? null;
 }
 
-async function getAllActiveChildren(): Promise<PortalChild[]> {
-  const rows = await prisma.$queryRaw<ActiveChildRow[]>`
+async function getActiveChildren(childIds?: string[]): Promise<PortalChild[]> {
+  const idFilter =
+    childIds && childIds.length > 0
+      ? Prisma.sql`AND c.id IN (${Prisma.join(childIds)})`
+      : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<ActiveChildRow[]>(Prisma.sql`
     SELECT
       c.id AS child_id,
       c.display_name AS child_name,
@@ -289,8 +304,9 @@ async function getAllActiveChildren(): Promise<PortalChild[]> {
       LIMIT 1
     ) grp_smecka ON true
     WHERE c.is_active = true
+      ${idFilter}
     ORDER BY c.display_name
-  `;
+  `);
 
   return dedupeChildren(
     rows.map((row) => {
@@ -304,6 +320,95 @@ async function getAllActiveChildren(): Promise<PortalChild[]> {
       };
     })
   );
+}
+
+async function getAllActiveChildren(): Promise<PortalChild[]> {
+  return getActiveChildren();
+}
+
+function normalizeRoles(roles: string[]): string[] {
+  return roles.map((role) => role.trim().toLowerCase()).filter(Boolean);
+}
+
+async function getPortalActor(personIds: string[], email: string): Promise<PortalParent> {
+  const actor = personIds.length > 0
+    ? await prisma.appPerson.findFirst({
+        where: {
+          id: { in: personIds },
+          isActive: true,
+        },
+        select: {
+          id: true,
+          displayName: true,
+        },
+        orderBy: {
+          displayName: "asc",
+        },
+      })
+    : null;
+
+  return {
+    id: actor?.id ?? normalizeEmail(email),
+    name: actor?.displayName ?? normalizeEmail(email),
+  };
+}
+
+async function getAccessibleChildrenByActor(personIds: string[], roles: string[]): Promise<PortalChild[]> {
+  const normalizedRoles = normalizeRoles(roles);
+  if (normalizedRoles.some((role) => GLOBAL_CHILD_ACCESS_ROLES.has(role))) {
+    return getAllActiveChildren();
+  }
+
+  if (personIds.length === 0) return [];
+
+  const childIds = new Set<string>();
+
+  if (normalizedRoles.includes("zak")) {
+    const directStudents = await prisma.appPerson.findMany({
+      where: {
+        id: { in: personIds },
+        isActive: true,
+        roles: { some: { role: "zak", isActive: true } },
+      },
+      select: { id: true },
+    });
+    for (const student of directStudents) childIds.add(student.id);
+  }
+
+  if (normalizedRoles.includes("rodic")) {
+    const parentChildren = await prisma.appPersonRelation.findMany({
+      where: {
+        parentPersonId: { in: personIds },
+        relationType: "parent_of",
+        isActive: true,
+        childPerson: {
+          is: {
+            isActive: true,
+            roles: { some: { role: "zak", isActive: true } },
+          },
+        },
+      },
+      select: { childPersonId: true },
+    });
+    for (const link of parentChildren) childIds.add(link.childPersonId);
+  }
+
+  if (childIds.size === 0) return [];
+  return getActiveChildren([...childIds]);
+}
+
+export async function getPortalParentAndChildrenForActor(input: PortalActorAccessInput): Promise<{
+  parent: PortalParent;
+  children: PortalChild[];
+} | null> {
+  const personIds = [...new Set(input.personIds.filter(Boolean))];
+  const children = await getAccessibleChildrenByActor(personIds, input.roles);
+  if (children.length === 0) return null;
+
+  return {
+    parent: await getPortalActor(personIds, input.email),
+    children,
+  };
 }
 
 export async function getPortalParentAndChildrenByEmail(email: string): Promise<{
@@ -450,14 +555,14 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
   };
 }
 
-export async function getPortalChildLodickyByEmail(email: string, childId: string): Promise<{
+async function getPortalChildLodickyFromContext(
+  context: { parent: PortalParent; children: PortalChild[] },
+  childId: string,
+): Promise<{
   parent: PortalParent;
   child: PortalChild;
   lodicky: PortalLodickaRow[];
 } | null> {
-  const context = await getPortalParentAndChildrenByEmail(email);
-  if (!context) return null;
-
   const child = context.children.find((item) => item.id === childId);
   if (!child) return null;
 
@@ -554,4 +659,27 @@ export async function getPortalChildLodickyByEmail(email: string, childId: strin
     child,
     lodicky,
   };
+}
+
+export async function getPortalChildLodickyByEmail(email: string, childId: string): Promise<{
+  parent: PortalParent;
+  child: PortalChild;
+  lodicky: PortalLodickaRow[];
+} | null> {
+  const context = await getPortalParentAndChildrenByEmail(email);
+  if (!context) return null;
+  return getPortalChildLodickyFromContext(context, childId);
+}
+
+export async function getPortalChildLodickyForActor(
+  input: PortalActorAccessInput,
+  childId: string,
+): Promise<{
+  parent: PortalParent;
+  child: PortalChild;
+  lodicky: PortalLodickaRow[];
+} | null> {
+  const context = await getPortalParentAndChildrenForActor(input);
+  if (!context) return null;
+  return getPortalChildLodickyFromContext(context, childId);
 }

@@ -5,6 +5,7 @@ import nodemailer from "nodemailer";
 import { authConfig } from "@/src/lib/auth.config";
 import { prisma } from "@/src/lib/prisma";
 import { getUserByEmail } from "@/src/lib/auth-utils";
+import { getDevAuthSession, isDevAuthBypassEnabled } from "@/src/lib/dev-auth";
 
 const emailServer = process.env.EMAIL_SERVER ?? process.env.SMTP_URL;
 const emailFromAddress = process.env.EMAIL_FROM ?? process.env.EMAIL_FROM_ADDRESS ?? "noreply@localhost";
@@ -51,7 +52,7 @@ const emailProviders = [
       display: inline-block;
       padding: 10px 18px;
       border-radius: 999px;
-      background: #002060;
+      background: #0E2A5C;
       color: #ffffff;
       text-decoration: none;
       font-weight: 600;
@@ -98,7 +99,7 @@ async function resolveAuthUser(email: string) {
   return getUserByEmail(email);
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const nextAuth = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
   providers: emailProviders,
@@ -139,3 +140,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
+export const { handlers, signIn, signOut } = nextAuth;
+
+export const auth = (async (...args: unknown[]) => {
+  if (args.length === 0 && isDevAuthBypassEnabled()) {
+    const devSession = await getDevAuthSession();
+    if (devSession) return devSession;
+  }
+
+  const realAuth = nextAuth.auth as (...authArgs: unknown[]) => ReturnType<typeof nextAuth.auth>;
+  return realAuth(...args);
+}) as typeof nextAuth.auth;

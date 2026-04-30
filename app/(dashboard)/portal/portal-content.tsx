@@ -36,7 +36,7 @@ export function PortalContent({
       </header>
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Výběr dítěte</h1>
+        <h1 className="text-2xl font-bold tracking-normal">Výběr dítěte</h1>
         <p className="text-muted-foreground">
           Vyberte dítě pro zobrazení výsledků.
         </p>

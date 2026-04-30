@@ -23,7 +23,7 @@ export function SailboatLoading({ className, message = "Načítám data…" }: S
       <div className="relative flex h-40 w-full max-w-[14rem] items-end justify-center">
         {/* Vlny – širší než plachetnice, překrývají trup */}
         <svg
-          className="absolute bottom-0 left-1/2 z-10 h-24 w-40 -translate-x-1/2 text-[#0020601a]"
+          className="absolute bottom-0 left-1/2 z-10 h-24 w-40 -translate-x-1/2 text-[#0E2A5C1a]"
           viewBox="0 0 48 48"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -51,12 +51,12 @@ export function SailboatLoading({ className, message = "Načítám data…" }: S
             {/* Trup (tmavě modrý) */}
             <path
               d="M8 52 L16 62 L36 62 L44 52 L40 52 L24 52 L12 52 Z"
-              fill="#002060"
+              fill="#0E2A5C"
             />
             {/* Plachta (červená) */}
             <path
               d="M24 62 L24 14 L40 32 L24 50 Z"
-              fill="#DA0100"
+              fill="#C8372D"
             />
             {/* Stěžeň */}
             <line
@@ -64,7 +64,7 @@ export function SailboatLoading({ className, message = "Načítám data…" }: S
               y1="62"
               x2="24"
               y2="12"
-              stroke="#002060"
+              stroke="#0E2A5C"
               strokeWidth="2"
             />
           </g>
