@@ -1,4 +1,4 @@
-const DEFAULT_POST_LOGIN_PATH = "/";
+const DEFAULT_POST_LOGIN_PATH = "/portal/osobni-lodicky";
 
 export function getPostLoginDefaultPath(): string {
   const raw = process.env.POST_LOGIN_DEFAULT_PATH?.trim();

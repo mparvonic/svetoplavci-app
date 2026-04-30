@@ -1,7 +1,6 @@
 import { auth } from "@/src/lib/auth";
-import { getPostLoginDefaultPath, isCustomPostLoginPath } from "@/src/lib/post-login-path";
+import { getPostLoginDefaultPath } from "@/src/lib/post-login-path";
 import { redirect } from "next/navigation";
-import { HomePageClient } from "./home-page-client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,9 +11,5 @@ export default async function HomePage() {
     redirect("/auth/signin?callbackUrl=/");
   }
 
-  if (isCustomPostLoginPath()) {
-    redirect(getPostLoginDefaultPath());
-  }
-
-  return <HomePageClient />;
+  redirect(getPostLoginDefaultPath());
 }

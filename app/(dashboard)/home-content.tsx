@@ -1,14 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   ChildDetailTabs,
   type ChildDetailTabId,
 } from "@/app/(dashboard)/portal/dite/[childId]/child-detail-tabs";
 import { Button } from "@/components/ui/button";
-import { SailboatLoading } from "@/components/sailboat-loading";
-import type { CodaRow } from "@/src/lib/coda";
 
 interface Child {
   rowId: string;
@@ -19,83 +17,22 @@ interface Child {
   group: string;
 }
 
-const FULL_CHILD_DETAIL_TABS: ChildDetailTabId[] = [
-  "lodicky",
-  "lodicky-po-plavbach",
-  "vysvedceni",
-  "vysvedceni-grafy",
-];
-const VYSVEDCENI_CHILD_DETAIL_TABS: ChildDetailTabId[] = ["vysvedceni", "vysvedceni-grafy"];
+const VYSVEDCENI_CHILD_DETAIL_TABS: ChildDetailTabId[] = ["vysvedceni"];
 
 export function HomeContent({
   parentName,
   userEmail,
   childrenList,
-  mode = "full",
 }: {
   parentName: string;
   userEmail?: string;
   childrenList: Child[];
-  mode?: "full" | "vysvedceni";
 }) {
   const [selectedChildId, setSelectedChildId] = useState<string>(
     childrenList[0]?.rowId ?? ""
   );
-  const [tableData, setTableData] = useState<Record<string, CodaRow[]> | null>(
-    null
-  );
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const selectedChild = childrenList.find((c) => c.rowId === selectedChildId);
-  const isVysvedceniOnly = mode === "vysvedceni";
-
-  const loadData = useCallback(async (childId: string) => {
-    if (!childId) {
-      setTableData(null);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
-    try {
-      const res = await fetch(`/api/coda/child/${childId}/data`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? "Nepodařilo se načíst data");
-      }
-      const { tableData: data } = await res.json();
-      setTableData(data ?? {});
-    } catch (e) {
-      clearTimeout(timeoutId);
-      if (e instanceof Error && e.name === "AbortError") {
-        setError("Načítání trvalo příliš dlouho. Zkuste to znovu.");
-      } else {
-        setError(e instanceof Error ? e.message : "Chyba při načítání");
-      }
-      setTableData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!selectedChildId) {
-      setTableData(null);
-      return;
-    }
-    if (isVysvedceniOnly) {
-      setError(null);
-      setLoading(false);
-      setTableData({});
-      return;
-    }
-    loadData(selectedChildId);
-  }, [isVysvedceniOnly, selectedChildId, loadData]);
 
   if (childrenList.length === 0) {
     return (
@@ -124,12 +61,10 @@ export function HomeContent({
       <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="rounded-xl border border-[#0E2A5C] bg-card p-4 shadow-sm">
           <h1 className="text-2xl font-bold tracking-normal text-[#0E2A5C]">
-            {isVysvedceniOnly ? "Vysvědčení dítěte" : "Výsledky dítěte"}
+            Vysvědčení dítěte
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {isVysvedceniOnly
-              ? "Vyberte dítě a zobrazte jeho vysvědčení."
-              : "Vyberte dítě a zobrazte jeho výsledky v přehledných dlaždicích."}
+            Vyberte dítě a zobrazte jeho vysvědčení.
           </p>
         </div>
         <div className="rounded-xl border border-[#C8372D] bg-[#C8372D] p-4 text-sm text-white shadow-sm md:col-start-2 md:row-start-1">
@@ -175,25 +110,14 @@ export function HomeContent({
       )}
 
       {selectedChild && (
-        <>
-          {loading && !isVysvedceniOnly && (
-            <SailboatLoading message="Načítám lodičky…" />
-          )}
-          {error && (
-            <div className="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-destructive">
-              {error}
-            </div>
-          )}
-          {!loading && !error && tableData && (
-            <ChildDetailTabs
-              childId={selectedChildId}
-              childName={selectedChild.name}
-              tableData={tableData}
-              initialTab={isVysvedceniOnly ? "vysvedceni" : "lodicky"}
-              enabledTabs={isVysvedceniOnly ? VYSVEDCENI_CHILD_DETAIL_TABS : FULL_CHILD_DETAIL_TABS}
-            />
-          )}
-        </>
+        <ChildDetailTabs
+          childId={selectedChildId}
+          childName={selectedChild.name}
+          tableData={{}}
+          initialTab="vysvedceni"
+          enabledTabs={VYSVEDCENI_CHILD_DETAIL_TABS}
+          vysvedceniApiBasePath="/api/reports/child"
+        />
       )}
     </div>
   );

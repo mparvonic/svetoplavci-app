@@ -13,7 +13,7 @@ interface Child {
   group: string;
 }
 
-export function HomePageClient({ mode = "full" }: { mode?: "full" | "vysvedceni" }) {
+export function HomePageClient() {
   const [showSuccess, setShowSuccess] = useState(true);
   const [data, setData] = useState<{
     parent: { name: string; rowId: string };
@@ -24,7 +24,7 @@ export function HomePageClient({ mode = "full" }: { mode?: "full" | "vysvedceni"
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/coda/my-children", { signal: controller.signal })
+    fetch("/api/reports/my-children", { signal: controller.signal })
       .then((res) => {
         if (!res.ok) return res.json().then((d) => Promise.reject(new Error(d.error ?? "Chyba")));
         return res.json();
@@ -71,7 +71,7 @@ export function HomePageClient({ mode = "full" }: { mode?: "full" | "vysvedceni"
         <div className="rounded-md border border-green-500/50 bg-green-500/10 px-4 py-3 text-sm text-green-800 dark:text-green-200">
           Přihlášení proběhlo úspěšně.
         </div>
-        <SailboatLoading message="Načítám data…" />
+        <SailboatLoading message="Načítám vysvědčení…" />
       </div>
     );
   }
@@ -90,7 +90,6 @@ export function HomePageClient({ mode = "full" }: { mode?: "full" | "vysvedceni"
         parentName={data.parent.name}
         userEmail={data.userEmail ?? undefined}
         childrenList={data.children}
-        mode={mode}
       />
     </div>
   );

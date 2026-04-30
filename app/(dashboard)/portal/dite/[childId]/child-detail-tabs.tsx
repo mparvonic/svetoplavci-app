@@ -548,15 +548,17 @@ export function ChildDetailTabs({
   tableData,
   initialTab = "lodicky",
   enabledTabs = DEFAULT_CHILD_DETAIL_TABS,
+  vysvedceniApiBasePath = "/api/coda/child",
 }: {
   childId: string;
   childName: string;
   tableData: Record<string, CodaRow[]>;
   initialTab?: ChildDetailTabId;
   enabledTabs?: ChildDetailTabId[];
+  vysvedceniApiBasePath?: string;
 }) {
-  const lodicky = tableData["table-RuXGEEn2z4"] ?? [];
-  const lodickyPoPlavbach = tableData["table-1wVyfFAjX2"] ?? [];
+  const lodicky = useMemo(() => tableData["table-RuXGEEn2z4"] ?? [], [tableData]);
+  const lodickyPoPlavbach = useMemo(() => tableData["table-1wVyfFAjX2"] ?? [], [tableData]);
 
   const [vysvedceniData, setVysvedceniData] = useState<VysvedceniData | null>(null);
   const [vysvedceniLoading, setVysvedceniLoading] = useState(false);
@@ -572,7 +574,7 @@ export function ChildDetailTabs({
     setVysvedceniLoading(true);
     setVysvedceniError(null);
     try {
-      const res = await fetch(`/api/coda/child/${childId}/vysvedceni`);
+      const res = await fetch(`${vysvedceniApiBasePath}/${childId}/vysvedceni`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? "Nepodařilo se načíst vysvědčení");
@@ -584,7 +586,7 @@ export function ChildDetailTabs({
     } finally {
       setVysvedceniLoading(false);
     }
-  }, [childId, vysvedceniData, vysvedceniLoading]);
+  }, [childId, vysvedceniApiBasePath, vysvedceniData, vysvedceniLoading]);
 
   const hodnoceniPredmetu = vysvedceniData?.predmetu ?? [];
   const hodnoceniOblasti = vysvedceniData?.oblasti ?? [];
