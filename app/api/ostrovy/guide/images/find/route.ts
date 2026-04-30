@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "node:child_process";
-import { hostname } from "node:os";
 
 import {
   getApiSessionContext,
@@ -9,16 +7,13 @@ import {
 } from "@/src/lib/api/session";
 
 export const runtime = "nodejs";
-export const maxDuration = 90;
+export const maxDuration = 60;
 
-const CODEX_QUERY_TIMEOUT_MS = 8_000;
-const CODEX_WEB_TIMEOUT_MS = 22_000;
-const MAX_CODEX_CANDIDATES = 6;
+const CLAUDE_QUERY_TIMEOUT_MS = 8_000;
 const MAX_IMAGE_OPTIONS = 3;
 const FAST_SEARCH_QUERY_LIMIT = 5;
 const FIND_CACHE_TTL_MS = 10 * 60 * 1000;
-const FIND_CACHE_VERSION = "open-visual-intent-v2";
-const CODEX_EXECUTION_HOST = "gx10";
+const FIND_CACHE_VERSION = "open-visual-intent-v3";
 
 type ImageCandidate = {
   imageUrl: string;
@@ -54,14 +49,6 @@ type ImageFindResponseBody = {
     license?: string | null;
     author?: string | null;
     provider?: string | null;
-    reason?: string | null;
-  }>;
-  codexCandidates: Array<{
-    sourceTitle?: string | null;
-    sourceUrl?: string | null;
-    provider?: string | null;
-    license?: string | null;
-    author?: string | null;
     reason?: string | null;
   }>;
 };
@@ -127,7 +114,7 @@ function extractJsonArrays(text: string): unknown[] {
           arrays.push(JSON.parse(text.slice(start, index + 1)));
           start = index;
         } catch {
-          // Keep scanning; Codex CLI may print transcript lines before the final JSON.
+          // ignore malformed fragments
         }
         break;
       }
@@ -149,58 +136,15 @@ function candidateProvider(candidate: ImageCandidate): string | null {
 function providerFromUrl(value: string | null | undefined): string | null {
   if (!value) return null;
   try {
-    const hostname = new URL(value).hostname.replace(/^www\./, "");
-    const firstPart = hostname.split(".")[0];
-    return firstPart ? firstPart[0].toUpperCase() + firstPart.slice(1) : hostname;
+    const h = new URL(value).hostname.replace(/^www\./, "");
+    const first = h.split(".")[0];
+    return first ? first[0].toUpperCase() + first.slice(1) : h;
   } catch {
     return null;
   }
 }
 
-function parseCodexCandidates(value: unknown): ImageCandidate[] {
-  if (!Array.isArray(value)) return [];
-
-  const candidates: ImageCandidate[] = [];
-  const seen = new Set<string>();
-
-  for (const item of value) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const record = item as Record<string, unknown>;
-    const imageUrl = stringValue(record.imageUrl ?? record.image_url ?? record.url ?? record.directImageUrl);
-    if (!isHttpUrl(imageUrl)) continue;
-
-    const key = imageUrl.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const sourceUrl = stringValue(record.sourceUrl ?? record.source_url ?? record.pageUrl ?? record.page_url);
-    const candidate: ImageCandidate = {
-      imageUrl,
-      previewUrl: stringValue(record.previewUrl ?? record.preview_url ?? record.thumbnail),
-      sourceUrl: isHttpUrl(sourceUrl) ? sourceUrl : null,
-      sourceTitle: stringValue(record.sourceTitle ?? record.source_title ?? record.title),
-      license: stringValue(record.license),
-      author: stringValue(record.author ?? record.creator),
-      provider: stringValue(record.provider ?? record.source),
-      reason: stringValue(record.reason ?? record.relevance),
-    };
-    candidate.provider = candidateProvider(candidate);
-    candidates.push(candidate);
-  }
-
-  return candidates.slice(0, MAX_CODEX_CANDIDATES);
-}
-
-function extractCodexCandidates(text: string): ImageCandidate[] {
-  const arrays = extractJsonArrays(text);
-  for (const array of arrays.reverse()) {
-    const candidates = parseCodexCandidates(array);
-    if (candidates.length > 0) return candidates;
-  }
-  return [];
-}
-
-function extractCodexQueries(text: string): string[] {
+function extractImageQueries(text: string): string[] {
   for (const array of extractJsonArrays(text).reverse()) {
     if (!Array.isArray(array)) continue;
     const queries = array
@@ -252,126 +196,39 @@ function fallbackQueries(title: string, description: string): string[] {
   ].filter((item): item is string => Boolean(item?.trim()));
 }
 
-function shellQuote(value: string): string {
-  return `'${value.replace(/'/g, "'\\''")}'`;
-}
+async function callClaude(prompt: string, maxTokens: number, timeoutMs: number): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured.");
 
-function isCodexExecutionHost(): boolean {
-  const localHostnames = [hostname(), process.env.HOSTNAME ?? ""]
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  return localHostnames.some((value) => value === CODEX_EXECUTION_HOST || value.startsWith(`${CODEX_EXECUTION_HOST}.`));
-}
+  const model = process.env.CLAUDE_IMAGE_MODEL?.trim() || "claude-haiku-4-5-20251001";
 
-function codexCommand(codexArgs: string[]): { bin: string; args: string[] } {
-  if (isCodexExecutionHost()) {
-    return {
-      bin: process.env.CODEX_CLI_PATH?.trim() || "codex",
-      args: codexArgs,
-    };
-  }
-
-  const sshBin = process.env.CODEX_REMOTE_SSH_BIN?.trim() || "ssh";
-  const sshHost = process.env.CODEX_REMOTE_HOST?.trim() || CODEX_EXECUTION_HOST;
-  const sshExtraArgs = (process.env.CODEX_REMOTE_SSH_OPTIONS ?? "")
-    .split(/\s+/)
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const sshConnectTimeout = process.env.CODEX_REMOTE_CONNECT_TIMEOUT_SECONDS?.trim() || "8";
-  const remoteCodexPath = process.env.CODEX_REMOTE_CODEX_PATH?.trim() || "codex";
-  const remoteCommand = [
-    "NO_COLOR=1",
-    shellQuote(remoteCodexPath),
-    ...codexArgs.map(shellQuote),
-  ].join(" ");
-
-  return {
-    bin: sshBin,
-    args: [
-      "-o",
-      "BatchMode=yes",
-      "-o",
-      `ConnectTimeout=${sshConnectTimeout}`,
-      ...sshExtraArgs,
-      sshHost,
-      remoteCommand,
-    ],
-  };
-}
-
-async function runCodex(prompt: string, timeoutMs: number, useWebSearch: boolean): Promise<string> {
-  const { stdout, stderr } = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-    const codexArgs = [
-      "--ask-for-approval",
-      "never",
-    ];
-    if (useWebSearch) codexArgs.push("--search");
-    codexArgs.push("exec");
-    const model = process.env.CODEX_IMAGE_MODEL?.trim() || "gpt-5.4-mini";
-    codexArgs.push("--model", model, "-c", "model_reasoning_effort=\"low\"");
-    codexArgs.push(
-      "--ephemeral",
-      "--skip-git-repo-check",
-      "--sandbox",
-      "read-only",
-      "--color",
-      "never",
-      "-",
-    );
-    const command = codexCommand(codexArgs);
-
-    const child = spawn(command.bin, command.args, {
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        NO_COLOR: "1",
-      },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const timer = setTimeout(() => {
-      settled = true;
-      child.kill("SIGTERM");
-      reject(new Error("Codex CLI timed out."));
-    }, timeoutMs);
-
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.on("error", (error) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(error);
-    });
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      if (code === 0) {
-        resolve({ stdout, stderr });
-      } else {
-        reject(new Error(`Codex CLI exited with code ${code}.`));
-      }
-    });
-    child.stdin.end(prompt);
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content: prompt }],
+    }),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
-  return `${stdout}\n${stderr}`;
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(`Claude API error ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json() as { content?: Array<{ type: string; text?: string }> };
+  return data.content?.find((b) => b.type === "text")?.text ?? "";
 }
 
-async function buildCodexImageQueries(title: string, description: string): Promise<string[]> {
+async function buildClaudeImageQueries(title: string, description: string): Promise<string[]> {
   const prompt = [
     "Vytvoř rychlé anglické dotazy pro obrázkové vyhledávání thumbnailu.",
-    "Nehledej na webu. Pouze převeď název a popis do konkrétních obrazových dotazů.",
     "Nepředpokládej typ aktivity, cílovou skupinu, prostředí ani formát. Použij jen to, co přímo vyplývá z textu.",
     "Každý dotaz má popsat konkrétní vizuální scénu: hlavní činnost, místo, objekt, materiál, osobu, situaci nebo výsledek.",
     "U vícevýznamových slov použij význam podle kontextu popisu.",
@@ -382,41 +239,8 @@ async function buildCodexImageQueries(title: string, description: string): Promi
   ].join("\n");
 
   try {
-    return extractCodexQueries(await runCodex(prompt, CODEX_QUERY_TIMEOUT_MS, false));
-  } catch {
-    return [];
-  }
-}
-
-async function buildCodexImageCandidates(title: string, description: string): Promise<ImageCandidate[]> {
-  const prompt = [
-    "Jsi rešeršér obrázků pro aplikaci. Hledáš thumbnail k zadanému názvu a popisu.",
-    "",
-    "Najdi konkrétní veřejně dostupné obrázky na webu bez omezení zdroje.",
-    "Neomezuj se na Wikimedia Commons, Openverse ani žádnou konkrétní galerii. Můžeš použít fotobanky, galerie, tematické weby, blogy nebo jiné veřejné stránky.",
-    "Neomezuj výběr podle licence; pokud licenci neumíš ověřit, napiš \"unknown\".",
-    "Pracuj rychle: použij nejvýše 5 webových dotazů a nejvýše 8 otevřených stránek. Jakmile máš tři dobré přímé obrázky, nehledej zbytečně dál.",
-    "",
-    "Kvalita výběru je důležitější než doslovná shoda slov:",
-    "- nejdřív pochop hlavní scénu, činnost, místo, objekt, materiál, osobu, situaci nebo výsledek,",
-    "- nepřidávej vlastní předpoklady o typu aktivity; drž se jen názvu a popisu,",
-    "- preferuj obrázek, kde je přímo vidět to, co popis označuje jako hlavní děj nebo místo,",
-    "- vyřaď obrázky, které odpovídají jen vedlejšímu slovu, ale ne zadání jako celku,",
-    "- u slov s více významy zkontroluj kontext a vyhni se nesouvisejícím významům, produktovým fotkám a čistě dekorativním abstrakcím.",
-    "",
-    "Ke každému kandidátovi ověř, že imageUrl je přímá veřejná URL obrázku typu jpg, png, webp nebo gif a sourceUrl je stránka se zdrojem.",
-    "Seřaď kandidáty od nejvíce vypovídajícího.",
-    "Vrať přesně 3 nejlepší kandidáty, pokud jsou rozumně dostupné. Pokud tři nenajdeš, vrať alespoň jeden dobrý kandidát.",
-    "Nevracej markdown ani vysvětlení mimo JSON.",
-    "Vrať pouze JSON pole objektů se strukturou:",
-    "{\"imageUrl\":\"https://...\",\"sourceUrl\":\"https://...\",\"sourceTitle\":\"...\",\"provider\":\"...\",\"license\":\"...\",\"author\":\"...\",\"reason\":\"krátké zdůvodnění relevance\"}",
-    "",
-    `Název: ${title || "(není zadán)"}`,
-    `Popis: ${description || "(není zadán)"}`,
-  ].join("\n");
-
-  try {
-    return extractCodexCandidates(await runCodex(prompt, CODEX_WEB_TIMEOUT_MS, true));
+    const text = await callClaude(prompt, 256, CLAUDE_QUERY_TIMEOUT_MS);
+    return extractImageQueries(text);
   } catch {
     return [];
   }
@@ -425,9 +249,7 @@ async function buildCodexImageCandidates(title: string, description: string): Pr
 async function duckDuckGoVqd(query: string): Promise<string | null> {
   const pageUrl = `https://duckduckgo.com/?${new URLSearchParams({ q: query, iax: "images", ia: "images" })}`;
   const response = await fetch(pageUrl, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 svetoplavci-app/0.1",
-    },
+    headers: { "User-Agent": "Mozilla/5.0 svetoplavci-app/0.1" },
   });
   if (!response.ok) return null;
   const html = await response.text();
@@ -492,15 +314,14 @@ async function searchDuckDuckGoImages(query: string): Promise<ImageCandidate[]> 
     });
 }
 
-async function buildFastImageCandidates(title: string, description: string): Promise<ImageCandidate[]> {
-  const codexQueries = await buildCodexImageQueries(title, description);
+async function findImageCandidates(title: string, description: string): Promise<ImageCandidate[]> {
+  const claudeQueries = await buildClaudeImageQueries(title, description);
   const baseQueries = uniqueQueries([
-    ...codexQueries,
+    ...claudeQueries,
     ...fallbackQueries(title, description),
   ]).slice(0, FAST_SEARCH_QUERY_LIMIT);
-  const searchQueries = uniqueQueries(baseQueries);
 
-  const results = await Promise.allSettled(searchQueries.map((query) => searchDuckDuckGoImages(query)));
+  const results = await Promise.allSettled(baseQueries.map((query) => searchDuckDuckGoImages(query)));
   const seen = new Set<string>();
   const candidates: ImageCandidate[] = [];
   for (const result of results) {
@@ -538,9 +359,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(cached.body);
   }
 
-  const codexCandidates = await buildCodexImageCandidates(title, description);
-  const fastCandidates = codexCandidates.length > 0 ? [] : await buildFastImageCandidates(title, description);
-  const candidates = codexCandidates.length > 0 ? codexCandidates : fastCandidates;
+  const candidates = await findImageCandidates(title, description);
   const options = candidates.slice(0, MAX_IMAGE_OPTIONS).map((candidate) => ({
     imageUrl: candidate.imageUrl,
     previewUrl: candidate.previewUrl ?? candidate.imageUrl,
@@ -552,21 +371,11 @@ export async function POST(req: NextRequest) {
     reason: candidate.reason,
   }));
 
-  if (options.length > 0) {
-    const body = {
-      options,
-      codexCandidates: candidates.map((item) => ({
-        sourceTitle: item.sourceTitle,
-        sourceUrl: item.sourceUrl,
-        provider: candidateProvider(item),
-        license: item.license,
-        author: item.author,
-        reason: item.reason,
-      })),
-    };
-    findCache.set(cacheKey, { expiresAt: Date.now() + FIND_CACHE_TTL_MS, body });
-    return NextResponse.json(body);
+  if (options.length === 0) {
+    return NextResponse.json({ error: "Nepodařilo se najít použitelný obrázek." }, { status: 404 });
   }
 
-  return NextResponse.json({ error: "Codex nenašel žádný použitelný veřejný obrázek." }, { status: 404 });
+  const body: ImageFindResponseBody = { options };
+  findCache.set(cacheKey, { expiresAt: Date.now() + FIND_CACHE_TTL_MS, body });
+  return NextResponse.json(body);
 }
