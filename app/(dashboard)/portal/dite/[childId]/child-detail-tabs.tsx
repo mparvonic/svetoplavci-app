@@ -696,7 +696,7 @@ export function ChildDetailTabs({
         {enabledTabSet.has("vysvedceni-grafy") && (
           <TabsTrigger
             value="vysvedceni-grafy"
-            className="hidden w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none md:flex"
+            className="flex w-full items-center justify-center rounded-xl border px-4 py-4 text-xs font-semibold uppercase tracking-normal text-[#C8372D] data-[state=active]:bg-[#C8372D] data-[state=active]:text-white data-[state=inactive]:bg-white data-[state=inactive]:border-[#C8372D] data-[state=active]:border-[#C8372D] focus-visible:ring-offset-0 data-[state=active]:shadow-none"
           >
             Vysvědčení – grafy
           </TabsTrigger>
@@ -754,7 +754,7 @@ export function ChildDetailTabs({
         </TabsContent>
       )}
       {enabledTabSet.has("vysvedceni-grafy") && (
-        <TabsContent value="vysvedceni-grafy" className="mt-0 hidden md:block">
+        <TabsContent value="vysvedceni-grafy" className="mt-0">
           <VysvedceniGrafy childId={childId} childName={_childName} />
         </TabsContent>
       )}

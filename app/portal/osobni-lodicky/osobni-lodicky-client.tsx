@@ -463,7 +463,7 @@ function OsobniLodickyPrototypePageInner({
       window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", recomputePanesHeight);
     };
-  }, [filtersCollapsed, recomputePanesHeight]);
+  }, [filtersCollapsed, dbLoading, recomputePanesHeight]);
 
   const activeUser = usersForRoleRaw.find((item) => item.id === activeUserId) ?? usersForRoleRaw[0] ?? null;
   const effectiveViewDate = clampDate(viewDate, semesterBounds.minDate, semesterBounds.maxDate);

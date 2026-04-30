@@ -17,7 +17,7 @@ interface Child {
   group: string;
 }
 
-const VYSVEDCENI_CHILD_DETAIL_TABS: ChildDetailTabId[] = ["vysvedceni"];
+const VYSVEDCENI_CHILD_DETAIL_TABS: ChildDetailTabId[] = ["vysvedceni", "vysvedceni-grafy"];
 
 export function HomeContent({
   parentName,
