@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ComponentType } from "react";
 import type { Session } from "next-auth";
-import { CalendarDays, LogOut, Sailboat, Shield, Sparkles, UserRound } from "lucide-react";
+import { CalendarDays, FileText, LogOut, Sailboat, Shield, Sparkles, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
 
 import { auth, signOut } from "@/src/lib/auth";
@@ -15,6 +15,7 @@ import {
 import type { AppRole } from "@/src/lib/user-directory";
 
 const CHILD_VIEW_ROLES = new Set(["admin", "tester", "rodic", "zak"]);
+const REPORT_ROLES = new Set(["admin", "tester", "rodic"]);
 const GUIDE_ROLES = new Set(["admin", "tester", "ucitel", "zamestnanec", "pruvodce", "garant"]);
 const LODICKY_ROLES = new Set([...CHILD_VIEW_ROLES, ...GUIDE_ROLES]);
 const ADMIN_ROLES = new Set(["admin", "tester"]);
@@ -27,6 +28,12 @@ type DevNavItem = {
 };
 
 const DEV_NAV_ITEMS: DevNavItem[] = [
+  {
+    href: "/vysvedceni",
+    label: "Vysvědčení",
+    icon: FileText,
+    roles: REPORT_ROLES,
+  },
   {
     href: "/portal/osobni-lodicky",
     label: "Lodičky",

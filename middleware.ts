@@ -32,7 +32,7 @@ export default auth((req) => {
   const host = (req.headers.get("host") ?? "").split(":")[0].toLowerCase();
   const isTestHost = host === "test-app.svetoplavci.cz" || host === "app-test.svetoplavci.cz";
   const testDefaultPath = "/portal/osobni-lodicky";
-  const testAllowedPathPrefixes = ["/portal/osobni-lodicky", "/ostrovy", "/admin"];
+  const testAllowedPathPrefixes = ["/vysvedceni", "/portal/osobni-lodicky", "/ostrovy", "/admin"];
 
   if (isAuthBypassEnabledForHost(host)) {
     return;
