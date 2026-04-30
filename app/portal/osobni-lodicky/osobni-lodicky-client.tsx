@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -232,7 +232,6 @@ function OsobniLodickyPrototypePageInner({
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const router = useRouter();
   const queryRole = searchParams.get("role");
   const sessionRoleOptions = mapSessionRolesToProto(sessionUser.roles, sessionUser.role);
   const preferredSessionRole: ProtoRoleId = sessionRoleOptions.includes("rodic")
@@ -432,11 +431,14 @@ function OsobniLodickyPrototypePageInner({
 
   useEffect(() => {
     if (!activeUserId) return;
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(window.location.search);
     params.set("role", activeRole);
     params.set("user", activeUserId);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [activeRole, activeUserId, pathname, router]);
+    const nextUrl = `${pathname}?${params.toString()}`;
+    if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(window.history.state, "", nextUrl);
+    }
+  }, [activeRole, activeUserId, pathname]);
 
   useEffect(() => {
     const updateViewportWidth = () => setViewportWidth(window.innerWidth);
