@@ -122,7 +122,7 @@ export default async function SignInPage({
 
               {emailEnabled && (
                 <>
-                  <div className="sv-divider-dot text-[11px] font-semibold uppercase tracking-normal">
+                  <div className="sv-divider-dot text-[11px] font-semibold uppercase tracking-[.15em]">
                     <span className="rounded-full bg-white px-3 text-[#7F88A0]">nebo</span>
                   </div>
 
