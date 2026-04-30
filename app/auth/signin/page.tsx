@@ -32,7 +32,7 @@ export default async function SignInPage({
   return (
     <main className="sv-paper-grain min-h-screen bg-[#EEF2F7]">
       <section className="app-page-container relative flex min-h-screen items-center py-8">
-        <div className="grid w-full gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.72fr)]">
+        <div className="grid w-full items-stretch gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.72fr)]">
           <div className="relative flex min-h-[34rem] flex-col justify-between overflow-hidden rounded-[32px] border border-[#0E2A5C] bg-[#0E2A5C] p-7 text-white shadow-[var(--sv-shadow-lift)] sm:p-9">
             <div className="relative z-10 space-y-6">
               <div className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-medium uppercase tracking-normal text-white/80">
@@ -40,9 +40,7 @@ export default async function SignInPage({
               </div>
               <div className="space-y-4">
                 <h1 className="sv-display-lg max-w-[9ch] text-white">Světoplavci</h1>
-                <p className="max-w-xl text-base text-white/80">
-                  Přihlášení do školní aplikace pro lodičky, ostrovy a vysvědčení.
-                </p>
+                <p className="max-w-xl text-base text-white/80">Přihlášení do školní aplikace.</p>
               </div>
             </div>
 
@@ -62,7 +60,7 @@ export default async function SignInPage({
             </div>
 
             <div className="pointer-events-none absolute -right-16 -top-16 size-52 rounded-full border border-white/10" />
-            <div className="pointer-events-none absolute bottom-8 right-8 w-56 opacity-[0.12] sm:w-72">
+            <div className="pointer-events-none absolute right-8 top-8 hidden w-48 opacity-[0.12] sm:w-60 md:block">
               <Image
                 src="/svetoplavci_logo.svg"
                 alt=""
@@ -73,7 +71,7 @@ export default async function SignInPage({
             </div>
           </div>
 
-          <Card className="self-center overflow-hidden rounded-[32px] border-[#D6DFF0] bg-white py-0 shadow-[var(--sv-shadow-lift)]">
+          <Card className="flex min-h-[34rem] flex-col justify-center overflow-hidden rounded-[32px] border-[#D6DFF0] bg-white py-0 shadow-[var(--sv-shadow-lift)]">
             <CardHeader className="space-y-3 px-6 pt-7 text-left sm:px-8 sm:pt-8">
               <div className="sv-eyebrow text-[#C8372D]">Přihlášení</div>
               <CardTitle className="sv-display-sm text-[#0E2A5C]">Vstup do aplikace</CardTitle>
