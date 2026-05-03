@@ -417,14 +417,23 @@ export function KioskApp() {
 
       {/* ── IDLE ─────────────────────────────────────────────────────────── */}
       {screen.kind === "idle" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-6 px-8">
-          <div className="text-8xl">🏝️</div>
-          <h1 className="text-center text-4xl font-black text-[#0E2A5C]">
-            Přilož čip
-          </h1>
-          <p className="text-center text-xl text-[#4A5A7C]">
-            a přihlaš se na ostrov
-          </p>
+        <div className="sv-paper-grain flex flex-1 flex-col items-center justify-center gap-8 bg-[#EEF2F7] px-10">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/svetoplavci_logo.png"
+            alt="Světoplavci"
+            className="h-auto w-48"
+          />
+          <div className="text-center">
+            <div className="sv-eyebrow mb-2 tracking-[0.18em] text-[#C8372D]">Ostrovy</div>
+            <h1 className="sv-display-md text-[#0E2A5C]">
+              Přilož čip<br />
+              <span className="sv-italic-serif">a přihlaš se</span>
+            </h1>
+          </div>
+          <div className="rounded-2xl border border-[#D6DFF0] bg-white px-6 py-4 text-center text-sm text-[#4A5A7C] shadow-[var(--sv-shadow-paper)]">
+            Přilož svůj čip ke čtečce a vyber si ostrov.
+          </div>
         </div>
       )}
 

@@ -39,7 +39,7 @@ export default auth((req) => {
   }
 
   // Veřejné cesty – bez kontroly
-  if (pathname === "/" || pathname.startsWith("/auth/")) {
+  if (pathname === "/" || pathname.startsWith("/auth/") || pathname.startsWith("/kiosk")) {
     return;
   }
 
