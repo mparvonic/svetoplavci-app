@@ -12,7 +12,8 @@
     "db:tunnel": "node scripts/db-tunnel.mjs",
     "db:push": "prisma db push --env-file .env.local",
     "db:refresh:dev": "./scripts/db-refresh-dev.sh",
-    "db:refresh:staging": "./scripts/db-refresh-staging.sh"
+    "db:refresh:staging": "./scripts/db-refresh-staging.sh",
+    "ci:security": "node scripts/ci/security-checks.mjs"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",

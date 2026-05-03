@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import { getRequiredRolesForPath, hasAnyRole } from "@/src/lib/access-matrix";
 import { authConfig } from "@/src/lib/auth.config";
 import {
+  isAuthBypassForcedOn,
   getStagingAllowedEmailsFromEnv,
   isUnsafeBypassConfigurationForHost,
   isBypassAllowedForHost,
@@ -9,6 +10,7 @@ import {
   normalizeHost,
   warnUnsafeBypassConfiguration,
 } from "@/src/lib/environment-access";
+import { logSecurityEvent, logSecurityEventOnce } from "@/src/lib/security-events";
 
 const { auth } = NextAuth(authConfig);
 
@@ -41,6 +43,18 @@ export default auth((req) => {
   const testDefaultPath = "/portal/osobni-lodicky";
   const testAllowedPathPrefixes = ["/vysvedceni", "/portal/osobni-lodicky", "/ostrovy", "/admin"];
 
+  if (isAuthBypassForcedOn() && !isBypassAllowedForHost(host)) {
+    logSecurityEventOnce("warn", `bypass-attempt:${host}`, {
+      event: "auth_bypass_attempt_non_local_host",
+      message: "AUTH_BYPASS is enabled on non-local host. Bypass request denied.",
+      host,
+      pathname,
+      details: {
+        nodeEnv: process.env.NODE_ENV,
+      },
+    });
+  }
+
   if (isUnsafeBypassConfigurationForHost(host)) {
     warnUnsafeBypassConfiguration(host);
     if (pathname.startsWith("/api/")) {
@@ -60,7 +74,8 @@ export default auth((req) => {
     pathname.startsWith("/kiosk") ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/kiosk/") ||
-    pathname === "/api/sync/users"
+    pathname === "/api/sync/users" ||
+    pathname === "/api/internal/security-health"
   ) {
     return;
   }
@@ -82,6 +97,14 @@ export default auth((req) => {
 
   // Staging: přístup pouze pro tester/admin nebo explicitní e-mail whitelist.
   if (isTestHost && !hasRole(roles, ["tester", "admin"]) && !allowByStagingEmail) {
+    logSecurityEvent("warn", {
+      event: "staging_access_denied",
+      message: "Staging access denied by tester gate.",
+      host,
+      pathname,
+      email: normalizedEmail || undefined,
+      roles,
+    });
     return Response.redirect(new URL("/auth/error?error=NoEnvRole", req.nextUrl.origin));
   }
 

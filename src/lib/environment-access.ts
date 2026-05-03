@@ -1,3 +1,5 @@
+import { logSecurityEvent } from "@/src/lib/security-events";
+
 const PRODUCTION_HOSTS = new Set(["app.svetoplavci.cz"]);
 const STAGING_HOSTS = new Set(["app-test.svetoplavci.cz", "test-app.svetoplavci.cz"]);
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -62,8 +64,13 @@ export function isUnsafeBypassConfigurationForHost(host: string): boolean {
 export function warnUnsafeBypassConfiguration(host: string): void {
   if (securityConfigWarningShown) return;
   securityConfigWarningShown = true;
-  console.error(
-    "[security] Unsafe auth bypass config detected for protected host. Blocking auth bypass dependent access.",
-    { host, nodeEnv: process.env.NODE_ENV, authBypass: process.env.AUTH_BYPASS },
-  );
+  logSecurityEvent("error", {
+    event: "unsafe_bypass_configuration",
+    message: "Unsafe auth bypass config detected for protected host. Blocking auth bypass dependent access.",
+    host,
+    details: {
+      nodeEnv: process.env.NODE_ENV,
+      authBypass: process.env.AUTH_BYPASS,
+    },
+  });
 }

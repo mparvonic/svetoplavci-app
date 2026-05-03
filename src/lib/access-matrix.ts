@@ -17,6 +17,7 @@ type RouteRoleRule = {
 const ROUTE_ROLE_RULES: RouteRoleRule[] = [
   { prefix: "/admin", roles: new Set(["admin"]) },
   { prefix: "/api/admin", roles: new Set(["admin"]) },
+  { prefix: "/api/internal", roles: new Set(["admin"]) },
   { prefix: "/api/ostrovy/guide", roles: GUIDE_ACCESS_ROLES },
   { prefix: "/api/ostrovy/my-children", roles: CHILD_ACCESS_ROLES },
   { prefix: "/api/reports", roles: CHILD_ACCESS_ROLES },

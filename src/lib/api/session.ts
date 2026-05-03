@@ -13,6 +13,7 @@ import {
   warnUnsafeBypassConfiguration,
 } from "@/src/lib/environment-access";
 import { prisma } from "@/src/lib/prisma";
+import { logSecurityEvent } from "@/src/lib/security-events";
 import { getApprovedLoginProfileByEmail } from "@/src/lib/user-directory";
 
 export interface ApiSessionContext {
@@ -153,7 +154,9 @@ export async function getApiSessionContext(request?: Request): Promise<ApiSessio
     const stagingAllowlist = getStagingAllowedEmailsFromEnv();
     const allowByStagingEmail = stagingAllowlist.has(normalizedEmail);
     if (!hasAnySessionRole(roles, new Set(["tester", "admin"])) && !allowByStagingEmail) {
-      console.warn("[security] Staging API access denied by role gate", {
+      logSecurityEvent("warn", {
+        event: "staging_api_access_denied",
+        message: "Staging API access denied by role gate.",
         host: requestHost,
         email: normalizedEmail,
         roles,

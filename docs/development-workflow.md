@@ -225,6 +225,15 @@ Kdykoli chceš mít na staging čerstvá produkční data (např. před větší
 
 - I když je `AUTH_BYPASS=1`, bypass se nikdy nepovolí na produkční ani staging doméně.
 - Rozhoduje host aplikace; bypass je technicky omezen na lokální hosty.
+- Pokusy o obcházení (bypass mimo local, zamítnutý vstup na staging) se logují jako security eventy.
+
+### Interní security health endpoint
+
+- Endpoint: `GET /api/internal/security-health`
+- Přístup:
+  - přihlášený uživatel s rolí `admin`, nebo
+  - `Authorization: Bearer <INTERNAL_SECURITY_HEALTH_TOKEN>`
+- Doporučení: token nastavovat jen v interním monitoringu, ne v klientské aplikaci.
 
 ### Centrální role matrix
 
@@ -324,6 +333,9 @@ Používej konvenci:
 - [ ] Data se načítají správně
 - [ ] Mobil: responzivita OK
 - [ ] Žádné console errory v prohlížeči
+- [ ] `npm run ci:security` prochází
+- [ ] Staging gate aktivní (přístup jen tester/admin + případný whitelist)
+- [ ] Produkční/staging bypass deaktivovaný (ověřeno přes `/api/internal/security-health`)
 - [ ] PR `staging → main` vytvořen a zkontrolován
 
 ---
