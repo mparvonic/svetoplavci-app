@@ -31,6 +31,14 @@ feature/xxx          ●──●  (lokální vývoj, PR do staging)
 - **`feature/xxx`** — pracovní větve pro každou novou funkcionalitu nebo opravu. Pojmenování: `feature/lodicky-pruvodce`, `fix/auth-redirect`, apod.
 - **Nikdy nepushujeme přímo do `main`** (vyjma kritických hotfixů).
 
+### Dlouhodobý governance model (závazné)
+
+- **Jediný povolený tok změn:** `feature/fix -> staging -> main`.
+- **`staging` je integrační a testovací větev** (nejaktuálnější funkční stav před produkcí).
+- **`main` je pouze release větev** (obsahuje jen změny ověřené na staging).
+- **Do `main` se nikdy nemerguje přímo feature větev.**
+- **`main` se nikdy nepoužívá jako zdroj pro vývoj nové feature.**
+
 ---
 
 ## Typický vývojový cyklus
@@ -117,6 +125,42 @@ Staging běží na stejném VPS v Coolify jako produkce, ale jako oddělená apl
 - Docker image tag `:latest`
 - Produkční Neon database
 - Produkční Coda tabulky
+
+### Databázové prostředí (závazné)
+
+- **`svetoplavci`** = produkční DB (ostrý provoz).
+- **`svetoplavci_test`** = test/staging DB (věrná kopie produkce, bez anonymizace; stejné bezpečnostní zacházení jako produkce).
+- **`svetoplavci_dev`** = vývojová DB (kopie produkce po anonymizační transformaci).
+
+Detaily postupu refresh/anonymizace jsou v:
+
+- `docs/dev-database-refresh.md`
+
+---
+
+## Branch Protection (GitHub)
+
+Nastavení pro budoucí konzistenci:
+
+### `main`
+
+- Zakázat direct push.
+- Povolit pouze merge přes Pull Request.
+- Vyžadovat úspěšné CI checky před merge.
+- Vyžadovat aktuální větev (`Require branches to be up to date`).
+- Doporučeno: minimálně 1 review před merge.
+
+### `staging`
+
+- Zakázat direct push (výjimky jen pro vlastníka repozitáře, pokud jsou potřeba).
+- Povolit merge pouze přes Pull Request z `feature/*` / `fix/*`.
+- Vyžadovat úspěšné CI checky.
+
+### Správa větví
+
+- Pravidelně mazat merge-nuté feature/fix větve.
+- Udržovat `staging` jako jediný zdroj pro release do `main`.
+- Pokud vznikne divergence mezi `main` a `staging`, řešit ji standardně přes PR `staging -> main`.
 
 ---
 
