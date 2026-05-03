@@ -215,6 +215,16 @@ function defaultDateTimeLocal(daysAhead: number, hour: number, minute = 0): stri
   return toLocalInputValue(date.toISOString());
 }
 
+function nextMondayAtTime(hour: number, minute: number): string {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun, 1=Mon
+  const daysUntilMonday = day === 1 ? 0 : day === 0 ? 1 : 8 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + daysUntilMonday);
+  monday.setHours(hour, minute, 0, 0);
+  return toLocalInputValue(monday.toISOString());
+}
+
 function parseLocalDateTime(value: string): Date | null {
   if (!value.trim()) return null;
   const date = new Date(value);
@@ -273,9 +283,10 @@ function clampEndAfterStart(startsAt: string, endsAt: string): string {
 }
 
 function defaultRegistrationWindowForTerm(term: Term | null): Pick<EventDraft, "registrationOpensAt" | "registrationClosesAt"> {
+  const now = new Date();
   if (!term?.startsAt) {
     return {
-      registrationOpensAt: "",
+      registrationOpensAt: toLocalInputValue(now.toISOString()),
       registrationClosesAt: "",
     };
   }
@@ -283,23 +294,17 @@ function defaultRegistrationWindowForTerm(term: Term | null): Pick<EventDraft, "
   const eventDate = new Date(term.startsAt);
   if (Number.isNaN(eventDate.getTime())) {
     return {
-      registrationOpensAt: "",
+      registrationOpensAt: toLocalInputValue(now.toISOString()),
       registrationClosesAt: "",
     };
   }
 
-  const dayOfWeek = eventDate.getDay() === 0 ? 7 : eventDate.getDay();
-  const previousMonday = new Date(eventDate);
-  previousMonday.setHours(0, 0, 0, 0);
-  previousMonday.setDate(previousMonday.getDate() - (dayOfWeek - 1 + 7));
-
-  const previousFriday = new Date(previousMonday);
-  previousFriday.setDate(previousMonday.getDate() + 4);
-  previousFriday.setHours(18, 0, 0, 0);
+  // Close registration 1.5 hours before term start
+  const closesAt = new Date(eventDate.getTime() - 90 * 60_000);
 
   return {
-    registrationOpensAt: toLocalInputValue(previousMonday.toISOString()),
-    registrationClosesAt: toLocalInputValue(previousFriday.toISOString()),
+    registrationOpensAt: toLocalInputValue(now.toISOString()),
+    registrationClosesAt: toLocalInputValue(closesAt.toISOString()),
   };
 }
 
@@ -599,8 +604,8 @@ export default function OstrovyGuideClient() {
   const [selectedTermId, setSelectedTermId] = useState("");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [eventDraft, setEventDraft] = useState<EventDraft>(EMPTY_EVENT_DRAFT);
-  const [newTermStartsAt, setNewTermStartsAt] = useState(() => defaultDateTimeLocal(7, 8, 30));
-  const [newTermEndsAt, setNewTermEndsAt] = useState(() => defaultDateTimeLocal(7, 10, 0));
+  const [newTermStartsAt, setNewTermStartsAt] = useState(() => nextMondayAtTime(13, 30));
+  const [newTermEndsAt, setNewTermEndsAt] = useState(() => nextMondayAtTime(15, 0));
   const [newTermDurationHours, setNewTermDurationHours] = useState("1.5");
   const [editTermStartsAt, setEditTermStartsAt] = useState("");
   const [editTermEndsAt, setEditTermEndsAt] = useState("");
