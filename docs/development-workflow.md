@@ -149,12 +149,14 @@ Nastavení pro budoucí konzistenci:
 - Vyžadovat úspěšné CI checky před merge.
 - Vyžadovat aktuální větev (`Require branches to be up to date`).
 - Doporučeno: minimálně 1 review před merge.
+- V `Require status checks` vybrat check **`PR checks / build`**.
 
 ### `staging`
 
 - Zakázat direct push (výjimky jen pro vlastníka repozitáře, pokud jsou potřeba).
 - Povolit merge pouze přes Pull Request z `feature/*` / `fix/*`.
 - Vyžadovat úspěšné CI checky.
+- V `Require status checks` vybrat check **`PR checks / build`**.
 
 ### Správa větví
 
