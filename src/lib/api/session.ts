@@ -2,6 +2,7 @@ import type { Session } from "next-auth";
 
 import { auth } from "@/src/lib/auth";
 import { getSelectedDevAuthUser } from "@/src/lib/dev-auth";
+import { getConfiguredAppHost, isBypassAllowedForHost } from "@/src/lib/environment-access";
 import { prisma } from "@/src/lib/prisma";
 import { getApprovedLoginProfileByEmail } from "@/src/lib/user-directory";
 
@@ -18,7 +19,10 @@ export const CHILD_VIEW_ROLE_CODES = new Set(["admin", "tester", "rodic", "zak"]
 export const LOCAL_DEV_ROLES = ["admin", "tester", "pruvodce", "rodic", "zak"];
 
 export function isLocalDevAuthBypass(): boolean {
-  return process.env.NODE_ENV === "development";
+  const host = getConfiguredAppHost();
+  if (!isBypassAllowedForHost(host)) return false;
+  if (process.env.AUTH_BYPASS === "1") return true;
+  return process.env.NODE_ENV === "development" && process.env.AUTH_BYPASS !== "0";
 }
 
 export function collectSessionRoles(session: Session | null): string[] {

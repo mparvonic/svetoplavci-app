@@ -1,36 +1,40 @@
 import NextAuth from "next-auth";
 import { authConfig } from "@/src/lib/auth.config";
+import {
+  getStagingAllowedEmailsFromEnv,
+  isBypassAllowedForHost,
+  isStagingHost,
+  normalizeHost,
+} from "@/src/lib/environment-access";
 
 const { auth } = NextAuth(authConfig);
 
 function collectUserRoles(session: { user?: { roles?: unknown; role?: unknown } } | null): string[] {
   if (!session?.user) return [];
   if (Array.isArray(session.user.roles) && session.user.roles.length > 0) {
-    return session.user.roles.map((r) => String(r));
+    return session.user.roles.map((r) => String(r).toLowerCase());
   }
   if (typeof session.user.role === "string" && session.user.role) {
-    return [session.user.role];
+    return [session.user.role.toLowerCase()];
   }
   return [];
 }
 
 function hasRole(roles: string[], allowed: string[]): boolean {
-  return roles.some((role) => allowed.includes(role));
+  return roles.some((role) => allowed.includes(role.toLowerCase()));
 }
 
 function isAuthBypassEnabledForHost(host: string): boolean {
-  const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
-  const isTestHost = host === "test-app.svetoplavci.cz" || host === "app-test.svetoplavci.cz";
-  if (host === "app.svetoplavci.cz") return false;
-  if (process.env.AUTH_BYPASS === "1") return isLocalHost || isTestHost;
-  return process.env.NODE_ENV === "development" && process.env.AUTH_BYPASS !== "0" && isLocalHost;
+  if (!isBypassAllowedForHost(host)) return false;
+  if (process.env.AUTH_BYPASS === "1") return true;
+  return process.env.NODE_ENV === "development" && process.env.AUTH_BYPASS !== "0";
 }
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
-  const host = (req.headers.get("host") ?? "").split(":")[0].toLowerCase();
-  const isTestHost = host === "test-app.svetoplavci.cz" || host === "app-test.svetoplavci.cz";
+  const host = normalizeHost(req.headers.get("host"));
+  const isTestHost = isStagingHost(host);
   const testDefaultPath = "/portal/osobni-lodicky";
   const testAllowedPathPrefixes = ["/vysvedceni", "/portal/osobni-lodicky", "/ostrovy", "/admin"];
 
@@ -51,9 +55,12 @@ export default auth((req) => {
   }
 
   const roles = collectUserRoles(session);
+  const normalizedEmail = (session.user.email ?? "").trim().toLowerCase();
+  const stagingAllowedEmails = getStagingAllowedEmailsFromEnv();
+  const allowByStagingEmail = normalizedEmail && stagingAllowedEmails.has(normalizedEmail);
 
-  // test-app: přístup jen pro tester/admin
-  if (isTestHost && !hasRole(roles, ["tester", "admin"])) {
+  // Staging: přístup pouze pro tester/admin nebo explicitní e-mail whitelist.
+  if (isTestHost && !hasRole(roles, ["tester", "admin"]) && !allowByStagingEmail) {
     return Response.redirect(new URL("/auth/error?error=NoEnvRole", req.nextUrl.origin));
   }
 

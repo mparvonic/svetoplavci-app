@@ -196,6 +196,38 @@ Kdykoli chceš mít na staging čerstvá produkční data (např. před větší
 
 ---
 
+## Přístupová pravidla podle prostředí
+
+### Produkce (`app.svetoplavci.cz`)
+
+- Žádný auth bypass.
+- Přístup pouze přes standardní přihlášení.
+- Žádné testovací zkratky ani přepínače uživatele.
+
+### Staging (`app-test.svetoplavci.cz`)
+
+- Žádný auth bypass.
+- Přístup jen pro role `tester` nebo `admin`.
+- Volitelně lze přidat e-mail whitelist přes env proměnnou:
+  - `STAGING_ALLOWED_EMAILS=email1@domena.cz,email2@domena.cz`
+- Whitelist slouží jen jako výjimka pro vstup na staging (např. externí tester bez role).
+
+### Lokální vývoj (`localhost`, `127.0.0.1`)
+
+- Auth bypass je povolen pouze lokálně.
+- Bypass se řídí:
+  - `AUTH_BYPASS=1` => vždy zapnuto
+  - `AUTH_BYPASS=0` => vždy vypnuto
+  - bez hodnoty => zapnuto jen při `NODE_ENV=development`
+- Lokální přepínač uživatele je určen pouze pro dev scénáře a simulaci rolí.
+
+### Důležité bezpečnostní pravidlo
+
+- I když je `AUTH_BYPASS=1`, bypass se nikdy nepovolí na produkční ani staging doméně.
+- Rozhoduje host aplikace; bypass je technicky omezen na lokální hosty.
+
+---
+
 ## Prototypování s mock daty
 
 Cílem je mít možnost navrhnout novou stránku nebo komponentu bez toho, aby bylo třeba napojovat reálné API.
