@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { AppSchoolEventLifecycleStatus, AppSchoolEventRegistrationStatus } from "@prisma/client";
 import { prisma } from "@/src/lib/prisma";
+import { resolvePersonName } from "@/src/lib/person-name";
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,10 @@ export async function findChildByChip(chipCode: string): Promise<KioskChild | nu
 
   return {
     id: person.id,
-    displayName: person.displayName ?? "",
+    displayName: resolvePersonName({
+      nickname: person.nickname,
+      displayName: person.displayName,
+    }),
     nickname: person.nickname ?? null,
     schoolGrade,
     groupKeys: groupRows.map((r) => `${r.kind}::${r.code}`),
@@ -243,7 +247,15 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
         select: { id: true, nickname: true, displayName: true },
       })
     : [];
-  const personNameById = new Map(persons.map((p) => [p.id, p.nickname || p.displayName || ""]));
+  const personNameById = new Map(
+    persons.map((p) => [
+      p.id,
+      resolvePersonName({
+        nickname: p.nickname,
+        displayName: p.displayName,
+      }),
+    ]),
+  );
 
   // Group by term
   const termMap = new Map<string, KioskTermGroup>();

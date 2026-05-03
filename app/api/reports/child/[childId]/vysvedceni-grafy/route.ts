@@ -37,7 +37,7 @@ export async function GET(
       return NextResponse.json({ error: "Toto dítě vám není přiřazeno." }, { status: 403 });
     }
 
-    const jmeno = result.child.nickname || result.child.name;
+    const jmeno = result.child.name;
     return NextResponse.json({
       child: jmeno,
       curve: result.curve,

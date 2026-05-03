@@ -188,7 +188,7 @@ async function enrichReportChildren(children: PortalChild[]): Promise<InternalRe
 
   return children.map((child) => {
     const person = peopleById.get(child.id);
-    const name = person?.displayName?.trim() || child.name;
+    const name = child.name;
     const nickname = person?.nickname?.trim() || "";
     const currentYear = formatRocnik(child.rocnik);
     const normalizedNickname = normalizeName(nickname);
