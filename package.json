@@ -10,7 +10,9 @@
     "coda:columns": "node scripts/list-coda-columns.mjs",
     "photos:migrate-db": "node scripts/migrate-person-photos-to-db.mjs",
     "db:tunnel": "node scripts/db-tunnel.mjs",
-    "db:push": "prisma db push --env-file .env.local"
+    "db:push": "prisma db push --env-file .env.local",
+    "db:refresh:dev": "./scripts/db-refresh-dev.sh",
+    "db:refresh:staging": "./scripts/db-refresh-staging.sh"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
