@@ -54,11 +54,26 @@ const requiredMatrixPrefixes = [
   "/api/reports",
   "/api/m01",
   "/api/coda",
+  "/api/support",
 ];
 for (const prefix of requiredMatrixPrefixes) {
   if (!matrixSource.includes(`prefix: "${prefix}"`)) {
     fail(`Role matrix is missing required prefix: ${prefix}`);
   }
+}
+
+const guideRolesMatch = matrixSource.match(/const GUIDE_ACCESS_ROLES = new Set\(\[([\s\S]*?)\]\);/);
+if (!guideRolesMatch) {
+  fail("GUIDE_ACCESS_ROLES declaration not found in access matrix.");
+} else if (guideRolesMatch[1].includes("\"admin\"")) {
+  fail("GUIDE_ACCESS_ROLES must not include admin (admin should not auto-access personal data).");
+}
+
+const childRolesMatch = matrixSource.match(/const CHILD_ACCESS_ROLES = new Set\(\[([\s\S]*?)\]\);/);
+if (!childRolesMatch) {
+  fail("CHILD_ACCESS_ROLES declaration not found in access matrix.");
+} else if (childRolesMatch[1].includes("\"admin\"")) {
+  fail("CHILD_ACCESS_ROLES must not include admin (admin should not auto-access personal data).");
 }
 
 const guardPatterns = [

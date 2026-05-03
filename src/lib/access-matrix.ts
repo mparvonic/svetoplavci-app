@@ -1,5 +1,6 @@
+import { APP_ROLES } from "@/src/lib/user-directory";
+
 export const GUIDE_ACCESS_ROLES = new Set([
-  "admin",
   "tester",
   "ucitel",
   "zamestnanec",
@@ -7,7 +8,8 @@ export const GUIDE_ACCESS_ROLES = new Set([
   "garant",
 ]);
 
-export const CHILD_ACCESS_ROLES = new Set(["admin", "tester", "rodic", "zak"]);
+export const CHILD_ACCESS_ROLES = new Set(["tester", "rodic", "zak"]);
+export const AUTHENTICATED_APP_ROLES = new Set(APP_ROLES as readonly string[]);
 
 type RouteRoleRule = {
   prefix: string;
@@ -23,6 +25,7 @@ const ROUTE_ROLE_RULES: RouteRoleRule[] = [
   { prefix: "/api/reports", roles: CHILD_ACCESS_ROLES },
   { prefix: "/api/m01", roles: CHILD_ACCESS_ROLES },
   { prefix: "/api/coda", roles: CHILD_ACCESS_ROLES },
+  { prefix: "/api/support", roles: AUTHENTICATED_APP_ROLES },
 ];
 
 export function getRequiredRolesForPath(pathname: string): Set<string> | null {

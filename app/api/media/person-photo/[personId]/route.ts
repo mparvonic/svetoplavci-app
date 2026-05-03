@@ -53,7 +53,7 @@ export async function GET(
 
 async function canAccessPersonPhoto(personIds: string[], roles: string[], personId: string): Promise<boolean> {
   const normalizedRoles = roles.map((role) => role.toLowerCase());
-  if (normalizedRoles.includes("admin") || normalizedRoles.includes("tester")) return true;
+  if (normalizedRoles.includes("tester")) return true;
   if (hasAnySessionRole(normalizedRoles, GUIDE_ROLE_CODES)) return true;
   if (personIds.includes(personId)) return true;
 

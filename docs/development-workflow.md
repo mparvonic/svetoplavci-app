@@ -229,6 +229,30 @@ Kdykoli chceš mít na staging čerstvá produkční data (např. před větší
 - Rozhoduje host aplikace; bypass je technicky omezen na lokální hosty.
 - Pokusy o obcházení (bypass mimo local, zamítnutý vstup na staging) se logují jako security eventy.
 
+### Admin role a osobní data (závazné)
+
+- Role `admin` je určena pro správu systému (uživatelé/role/konfigurace), ne pro automatické čtení osobních dat žáků a zaměstnanců.
+- Přístupy k osobním datům jsou vynucené přes role matrix; `admin` není v běžných osobních data guardech.
+- Podpora se řeší primárně přes metadata a logy, ne přes „nahlížení do cizího účtu“.
+- Přihlašování pod cizím účtem není povoleno.
+
+### Support workflow
+
+- Uživatel hlásí problém přes `POST /api/support/tickets`.
+- Endpoint ukládá auditní metadata do security logu:
+  - kdo hlásil,
+  - kde problém vznikl,
+  - identifikátor ticketu,
+  - hash popisu (bez ukládání citlivého obsahu do logu).
+- Administrátor řeší incident primárně podle ticket ID, request ID a systémových logů.
+
+### Break-glass workflow
+
+- Endpoint `POST /api/internal/support/break-glass-request` slouží pro auditní záznam žádosti o mimořádný přístup.
+- Každá žádost musí obsahovat explicitní důvod a cíl.
+- Stav žádosti je `pending_manual_dual_approval` (schválení dvěma osobami mimo aplikaci).
+- Každý požadavek je logovaný jako security event.
+
 ### Interní security health endpoint
 
 - Endpoint: `GET /api/internal/security-health`

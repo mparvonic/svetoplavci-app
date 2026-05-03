@@ -44,7 +44,7 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
     for (const link of links) parentChildIds.add(link.childPersonId);
   }
 
-  if (normalizedRoles.some((role) => role === "admin" || role === "tester")) {
+  if (normalizedRoles.includes("tester")) {
     const students = await prisma.appPerson.findMany({
       where: {
         isActive: true,
@@ -123,7 +123,7 @@ async function resolveAccessibleChild(
 ): Promise<ChildSummary | null> {
   const normalizedRoles = roles.map((role) => role.toLowerCase());
 
-  if (normalizedRoles.some((role) => role === "admin" || role === "tester")) {
+  if (normalizedRoles.includes("tester")) {
     const child = await prisma.appPerson.findFirst({
       where: {
         id: childId,
