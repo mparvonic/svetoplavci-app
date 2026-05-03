@@ -3,10 +3,10 @@ import { getApiSessionContext } from "@/src/lib/api/session";
 import { getPortalChildLodickyForActor } from "@/src/lib/portal-db";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ childId: string }> }
 ) {
-  const context = await getApiSessionContext();
+  const context = await getApiSessionContext(req);
   if (!context) {
     return NextResponse.json({ error: "Nepřihlášen" }, { status: 401 });
   }

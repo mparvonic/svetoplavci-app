@@ -226,6 +226,13 @@ Kdykoli chceš mít na staging čerstvá produkční data (např. před větší
 - I když je `AUTH_BYPASS=1`, bypass se nikdy nepovolí na produkční ani staging doméně.
 - Rozhoduje host aplikace; bypass je technicky omezen na lokální hosty.
 
+### Centrální role matrix
+
+- Oprávnění pro route jsou centralizovaná v `src/lib/access-matrix.ts`.
+- Nové chráněné route přidávat do role matrix (ne přes ad-hoc podmínky v jednotlivých souborech).
+- `middleware.ts` používá role matrix pro app i API route.
+- API route, které používají `getApiSessionContext(req)`, navíc aplikují host-based guard (staging gate + fail-closed při nebezpečné bypass konfiguraci).
+
 ---
 
 ## Prototypování s mock daty

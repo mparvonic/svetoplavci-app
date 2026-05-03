@@ -9,10 +9,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ personId: string }> }
 ) {
-  const context = await getApiSessionContext();
+  const context = await getApiSessionContext(req);
   if (!context) {
     return new Response("Unauthorized", { status: 401 });
   }

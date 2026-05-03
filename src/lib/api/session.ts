@@ -1,8 +1,17 @@
 import type { Session } from "next-auth";
 
 import { auth } from "@/src/lib/auth";
+import { CHILD_ACCESS_ROLES, GUIDE_ACCESS_ROLES, hasAnyRole } from "@/src/lib/access-matrix";
 import { getSelectedDevAuthUser } from "@/src/lib/dev-auth";
-import { getConfiguredAppHost, isBypassAllowedForHost } from "@/src/lib/environment-access";
+import {
+  getConfiguredAppHost,
+  getRequestHost,
+  getStagingAllowedEmailsFromEnv,
+  isBypassAllowedForHost,
+  isStagingHost,
+  isUnsafeBypassConfigurationForHost,
+  warnUnsafeBypassConfiguration,
+} from "@/src/lib/environment-access";
 import { prisma } from "@/src/lib/prisma";
 import { getApprovedLoginProfileByEmail } from "@/src/lib/user-directory";
 
@@ -14,12 +23,11 @@ export interface ApiSessionContext {
   actorPersonId: string | null;
 }
 
-export const GUIDE_ROLE_CODES = new Set(["admin", "tester", "ucitel", "zamestnanec", "pruvodce", "garant"]);
-export const CHILD_VIEW_ROLE_CODES = new Set(["admin", "tester", "rodic", "zak"]);
+export const GUIDE_ROLE_CODES = GUIDE_ACCESS_ROLES;
+export const CHILD_VIEW_ROLE_CODES = CHILD_ACCESS_ROLES;
 export const LOCAL_DEV_ROLES = ["admin", "tester", "pruvodce", "rodic", "zak"];
 
-export function isLocalDevAuthBypass(): boolean {
-  const host = getConfiguredAppHost();
+export function isLocalDevAuthBypass(host = getConfiguredAppHost()): boolean {
   if (!isBypassAllowedForHost(host)) return false;
   if (process.env.AUTH_BYPASS === "1") return true;
   return process.env.NODE_ENV === "development" && process.env.AUTH_BYPASS !== "0";
@@ -36,7 +44,7 @@ export function collectSessionRoles(session: Session | null): string[] {
 }
 
 export function hasAnySessionRole(roles: string[], allowed: Set<string>): boolean {
-  return roles.some((role) => allowed.has(role.toLowerCase()));
+  return hasAnyRole(roles, allowed);
 }
 
 function isLocalDevEmail(email: string): boolean {
@@ -105,11 +113,17 @@ async function resolveLocalDevPersonIds(email: string, roles: string[]): Promise
   return [];
 }
 
-export async function getApiSessionContext(): Promise<ApiSessionContext | null> {
+export async function getApiSessionContext(request?: Request): Promise<ApiSessionContext | null> {
+  const requestHost = request ? getRequestHost(request) : getConfiguredAppHost();
+  if (isUnsafeBypassConfigurationForHost(requestHost)) {
+    warnUnsafeBypassConfiguration(requestHost);
+    return null;
+  }
+
   const session = await auth();
   const email = session?.user?.email;
   if (!session || !email) {
-    if (!isLocalDevAuthBypass()) return null;
+    if (!isLocalDevAuthBypass(requestHost)) return null;
     return {
       session: {
         user: {
@@ -130,16 +144,30 @@ export async function getApiSessionContext(): Promise<ApiSessionContext | null> 
   try {
     profile = await getApprovedLoginProfileByEmail(email);
   } catch (error) {
-    if (!isLocalDevAuthBypass()) throw error;
+    if (!isLocalDevAuthBypass(requestHost)) throw error;
     console.error("[api/session] failed to load login profile in local dev; continuing without actor person", error);
   }
   const roles = collectSessionRoles(session);
+  if (isStagingHost(requestHost)) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const stagingAllowlist = getStagingAllowedEmailsFromEnv();
+    const allowByStagingEmail = stagingAllowlist.has(normalizedEmail);
+    if (!hasAnySessionRole(roles, new Set(["tester", "admin"])) && !allowByStagingEmail) {
+      console.warn("[security] Staging API access denied by role gate", {
+        host: requestHost,
+        email: normalizedEmail,
+        roles,
+      });
+      return null;
+    }
+  }
+
   let personIds = profile?.personIds ?? [];
   if (personIds.length === 0) {
     try {
       personIds = await resolveLocalDevPersonIds(email, roles);
     } catch (error) {
-      if (!isLocalDevAuthBypass()) throw error;
+      if (!isLocalDevAuthBypass(requestHost)) throw error;
       console.warn(
         "[api/session] local dev person fallback failed:",
         error instanceof Error ? error.message : String(error),

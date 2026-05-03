@@ -1,10 +1,13 @@
 import NextAuth from "next-auth";
+import { getRequiredRolesForPath, hasAnyRole } from "@/src/lib/access-matrix";
 import { authConfig } from "@/src/lib/auth.config";
 import {
   getStagingAllowedEmailsFromEnv,
+  isUnsafeBypassConfigurationForHost,
   isBypassAllowedForHost,
   isStagingHost,
   normalizeHost,
+  warnUnsafeBypassConfiguration,
 } from "@/src/lib/environment-access";
 
 const { auth } = NextAuth(authConfig);
@@ -38,17 +41,35 @@ export default auth((req) => {
   const testDefaultPath = "/portal/osobni-lodicky";
   const testAllowedPathPrefixes = ["/vysvedceni", "/portal/osobni-lodicky", "/ostrovy", "/admin"];
 
+  if (isUnsafeBypassConfigurationForHost(host)) {
+    warnUnsafeBypassConfiguration(host);
+    if (pathname.startsWith("/api/")) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+    return Response.redirect(new URL("/auth/error?error=SecurityConfig", req.nextUrl.origin));
+  }
+
   if (isAuthBypassEnabledForHost(host)) {
     return;
   }
 
   // Veřejné cesty – bez kontroly
-  if (pathname === "/" || pathname.startsWith("/auth/") || pathname.startsWith("/kiosk")) {
+  if (
+    pathname === "/" ||
+    pathname.startsWith("/auth/") ||
+    pathname.startsWith("/kiosk") ||
+    pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/api/kiosk/") ||
+    pathname === "/api/sync/users"
+  ) {
     return;
   }
 
   // Nepřihlášený uživatel → přihlášení
   if (!session?.user) {
+    if (pathname.startsWith("/api/")) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const signInUrl = new URL("/auth/signin", req.nextUrl.origin);
     signInUrl.searchParams.set("callbackUrl", pathname);
     return Response.redirect(signInUrl);
@@ -70,10 +91,12 @@ export default auth((req) => {
   }
 
   // /admin/* – pouze role admin
-  if (pathname.startsWith("/admin")) {
-    if (!hasRole(roles, ["admin"])) {
-      return Response.redirect(new URL("/", req.nextUrl.origin));
+  const requiredRoles = getRequiredRolesForPath(pathname);
+  if (requiredRoles && !hasAnyRole(roles, requiredRoles)) {
+    if (pathname.startsWith("/api/")) {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
     }
+    return Response.redirect(new URL("/", req.nextUrl.origin));
   }
 
   // test-app: držet jen schválené testované části aplikace
@@ -94,6 +117,6 @@ export const config = {
     /*
      * Match all paths kromě api, _next/static, _next/image, favicon, veřejných assetů.
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
