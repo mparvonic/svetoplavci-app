@@ -48,6 +48,10 @@ RUN addgroup --system --gid 1001 nodejs && \
 RUN npm install -g prisma@${PRISMA_CLI_VERSION}
 
 COPY --from=builder /app/public ./public
+
+# Uploads directory must be writable by the nextjs user
+RUN mkdir -p /app/public/uploads/ostrovy && \
+    chown -R nextjs:nodejs /app/public/uploads
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
