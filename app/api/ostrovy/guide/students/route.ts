@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
     select: {
       id: true,
       displayName: true,
+      nickname: true,
       identifier: true,
     },
     orderBy: [{ displayName: "asc" }],
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
       const registration = registrationByPerson.get(student.id);
       return {
         id: student.id,
-        displayName: student.displayName,
+        displayName: student.nickname || student.displayName,
         identifier: student.identifier,
         currentRegistration: registration
           ? {

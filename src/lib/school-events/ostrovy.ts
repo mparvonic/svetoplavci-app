@@ -94,6 +94,7 @@ export interface UpdateOstrovInput {
   thumbnailSourceImageUrl?: string | null;
   thumbnailSourceUrl?: string | null;
   guides?: OstrovyGuideInput[];
+  guestChildren?: string[];
 }
 
 export interface RegisterOstrovInput {
@@ -384,6 +385,7 @@ function buildOstrovMetadata(
     thumbnailSourceUrl?: string | null;
     guides?: OstrovyGuideInput[];
     audienceGroups?: OstrovyAudienceGroupInput[];
+    guestChildren?: string[];
   },
 ): Prisma.InputJsonValue {
   const base = ensureObject(current);
@@ -400,6 +402,7 @@ function buildOstrovMetadata(
   if ("thumbnailSourceUrl" in input) nextOstrovy.thumbnailSourceUrl = trimOptional(input.thumbnailSourceUrl);
   if ("guides" in input) nextOstrovy.guides = sanitizeGuides(input.guides);
   if ("audienceGroups" in input) nextOstrovy.audienceGroups = sanitizeAudienceGroups(input.audienceGroups);
+  if ("guestChildren" in input) nextOstrovy.guestChildren = (input.guestChildren ?? []).map((n) => n.trim()).filter(Boolean);
 
   return jsonValue({
     ...base,
@@ -836,6 +839,7 @@ export async function updateOstrov(
           ...(input.thumbnailSourceUrl !== undefined ? { thumbnailSourceUrl: input.thumbnailSourceUrl } : {}),
           ...(input.guides !== undefined ? { guides: input.guides } : {}),
           ...(audienceGroups !== undefined ? { audienceGroups } : {}),
+          ...(input.guestChildren !== undefined ? { guestChildren: input.guestChildren } : {}),
         }),
         updatedByPersonId: actorPersonId ?? undefined,
       },

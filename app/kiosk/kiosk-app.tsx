@@ -93,11 +93,14 @@ function IslandCard({
 
       {/* Content */}
       <div className="flex flex-1 flex-col gap-1 bg-white px-3 py-2">
-        <div className="line-clamp-2 text-sm font-bold leading-tight text-gray-900">
+        <div className="line-clamp-2 text-base font-bold leading-tight text-gray-900">
           {island.title}
         </div>
         {island.location && (
-          <div className="text-xs text-gray-500">{island.location}</div>
+          <div className="text-xs text-gray-500">📍 {island.location}</div>
+        )}
+        {island.guides.length > 0 && (
+          <div className="text-xs text-gray-500">👤 {island.guides.join(", ")}</div>
         )}
         {island.capacity != null && (
           <div className="text-xs text-gray-500">
@@ -192,6 +195,24 @@ function IslandModal({
           {island.capacity != null && (
             <div className="text-sm text-gray-500">
               Obsazenost: {island.occupied}/{island.capacity}
+            </div>
+          )}
+          {island.registrantNames.length > 0 && (
+            <div>
+              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Přihlášení
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {island.registrantNames.map((name, i) => (
+                  <span
+                    key={i}
+                    className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                    style={{ backgroundColor: island.kioskDisplayColor ?? "#607D8B" }}
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
