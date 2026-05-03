@@ -98,7 +98,7 @@ export function HomeContent({
                 onClick={() => setSelectedChildId(c.rowId)}
               >
                 <span className="text-sm font-semibold">
-                  {c.nickname || c.name}
+                  {c.name}
                 </span>
                 {(c.currentYear || c.group) && (
                   <span className={cn("mt-1 text-xs", isSelected ? "text-white/80" : "text-slate-500")}>

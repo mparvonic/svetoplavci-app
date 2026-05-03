@@ -40,11 +40,8 @@ export function PortalContent({
           <Card key={child.rowId} className="flex flex-col">
             <CardHeader className="pb-2">
               <p className="text-xl font-semibold leading-tight">
-                {child.nickname || child.name}
+                {child.name}
               </p>
-              {child.nickname && (
-                <p className="text-sm text-muted-foreground">{child.name}</p>
-              )}
               <p className="text-sm text-muted-foreground">
                 {[child.currentYear, child.group].filter(Boolean).join(" · ") || "—"}
               </p>

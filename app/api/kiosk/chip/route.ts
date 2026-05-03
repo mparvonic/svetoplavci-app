@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkKioskKey, findChildByChip, getKioskTermsForChild } from "@/src/lib/kiosk";
+import { resolvePersonName } from "@/src/lib/person-name";
 
 export const runtime = "nodejs";
 
@@ -43,7 +44,10 @@ export async function POST(req: NextRequest) {
     `).catch(() => [] as Array<{ kind: string; code: string }>);
     child = {
       id: person.id,
-      displayName: person.displayName ?? "",
+      displayName: resolvePersonName({
+        nickname: person.nickname,
+        displayName: person.displayName,
+      }),
       nickname: person.nickname ?? null,
       schoolGrade: gradeRows[0]?.grade ?? null,
       groupKeys: groupRows.map((r) => `${r.kind}::${r.code}`),

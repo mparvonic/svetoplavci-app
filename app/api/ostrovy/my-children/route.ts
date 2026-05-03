@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/src/lib/prisma";
+import { resolvePersonName } from "@/src/lib/person-name";
 import {
   listOstrovyForChild,
   registerOstrovStudent,
@@ -16,7 +17,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 type RegistrationAction = "register" | "unregister";
-type ChildSummary = { id: string; displayName: string; firstName?: string | null };
+type ChildSummary = { id: string; displayName: string; firstName?: string | null; nickname?: string | null };
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -28,16 +29,41 @@ function forbidden() {
 
 async function resolveAccessibleChildren(personIds: string[], roles: string[]): Promise<ChildSummary[]> {
   const normalizedRoles = roles.map((role) => role.toLowerCase());
+  const isParent = normalizedRoles.includes("rodic");
+  const parentChildIds = new Set<string>();
+
+  if (isParent && personIds.length > 0) {
+    const links = await prisma.appPersonRelation.findMany({
+      where: {
+        parentPersonId: { in: personIds },
+        relationType: "parent_of",
+        isActive: true,
+      },
+      select: { childPersonId: true },
+    });
+    for (const link of links) parentChildIds.add(link.childPersonId);
+  }
 
   if (normalizedRoles.some((role) => role === "admin" || role === "tester")) {
-    return prisma.appPerson.findMany({
+    const students = await prisma.appPerson.findMany({
       where: {
         isActive: true,
         roles: { some: { role: "zak", isActive: true } },
       },
-      select: { id: true, displayName: true, firstName: true },
+      select: { id: true, displayName: true, firstName: true, nickname: true },
       orderBy: { displayName: "asc" },
     });
+    return students.map((student) => ({
+      ...student,
+      displayName: resolvePersonName(
+        {
+          nickname: student.nickname,
+          displayName: student.displayName,
+          firstName: student.firstName,
+        },
+        { preferFirstName: parentChildIds.has(student.id) },
+      ),
+    }));
   }
 
   const directStudents = normalizedRoles.includes("zak")
@@ -47,7 +73,7 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
           isActive: true,
           roles: { some: { role: "zak", isActive: true } },
         },
-        select: { id: true, displayName: true, firstName: true },
+        select: { id: true, displayName: true, firstName: true, nickname: true },
       })
     : [];
 
@@ -66,7 +92,7 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
         },
         select: {
           childPerson: {
-            select: { id: true, displayName: true, firstName: true },
+            select: { id: true, displayName: true, firstName: true, nickname: true },
           },
         },
       })
@@ -75,7 +101,19 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
   const unique = new Map<string, ChildSummary>();
   for (const child of directStudents) unique.set(child.id, child);
   for (const link of parentChildren) unique.set(link.childPerson.id, link.childPerson);
-  return [...unique.values()].sort((a, b) => a.displayName.localeCompare(b.displayName, "cs"));
+  return [...unique.values()]
+    .map((child) => ({
+      ...child,
+      displayName: resolvePersonName(
+        {
+          nickname: child.nickname,
+          displayName: child.displayName,
+          firstName: child.firstName,
+        },
+        { preferFirstName: parentChildIds.has(child.id) },
+      ),
+    }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, "cs"));
 }
 
 async function resolveAccessibleChild(
@@ -86,25 +124,45 @@ async function resolveAccessibleChild(
   const normalizedRoles = roles.map((role) => role.toLowerCase());
 
   if (normalizedRoles.some((role) => role === "admin" || role === "tester")) {
-    return prisma.appPerson.findFirst({
+    const child = await prisma.appPerson.findFirst({
       where: {
         id: childId,
         isActive: true,
         roles: { some: { role: "zak", isActive: true } },
       },
-      select: { id: true, displayName: true, firstName: true },
+      select: { id: true, displayName: true, firstName: true, nickname: true },
     });
+    return child
+      ? {
+          ...child,
+          displayName: resolvePersonName({
+            nickname: child.nickname,
+            displayName: child.displayName,
+            firstName: child.firstName,
+          }),
+        }
+      : null;
   }
 
   if (normalizedRoles.includes("zak") && personIds.includes(childId)) {
-    return prisma.appPerson.findFirst({
+    const child = await prisma.appPerson.findFirst({
       where: {
         id: childId,
         isActive: true,
         roles: { some: { role: "zak", isActive: true } },
       },
-      select: { id: true, displayName: true, firstName: true },
+      select: { id: true, displayName: true, firstName: true, nickname: true },
     });
+    return child
+      ? {
+          ...child,
+          displayName: resolvePersonName({
+            nickname: child.nickname,
+            displayName: child.displayName,
+            firstName: child.firstName,
+          }),
+        }
+      : null;
   }
 
   if (normalizedRoles.includes("rodic")) {
@@ -123,11 +181,24 @@ async function resolveAccessibleChild(
       },
       select: {
         childPerson: {
-          select: { id: true, displayName: true, firstName: true },
+          select: { id: true, displayName: true, firstName: true, nickname: true },
         },
       },
     });
-    return link?.childPerson ?? null;
+    const child = link?.childPerson ?? null;
+    return child
+      ? {
+          ...child,
+          displayName: resolvePersonName(
+            {
+              nickname: child.nickname,
+              displayName: child.displayName,
+              firstName: child.firstName,
+            },
+            { preferFirstName: true },
+          ),
+        }
+      : null;
   }
 
   return null;

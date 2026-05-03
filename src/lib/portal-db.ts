@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/src/lib/prisma";
+import { resolvePersonName } from "@/src/lib/person-name";
 
 export interface PortalParent {
   id: string;
@@ -57,10 +58,14 @@ export interface PortalLodickaHistoryRow {
 type ParentChildRow = {
   parent_id: string;
   parent_name: string;
+  parent_nickname: string | null;
+  parent_first_name: string | null;
   has_rodic_role: boolean;
   has_global_child_access: boolean;
   child_id: string | null;
   child_name: string | null;
+  child_nickname: string | null;
+  child_first_name: string | null;
   child_grade_num: number | null;
   child_rocnik_code: string | null;
   child_stupen_code: string | null;
@@ -70,6 +75,8 @@ type ParentChildRow = {
 type ActiveChildRow = {
   child_id: string;
   child_name: string;
+  child_nickname: string | null;
+  child_first_name: string | null;
   child_grade_num: number | null;
   child_rocnik_code: string | null;
   child_stupen_code: string | null;
@@ -240,7 +247,10 @@ function pickParentCandidate(candidates: ParentCandidate[]): ParentCandidate | n
   return sorted[0] ?? null;
 }
 
-async function getActiveChildren(childIds?: string[]): Promise<PortalChild[]> {
+async function getActiveChildren(
+  childIds?: string[],
+  preferFirstNameIds: ReadonlySet<string> = new Set<string>(),
+): Promise<PortalChild[]> {
   const idFilter =
     childIds && childIds.length > 0
       ? Prisma.sql`AND c.id IN (${Prisma.join(childIds)})`
@@ -250,6 +260,8 @@ async function getActiveChildren(childIds?: string[]): Promise<PortalChild[]> {
     SELECT
       c.id AS child_id,
       c.display_name AS child_name,
+      c.nickname AS child_nickname,
+      c.first_name AS child_first_name,
       ss.current_grade_num AS child_grade_num,
       grp_rocnik.code AS child_rocnik_code,
       grp_stupen.code AS child_stupen_code,
@@ -313,7 +325,14 @@ async function getActiveChildren(childIds?: string[]): Promise<PortalChild[]> {
       const rocnik = parseRocnik(row.child_grade_num ?? row.child_rocnik_code);
       return {
         id: row.child_id,
-        name: row.child_name,
+        name: resolvePersonName(
+          {
+            nickname: row.child_nickname,
+            displayName: row.child_name,
+            firstName: row.child_first_name,
+          },
+          { preferFirstName: preferFirstNameIds.has(row.child_id) },
+        ),
         rocnik,
         stupen: parseStupen(row.child_stupen_code, rocnik),
         smecka: normalizeOptionalText(row.child_smecka_name),
@@ -322,8 +341,8 @@ async function getActiveChildren(childIds?: string[]): Promise<PortalChild[]> {
   );
 }
 
-async function getAllActiveChildren(): Promise<PortalChild[]> {
-  return getActiveChildren();
+async function getAllActiveChildren(preferFirstNameIds: ReadonlySet<string> = new Set<string>()): Promise<PortalChild[]> {
+  return getActiveChildren(undefined, preferFirstNameIds);
 }
 
 function normalizeRoles(roles: string[]): string[] {
@@ -339,6 +358,8 @@ async function getPortalActor(personIds: string[], email: string): Promise<Porta
         },
         select: {
           id: true,
+          firstName: true,
+          nickname: true,
           displayName: true,
         },
         orderBy: {
@@ -349,14 +370,40 @@ async function getPortalActor(personIds: string[], email: string): Promise<Porta
 
   return {
     id: actor?.id ?? normalizeEmail(email),
-    name: actor?.displayName ?? normalizeEmail(email),
+    name: actor
+      ? resolvePersonName({
+          nickname: actor.nickname,
+          displayName: actor.displayName,
+          firstName: actor.firstName,
+        })
+      : normalizeEmail(email),
   };
 }
 
 async function getAccessibleChildrenByActor(personIds: string[], roles: string[]): Promise<PortalChild[]> {
   const normalizedRoles = normalizeRoles(roles);
+  const preferFirstNameIds = new Set<string>();
+
+  if (normalizedRoles.includes("rodic") && personIds.length > 0) {
+    const parentChildren = await prisma.appPersonRelation.findMany({
+      where: {
+        parentPersonId: { in: personIds },
+        relationType: "parent_of",
+        isActive: true,
+        childPerson: {
+          is: {
+            isActive: true,
+            roles: { some: { role: "zak", isActive: true } },
+          },
+        },
+      },
+      select: { childPersonId: true },
+    });
+    for (const link of parentChildren) preferFirstNameIds.add(link.childPersonId);
+  }
+
   if (normalizedRoles.some((role) => GLOBAL_CHILD_ACCESS_ROLES.has(role))) {
-    return getAllActiveChildren();
+    return getAllActiveChildren(preferFirstNameIds);
   }
 
   if (personIds.length === 0) return [];
@@ -394,7 +441,7 @@ async function getAccessibleChildrenByActor(personIds: string[], roles: string[]
   }
 
   if (childIds.size === 0) return [];
-  return getActiveChildren([...childIds]);
+  return getActiveChildren([...childIds], preferFirstNameIds);
 }
 
 export async function getPortalParentAndChildrenForActor(input: PortalActorAccessInput): Promise<{
@@ -421,6 +468,8 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
     SELECT
       p.id AS parent_id,
       p.display_name AS parent_name,
+      p.nickname AS parent_nickname,
+      p.first_name AS parent_first_name,
       EXISTS (
         SELECT 1
         FROM app_role_assignment ra
@@ -437,6 +486,8 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
       ) AS has_global_child_access,
       c.id AS child_id,
       c.display_name AS child_name,
+      c.nickname AS child_nickname,
+      c.first_name AS child_first_name,
       ss.current_grade_num AS child_grade_num,
       grp_rocnik.code AS child_rocnik_code,
       grp_stupen.code AS child_stupen_code,
@@ -513,7 +564,11 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
       candidatesByParentId.get(row.parent_id) ??
       {
         id: row.parent_id,
-        displayName: row.parent_name,
+        displayName: resolvePersonName({
+          nickname: row.parent_nickname,
+          displayName: row.parent_name,
+          firstName: row.parent_first_name,
+        }),
         hasRodicRole: row.has_rodic_role,
         children: [],
       };
@@ -522,7 +577,14 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
       const rocnik = parseRocnik(row.child_grade_num ?? row.child_rocnik_code);
       candidate.children.push({
         id: row.child_id,
-        name: row.child_name,
+        name: resolvePersonName(
+          {
+            nickname: row.child_nickname,
+            displayName: row.child_name,
+            firstName: row.child_first_name,
+          },
+          { preferFirstName: true },
+        ),
         rocnik,
         stupen: parseStupen(row.child_stupen_code, rocnik),
         smecka: normalizeOptionalText(row.child_smecka_name),
