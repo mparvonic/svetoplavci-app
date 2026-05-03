@@ -51,8 +51,14 @@ export async function POST(req: NextRequest) {
   } else {
     const chipCode = body.chipCode?.trim();
     if (!chipCode) return NextResponse.json({ error: "chipCode required" }, { status: 400 });
+    // TEMP: log chip input for format debugging
+    console.log(`[kiosk-chip] received raw="${body.chipCode}" trimmed="${chipCode}" len=${chipCode.length}`);
     child = await findChildByChip(chipCode);
-    if (!child) return NextResponse.json({ error: "Čip nebyl rozpoznán." }, { status: 404 });
+    if (!child) {
+      console.log(`[kiosk-chip] not found for code="${chipCode}"`);
+      return NextResponse.json({ error: "Čip nebyl rozpoznán." }, { status: 404 });
+    }
+    console.log(`[kiosk-chip] matched child="${child.displayName}"`);
   }
 
   const terms = await getKioskTermsForChild(child);
