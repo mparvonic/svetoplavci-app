@@ -132,6 +132,7 @@ export interface KioskOstrov {
   focus: string | null;
   thumbnailUrl: string | null;
   guides: string[];
+  registrantNames: string[];
   capacity: number | null;
   occupied: number;
   registrationOpen: boolean;
@@ -234,6 +235,16 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
     orderBy: [{ offerGroup: { startsAt: "asc" } }, { kioskDisplayNumber: "asc" }],
   });
 
+  // Batch-load nicknames for all registrants
+  const allPersonIds = [...new Set(events.flatMap((e) => e.registrations.map((r) => r.personId)))];
+  const persons = allPersonIds.length > 0
+    ? await prisma.appPerson.findMany({
+        where: { id: { in: allPersonIds } },
+        select: { id: true, nickname: true, displayName: true },
+      })
+    : [];
+  const personNameById = new Map(persons.map((p) => [p.id, p.nickname || p.displayName || ""]));
+
   // Group by term
   const termMap = new Map<string, KioskTermGroup>();
 
@@ -247,7 +258,10 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
     const meta = (event.offerGroup.metadata as Record<string, unknown> | null) ?? {};
     const termDate = typeof meta["termDate"] === "string" ? meta["termDate"] : "";
 
-    const occupied = event.registrations.length;
+    const rawMeta0 = (event.metadata as Record<string, unknown> | null) ?? {};
+    const eventMeta0 = (rawMeta0.ostrovy as Record<string, unknown> | null) ?? rawMeta0;
+    const guestCount = Array.isArray(eventMeta0["guestChildren"]) ? (eventMeta0["guestChildren"] as string[]).length : 0;
+    const occupied = event.registrations.length + guestCount;
     const capacity = event.registrationPolicy?.capacity ?? null;
     const regOpen = isWindowOpen(
       event.registrationPolicy?.opensAt ?? null,
@@ -260,7 +274,8 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
       now,
     );
     const myReg = event.registrations.find((r) => r.personId === child.id);
-    const eventMeta = (event.metadata as Record<string, unknown> | null) ?? {};
+    const rawMeta = rawMeta0;
+    const eventMeta = eventMeta0;
 
     const island: KioskOstrov = {
       id: event.id,
@@ -275,6 +290,10 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
       guides: Array.isArray(eventMeta["guides"])
         ? (eventMeta["guides"] as Array<{ name?: string }>).map((g) => g.name ?? "").filter(Boolean)
         : [],
+      registrantNames: [
+        ...event.registrations.map((r) => personNameById.get(r.personId) ?? ""),
+        ...(Array.isArray(eventMeta["guestChildren"]) ? (eventMeta["guestChildren"] as string[]) : []),
+      ].filter(Boolean),
       capacity,
       occupied,
       registrationOpen: regOpen,

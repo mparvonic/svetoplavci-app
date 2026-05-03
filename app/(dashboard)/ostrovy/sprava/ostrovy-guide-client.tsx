@@ -566,8 +566,14 @@ function eventPayloadSignature(termId: string, draft: EventDraft): string | null
   return payload ? JSON.stringify(payload) : null;
 }
 
+function guestChildrenFromEvent(event: OstrovEvent): string[] {
+  const meta = metadataObject(metadataObject(event.metadata).ostrovy);
+  return Array.isArray(meta.guestChildren) ? (meta.guestChildren as string[]) : [];
+}
+
 function occupancy(event: OstrovEvent): number {
-  return event.registrations.filter((registration) => registration.status === "REGISTERED" || registration.status === "WAITLIST").length;
+  const registered = event.registrations.filter((registration) => registration.status === "REGISTERED" || registration.status === "WAITLIST").length;
+  return registered + guestChildrenFromEvent(event).length;
 }
 
 function hasCapacity(event: OstrovEvent): boolean {
@@ -622,6 +628,7 @@ export default function OstrovyGuideClient() {
   const [autoSaveError, setAutoSaveError] = useState<string | null>(null);
   const [guideSearch, setGuideSearch] = useState("");
   const [guestGuideName, setGuestGuideName] = useState("");
+  const [guestStudentName, setGuestStudentName] = useState("");
   const [audienceMode, setAudienceMode] = useState<AudienceMode>("rocnik-stupen");
   const [studentToAdd, setStudentToAdd] = useState("");
   const [transferTargets, setTransferTargets] = useState<Record<string, string>>({});
@@ -1242,6 +1249,35 @@ export default function OstrovyGuideClient() {
     }).then((res) => readJson(res));
   }
 
+  async function patchGuestChildren(eventId: string, guestChildren: string[]) {
+    const body = await fetch(`/api/ostrovy/guide/events/${eventId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guestChildren }),
+    }).then((res) => readJson<{ event: OstrovEvent }>(res));
+    mergeEventIntoSelectedTerm(body.event);
+  }
+
+  function addGuestStudent() {
+    const name = guestStudentName.trim();
+    if (!name || !selectedEvent) return;
+    const current = guestChildrenFromEvent(selectedEvent);
+    void runAction(
+      () => patchGuestChildren(selectedEvent.id, [...current, name]),
+      "Host byl přidán.",
+    );
+    setGuestStudentName("");
+  }
+
+  function removeGuestStudent(index: number) {
+    if (!selectedEvent) return;
+    const current = guestChildrenFromEvent(selectedEvent);
+    void runAction(
+      () => patchGuestChildren(selectedEvent.id, current.filter((_, i) => i !== index)),
+      "Host byl odebrán.",
+    );
+  }
+
   const registeredRows = selectedEvent?.registrations
     .filter((registration) => registration.status === "REGISTERED" || registration.status === "WAITLIST")
     .map((registration) => ({
@@ -1851,6 +1887,18 @@ export default function OstrovyGuideClient() {
                         Zapsat
                       </Button>
                     </div>
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <Input
+                        value={guestStudentName}
+                        onChange={(e) => setGuestStudentName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addGuestStudent(); } }}
+                        placeholder="Host bez účtu"
+                      />
+                      <Button type="button" variant="outline" onClick={addGuestStudent} disabled={!guestStudentName.trim() || saving}>
+                        <Plus />
+                        Přidat hosta
+                      </Button>
+                    </div>
 
                     <Table>
                       <TableHeader>
@@ -1861,7 +1909,7 @@ export default function OstrovyGuideClient() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {registeredRows.length === 0 && (
+                        {registeredRows.length === 0 && guestChildrenFromEvent(selectedEvent).length === 0 && (
                           <TableRow>
                             <TableCell colSpan={3} className="py-6 text-center text-slate-500">Zatím není nikdo zapsaný.</TableCell>
                           </TableRow>
@@ -1922,6 +1970,27 @@ export default function OstrovyGuideClient() {
                             </TableRow>
                           );
                         })}
+                        {guestChildrenFromEvent(selectedEvent).map((name, idx) => (
+                          <TableRow key={`guest-${idx}`}>
+                            <TableCell>
+                              <div className="font-medium text-[#0E2A5C]">{name}</div>
+                              <div className="text-xs text-slate-500">host</div>
+                            </TableCell>
+                            <TableCell />
+                            <TableCell className="text-right">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="border-[#C8372D] text-[#C8372D] hover:bg-[#FAEAE9]"
+                                disabled={saving}
+                                onClick={() => removeGuestStudent(idx)}
+                              >
+                                Odebrat
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   </>

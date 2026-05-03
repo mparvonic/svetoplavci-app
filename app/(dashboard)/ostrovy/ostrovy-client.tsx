@@ -19,6 +19,7 @@ type RegistrationPolicy = {
 type Child = {
   id: string;
   displayName: string;
+  firstName?: string | null;
 };
 
 type MyRegistration = {
@@ -298,7 +299,7 @@ export default function OstrovyClient() {
                 void load(child.id, { includeChildren: false });
               }}
             >
-              {child.displayName}
+              {child.firstName || child.displayName}
             </Button>
           ))}
         </div>
@@ -315,7 +316,7 @@ export default function OstrovyClient() {
       {selectedResult && grouped.length === 0 && (
         <Card className="border-[#D6DFF0]">
           <CardContent className="py-10 text-center text-sm text-slate-500">
-            Pro {selectedResult.child.displayName} nejsou dostupné žádné nadcházející Ostrovy.
+            Pro {selectedResult.child.firstName || selectedResult.child.displayName} nejsou dostupné žádné nadcházející Ostrovy.
           </CardContent>
         </Card>
       )}

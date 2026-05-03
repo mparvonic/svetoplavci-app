@@ -16,7 +16,7 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 type RegistrationAction = "register" | "unregister";
-type ChildSummary = { id: string; displayName: string };
+type ChildSummary = { id: string; displayName: string; firstName?: string | null };
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -35,7 +35,7 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
         isActive: true,
         roles: { some: { role: "zak", isActive: true } },
       },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, firstName: true },
       orderBy: { displayName: "asc" },
     });
   }
@@ -47,7 +47,7 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
           isActive: true,
           roles: { some: { role: "zak", isActive: true } },
         },
-        select: { id: true, displayName: true },
+        select: { id: true, displayName: true, firstName: true },
       })
     : [];
 
@@ -66,13 +66,13 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
         },
         select: {
           childPerson: {
-            select: { id: true, displayName: true },
+            select: { id: true, displayName: true, firstName: true },
           },
         },
       })
     : [];
 
-  const unique = new Map<string, { id: string; displayName: string }>();
+  const unique = new Map<string, ChildSummary>();
   for (const child of directStudents) unique.set(child.id, child);
   for (const link of parentChildren) unique.set(link.childPerson.id, link.childPerson);
   return [...unique.values()].sort((a, b) => a.displayName.localeCompare(b.displayName, "cs"));
@@ -92,7 +92,7 @@ async function resolveAccessibleChild(
         isActive: true,
         roles: { some: { role: "zak", isActive: true } },
       },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, firstName: true },
     });
   }
 
@@ -103,7 +103,7 @@ async function resolveAccessibleChild(
         isActive: true,
         roles: { some: { role: "zak", isActive: true } },
       },
-      select: { id: true, displayName: true },
+      select: { id: true, displayName: true, firstName: true },
     });
   }
 
@@ -123,7 +123,7 @@ async function resolveAccessibleChild(
       },
       select: {
         childPerson: {
-          select: { id: true, displayName: true },
+          select: { id: true, displayName: true, firstName: true },
         },
       },
     });
