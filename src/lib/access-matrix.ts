@@ -1,5 +1,3 @@
-import { APP_ROLES } from "@/src/lib/user-directory";
-
 export const GUIDE_ACCESS_ROLES = new Set([
   "tester",
   "ucitel",
@@ -9,7 +7,22 @@ export const GUIDE_ACCESS_ROLES = new Set([
 ]);
 
 export const CHILD_ACCESS_ROLES = new Set(["tester", "rodic", "zak"]);
-export const AUTHENTICATED_APP_ROLES = new Set(APP_ROLES as readonly string[]);
+// Keep this list local to avoid importing Prisma/Node-only modules into middleware (Edge runtime).
+export const AUTHENTICATED_APP_ROLES = new Set([
+  "admin",
+  "zamestnanec",
+  "ucitel",
+  "pruvodce",
+  "garant",
+  "patron",
+  "druzinar",
+  "editor_hodnoceni",
+  "schvalovatel_hodnoceni",
+  "rodic",
+  "zak",
+  "tester",
+  "proto",
+]);
 
 type RouteRoleRule = {
   prefix: string;

@@ -27,6 +27,13 @@ export function isBypassAllowedForHost(host: string): boolean {
   return isLocalHost(normalized);
 }
 
+export function resolveBypassHost(host: string | null | undefined): string {
+  const normalized = normalizeHost(host);
+  if (normalized) return normalized;
+  if (process.env.NODE_ENV === "development") return "localhost";
+  return "";
+}
+
 export function getConfiguredAppHost(): string {
   const configuredUrl = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL ?? "";
   if (!configuredUrl) return "";

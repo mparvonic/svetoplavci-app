@@ -135,6 +135,7 @@ Staging běží na stejném VPS v Coolify jako produkce, ale jako oddělená apl
 Detaily postupu refresh/anonymizace jsou v:
 
 - `docs/dev-database-refresh.md`
+- `docs/schema-rollout.md`
 
 ---
 
@@ -389,3 +390,24 @@ PR: staging → main
   ▼
 Produkce (app.svetoplavci.cz) ✓
 ```
+
+---
+
+## Odložený plán: Admin/Support bezpečnost
+
+Následující body jsou odsouhlasené jako další etapa a mají se realizovat později:
+
+- [ ] **Support ticket provozní workflow**
+  - definovat ownera, SLA, nástroj (Jira/Linear/Notion) a mapování `ticketId`.
+- [ ] **Centralizace bezpečnostních logů**
+  - napojit `support_ticket_created` a `break_glass_requested` na centrální log storage + alerting.
+- [ ] **Schvalovací vrstva pro break-glass**
+  - zavést 2-person approval, expiraci, read-only scope a možnost revokace.
+- [ ] **Support impersonation session (bez loginu cizím účtem)**
+  - read-only režim, maskování citlivých polí, krátká expirace, plný audit.
+- [ ] **Repo governance bez bypassu**
+  - v GitHub branch protection odebrat bypass pro `staging` a `main`.
+- [ ] **Role regression smoke test**
+  - ověřit přístupové scénáře pro role `admin`, `tester`, `rodic`, `zak`, `pruvodce`.
+- [ ] **Produkční rollout**
+  - po release `staging -> main` ověřit `/api/internal/security-health` na produkci.

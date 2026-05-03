@@ -6,6 +6,7 @@ import { getSelectedDevAuthUser } from "@/src/lib/dev-auth";
 import {
   getConfiguredAppHost,
   getRequestHost,
+  resolveBypassHost,
   getStagingAllowedEmailsFromEnv,
   isBypassAllowedForHost,
   isStagingHost,
@@ -29,7 +30,8 @@ export const CHILD_VIEW_ROLE_CODES = CHILD_ACCESS_ROLES;
 export const LOCAL_DEV_ROLES = ["admin", "tester", "pruvodce", "rodic", "zak"];
 
 export function isLocalDevAuthBypass(host = getConfiguredAppHost()): boolean {
-  if (!isBypassAllowedForHost(host)) return false;
+  const resolvedHost = resolveBypassHost(host);
+  if (!isBypassAllowedForHost(resolvedHost)) return false;
   if (process.env.AUTH_BYPASS === "1") return true;
   return process.env.NODE_ENV === "development" && process.env.AUTH_BYPASS !== "0";
 }

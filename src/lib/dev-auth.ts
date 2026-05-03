@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 
 import { prisma } from "@/src/lib/prisma";
 import { selectPrimaryRole, type AppRole } from "@/src/lib/user-directory";
-import { getConfiguredAppHost, isBypassAllowedForHost } from "@/src/lib/environment-access";
+import { getConfiguredAppHost, isBypassAllowedForHost, resolveBypassHost } from "@/src/lib/environment-access";
 
 export const DEV_AUTH_COOKIE_NAME = "svp_dev_user_id";
 
@@ -91,7 +91,7 @@ export function isProductionApplicationUrl(): boolean {
 }
 
 export function isDevAuthBypassEnabled(): boolean {
-  const host = getConfiguredAppHost();
+  const host = resolveBypassHost(getConfiguredAppHost());
   if (!isBypassAllowedForHost(host)) return false;
   if (process.env.AUTH_BYPASS === "1") return true;
   return process.env.NODE_ENV === "development" && process.env.AUTH_BYPASS !== "0";
