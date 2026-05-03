@@ -882,6 +882,8 @@ model AppSchoolEvent {
   source                  String                        @default("app")
   sourceRef               String?                       @map("source_ref")
   metadata                Json?
+  kioskDisplayNumber      Int?                          @map("kiosk_display_number")
+  kioskDisplayColor       String?                       @map("kiosk_display_color")
   createdByPersonId       String?                       @map("created_by_person_id")
   updatedByPersonId       String?                       @map("updated_by_person_id")
   createdAt               DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)

@@ -44,6 +44,8 @@ type OstrovEvent = {
   registrationPolicy: RegistrationPolicy | null;
   registrations: Registration[];
   audienceRules: AudienceRule[];
+  kioskDisplayNumber: number | null;
+  kioskDisplayColor: string | null;
 };
 
 type Term = {
@@ -1471,10 +1473,20 @@ export default function OstrovyGuideClient() {
                 )}
                 onClick={() => selectEvent(selectedTerm.id, event.id)}
               >
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">{event.title}</span>
-                  <span className="block text-xs text-slate-500">
-                    {focusLabel(eventFocus(event))} · {occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"}
+                <span className="min-w-0 flex items-center gap-2">
+                  {event.kioskDisplayNumber != null && event.kioskDisplayColor && (
+                    <span
+                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-black text-white"
+                      style={{ backgroundColor: event.kioskDisplayColor }}
+                    >
+                      {event.kioskDisplayNumber}
+                    </span>
+                  )}
+                  <span>
+                    <span className="block truncate font-medium">{event.title}</span>
+                    <span className="block text-xs text-slate-500">
+                      {focusLabel(eventFocus(event))} · {occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"}
+                    </span>
                   </span>
                 </span>
                 {!event.isActive && <Badge variant="outline">zrušený</Badge>}

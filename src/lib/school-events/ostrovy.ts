@@ -11,6 +11,7 @@ import {
 
 import { enqueueSchoolEventCalendarSyncJobs } from "@/src/lib/calendar/school-event-sync";
 import { prisma } from "@/src/lib/prisma";
+import { assignKioskSlot } from "@/src/lib/kiosk";
 import { upsertSchoolEventRegistration } from "@/src/lib/school-events/registration";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
@@ -747,6 +748,13 @@ export async function createOstrov(input: CreateOstrovInput, actorPersonId?: str
     });
 
     await replaceAudienceGroups(tx, event.id, audienceGroups);
+
+    const slot = await assignKioskSlot(tx, term.id);
+    await tx.appSchoolEvent.update({
+      where: { id: event.id },
+      data: { kioskDisplayNumber: slot.kioskDisplayNumber, kioskDisplayColor: slot.kioskDisplayColor },
+    });
+
     return event;
   });
 
@@ -790,6 +798,11 @@ export async function updateOstrov(
       offerGroupId = term.id;
     }
 
+    // When moving to a new term, assign fresh kiosk slot in the target term
+    const kioskUpdate = input.termId
+      ? await assignKioskSlot(tx, input.termId, eventId)
+      : undefined;
+
     const defaultWindow = defaultOstrovRegistrationWindow(startsAt);
     const opensAt = input.registrationOpensAt === undefined
       ? undefined
@@ -815,6 +828,7 @@ export async function updateOstrov(
         startsAt,
         endsAt,
         timeOverrideLock: input.termId ? true : undefined,
+        ...(kioskUpdate ?? {}),
         metadata: buildOstrovMetadata(current.metadata, {
           ...(input.focus !== undefined ? { focus: input.focus } : {}),
           ...(input.thumbnailUrl !== undefined ? { thumbnailUrl: input.thumbnailUrl } : {}),

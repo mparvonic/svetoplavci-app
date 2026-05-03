@@ -47,6 +47,8 @@ type OstrovEvent = {
   eligible: boolean;
   occupied: number;
   myRegistration: MyRegistration;
+  kioskDisplayNumber: number | null;
+  kioskDisplayColor: string | null;
 };
 
 type ChildResult = {
@@ -354,7 +356,18 @@ export default function OstrovyClient() {
                       <div className="space-y-1">
                         <div className="flex items-start justify-between gap-3">
                           <h2 className="sv-display text-2xl text-[#0E2A5C]">{event.title}</h2>
-                          {isMine && <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Zapsáno</Badge>}
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {event.kioskDisplayNumber != null && event.kioskDisplayColor && (
+                              <span
+                                className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-black text-white"
+                                style={{ backgroundColor: event.kioskDisplayColor }}
+                                title="Číslo ostrovu pro kiosek"
+                              >
+                                {event.kioskDisplayNumber}
+                              </span>
+                            )}
+                            {isMine && <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Zapsáno</Badge>}
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {focusLabel(event) && <Badge variant="outline">{focusLabel(event)}</Badge>}
