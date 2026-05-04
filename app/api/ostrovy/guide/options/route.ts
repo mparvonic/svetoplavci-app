@@ -26,6 +26,14 @@ type GroupRow = {
   memberCount: number;
 };
 
+type GuideRow = {
+  id: string;
+  displayName: string;
+  legalName: string;
+  identifier: string | null;
+  email: string | null;
+};
+
 const ROCNIKY = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 function stupenForRocnik(rocnik: number): number {
@@ -123,14 +131,9 @@ async function listActiveGroups(): Promise<GroupRow[]> {
   `);
 }
 
-export async function GET() {
-  const context = await getApiSessionContext();
-  if (!context) return unauthorized();
-  if (!hasAnySessionRole(context.roles, GUIDE_ROLE_CODES)) return forbidden();
-
-  const now = new Date();
-  const [guides, schoolLevelGroups, dbGroups] = await Promise.all([
-    prisma.appPerson.findMany({
+async function listGuides(now: Date): Promise<GuideRow[]> {
+  try {
+    const guides = await prisma.appPerson.findMany({
       where: {
         isActive: true,
         roles: {
@@ -145,6 +148,7 @@ export async function GET() {
       select: {
         id: true,
         displayName: true,
+        nickname: true,
         identifier: true,
         loginLinks: {
           where: {
@@ -168,18 +172,59 @@ export async function GET() {
         },
       },
       orderBy: [{ displayName: "asc" }],
-    }),
+    });
+
+    return guides.map((guide) => ({
+      id: guide.id,
+      displayName: guide.nickname?.trim() || guide.displayName,
+      legalName: guide.displayName,
+      identifier: guide.identifier,
+      email: guide.loginLinks[0]?.identity.normalizedValue ?? guide.sourceRecords[0]?.primaryEmail ?? null,
+    }));
+  } catch (error) {
+    console.warn("[ostrovy/options] Falling back to basic guide query.", error);
+    const fallbackGuides = await prisma.appPerson.findMany({
+      where: {
+        isActive: true,
+        roles: {
+          some: {
+            role: { equals: "pruvodce", mode: "insensitive" },
+            isActive: true,
+          },
+        },
+      },
+      select: {
+        id: true,
+        displayName: true,
+        nickname: true,
+      },
+      orderBy: [{ displayName: "asc" }],
+    });
+
+    return fallbackGuides.map((guide) => ({
+      id: guide.id,
+      displayName: guide.nickname?.trim() || guide.displayName,
+      legalName: guide.displayName,
+      identifier: null,
+      email: null,
+    }));
+  }
+}
+
+export async function GET(req: Request) {
+  const context = await getApiSessionContext(req);
+  if (!context) return unauthorized();
+  if (!hasAnySessionRole(context.roles, GUIDE_ROLE_CODES)) return forbidden();
+
+  const now = new Date();
+  const [guides, schoolLevelGroups, dbGroups] = await Promise.all([
+    listGuides(now),
     listSchoolLevelGroups(),
     listActiveGroups(),
   ]);
 
   return NextResponse.json({
-    guides: guides.map((guide) => ({
-      id: guide.id,
-      displayName: guide.displayName,
-      identifier: guide.identifier,
-      email: guide.loginLinks[0]?.identity.normalizedValue ?? guide.sourceRecords[0]?.primaryEmail ?? null,
-    })),
+    guides,
     groups: [...schoolLevelGroups, ...dbGroups],
   });
 }
