@@ -3,20 +3,47 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { KioskChild, KioskOstrov, KioskTermGroup } from "@/src/lib/kiosk";
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-
 const INACTIVITY_MS = 30_000;
 const API_KEY_PARAM = "k";
 const API_KEY_STORAGE = "kiosk_api_key";
+const SCAN_SUBMIT_DELAY_MS = 120;
 
-// ─── API helpers ──────────────────────────────────────────────────────────────
+function formatTermDate(value: string): string {
+  const raw = value.trim();
+  if (!raw) return value;
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("cs-CZ", {
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatTermTimeFrom(value: string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("cs-CZ", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Prague",
+  }).format(date);
+}
+
+function formatTermLabel(termDate: string, termStartsAt: string | null | undefined): string {
+  const datePart = formatTermDate(termDate);
+  const timePart = formatTermTimeFrom(termStartsAt);
+  return timePart ? `${datePart} od ${timePart}` : datePart;
+}
 
 function getStoredKey(): string {
   if (typeof window === "undefined") return "";
   const fromUrl = new URLSearchParams(window.location.search).get(API_KEY_PARAM);
   if (fromUrl) {
     sessionStorage.setItem(API_KEY_STORAGE, fromUrl);
-    // Clean URL without reloading
     const url = new URL(window.location.href);
     url.searchParams.delete(API_KEY_PARAM);
     window.history.replaceState({}, "", url.toString());
@@ -25,29 +52,79 @@ function getStoredKey(): string {
   return sessionStorage.getItem(API_KEY_STORAGE) ?? "";
 }
 
-async function apiPost(path: string, body: unknown, key: string) {
+async function apiPost<T>(path: string, body: unknown, key: string): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json", "x-kiosk-key": key },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Chyba serveru");
-  return data;
+
+  const text = await res.text();
+  let data: { error?: string } = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as { error?: string };
+    } catch {
+      data = {};
+    }
+  }
+
+  if (!res.ok) throw new Error(data.error ?? `Chyba serveru (HTTP ${res.status})`);
+  return data as T;
 }
 
-async function apiDelete(path: string, body: unknown, key: string) {
+async function apiDelete<T>(path: string, body: unknown, key: string): Promise<T> {
   const res = await fetch(path, {
     method: "DELETE",
     headers: { "content-type": "application/json", "x-kiosk-key": key },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "Chyba serveru");
-  return data;
+
+  const text = await res.text();
+  let data: { error?: string } = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as { error?: string };
+    } catch {
+      data = {};
+    }
+  }
+
+  if (!res.ok) throw new Error(data.error ?? `Chyba serveru (HTTP ${res.status})`);
+  return data as T;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+function ScreenMessage({
+  title,
+  subtitle,
+  accent,
+  spinner = false,
+}: {
+  title: string;
+  subtitle?: string;
+  accent: "blue" | "red" | "green";
+  spinner?: boolean;
+}) {
+  const accentClasses = {
+    blue: "border-sky-300/40 bg-sky-400/10 text-sky-100",
+    red: "border-rose-300/50 bg-rose-500/10 text-rose-100",
+    green: "border-emerald-300/50 bg-emerald-500/10 text-emerald-100",
+  };
+
+  return (
+    <div className="flex h-full items-center justify-center px-16">
+      <div className={`w-full max-w-[760px] rounded-[28px] border px-10 py-12 text-center shadow-2xl ${accentClasses[accent]}`}>
+        {spinner ? (
+          <div className="mx-auto mb-7 h-16 w-16 animate-spin rounded-full border-[6px] border-current border-t-transparent" />
+        ) : (
+          <div className="mx-auto mb-6 h-4 w-24 rounded-full bg-white/30" />
+        )}
+        <h2 className="sv-display-sm text-[44px] leading-[1.02] tracking-tight">{title}</h2>
+        {subtitle && <p className="mt-4 text-[20px] text-white/80">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
 
 function IslandCard({
   island,
@@ -65,79 +142,78 @@ function IslandCard({
   const isMine = myIslandId === island.id;
   const isFull = island.capacity != null && island.occupied >= island.capacity && !isMine;
   const color = island.kioskDisplayColor ?? "#607D8B";
-  const num = island.kioskDisplayNumber;
+  const occupancy = island.capacity && island.capacity > 0 ? Math.min(100, Math.round((island.occupied / island.capacity) * 100)) : 0;
 
   return (
-    <div
-      className="relative flex flex-col overflow-hidden rounded-2xl border-4 shadow-lg"
-      style={{ borderColor: color }}
+    <article
+      className="group relative flex h-full flex-col overflow-hidden rounded-[22px] border border-white/15 bg-[#061a40]/95 px-4 py-3 shadow-[0_12px_30px_rgba(2,7,24,0.45)]"
+      style={{ boxShadow: `0 12px 30px rgba(2, 7, 24, 0.45), inset 0 0 0 1px ${color}44` }}
     >
-      {/* Color header with number */}
-      <div
-        className="flex items-center justify-between px-3 py-2"
-        style={{ backgroundColor: color }}
-      >
-        {num != null && (
-          <span className="text-3xl font-black leading-none text-white drop-shadow">{num}</span>
-        )}
-        {island.thumbnailUrl ? (
-          <img
-            src={island.thumbnailUrl}
-            alt=""
-            className="h-10 w-16 rounded object-cover opacity-90"
-          />
-        ) : (
-          <div className="h-10 w-16 rounded bg-white/20" />
-        )}
-      </div>
+      <div className="absolute right-0 top-0 h-24 w-24 rounded-bl-[40px] opacity-40" style={{ background: `linear-gradient(145deg, ${color}AA, transparent)` }} />
 
-      {/* Content */}
-      <div className="flex flex-1 flex-col gap-1 bg-white px-3 py-2">
-        <div className="line-clamp-2 text-base font-bold leading-tight text-gray-900">
-          {island.title}
-        </div>
-        {island.location && (
-          <div className="text-xs text-gray-500">📍 {island.location}</div>
-        )}
-        {island.guides.length > 0 && (
-          <div className="text-xs text-gray-500">👤 {island.guides.join(", ")}</div>
-        )}
-        {island.capacity != null && (
-          <div className="text-xs text-gray-500">
-            {island.occupied}/{island.capacity} míst
-          </div>
-        )}
-
-        {/* Buttons */}
-        <div className="mt-auto flex gap-2 pt-1">
-          <button
-            onClick={() => onInfo(island)}
-            className="flex-1 rounded-lg border border-gray-300 bg-white py-1.5 text-xs font-semibold text-gray-700 active:bg-gray-50"
-          >
-            Info
-          </button>
-          {isMine ? (
-            <button
-              onClick={() => onUnregister(island)}
-              disabled={!island.unregisterOpen}
-              className="flex-1 rounded-lg py-1.5 text-xs font-semibold text-white disabled:opacity-40"
-              style={{ backgroundColor: island.unregisterOpen ? "#E74C3C" : "#9CA3AF" }}
-            >
-              Odhlásit
-            </button>
-          ) : (
-            <button
-              onClick={() => onRegister(island)}
-              disabled={isFull || !island.registrationOpen}
-              className="flex-1 rounded-lg py-1.5 text-xs font-semibold text-white disabled:opacity-40"
-              style={{ backgroundColor: isFull || !island.registrationOpen ? "#9CA3AF" : color }}
-            >
-              {isFull ? "Plno" : "Zapsat"}
-            </button>
+      <div className="relative flex items-start justify-between gap-2">
+        <div>
+          {island.kioskDisplayNumber != null && (
+            <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-full px-2 text-[18px] font-black text-white" style={{ backgroundColor: color }}>
+              {island.kioskDisplayNumber}
+            </span>
           )}
+          <h3 className="mt-2 line-clamp-2 text-[19px] font-extrabold leading-[1.12] text-white">{island.title}</h3>
         </div>
+        {island.thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={island.thumbnailUrl} alt="" className="h-12 w-16 rounded-lg object-cover ring-1 ring-white/20" />
+        ) : (
+          <div className="h-12 w-16 rounded-lg bg-white/8" />
+        )}
       </div>
-    </div>
+
+      <div className="mt-2 space-y-1 text-[12px] text-slate-200/90">
+        {island.location && <p className="line-clamp-1">Místo: {island.location}</p>}
+        {island.guides.length > 0 && <p className="line-clamp-1">Průvodce: {island.guides.join(", ")}</p>}
+      </div>
+
+      {island.capacity != null && (
+        <div className="mt-2">
+          <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-white/70">
+            <span>Obsazenost</span>
+            <span>
+              {island.occupied}/{island.capacity}
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-white/15">
+            <div className="h-2 rounded-full" style={{ width: `${occupancy}%`, backgroundColor: color }} />
+          </div>
+        </div>
+      )}
+
+      <div className="mt-auto flex gap-2 pt-3">
+        <button
+          onClick={() => onInfo(island)}
+          className="flex-1 rounded-xl border border-white/20 bg-white/5 py-2 text-[12px] font-semibold text-white/90 transition active:scale-[0.99]"
+        >
+          Detail
+        </button>
+        {isMine ? (
+          <button
+            onClick={() => onUnregister(island)}
+            disabled={!island.unregisterOpen}
+            className="flex-1 rounded-xl bg-rose-500 py-2 text-[12px] font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-40 active:scale-[0.99]"
+          >
+            Odhlásit
+          </button>
+        ) : (
+          <button
+            onClick={() => onRegister(island)}
+            disabled={isFull || !island.registrationOpen}
+            className="flex-1 rounded-xl py-2 text-[12px] font-bold text-white transition disabled:cursor-not-allowed disabled:bg-slate-500 disabled:opacity-60 active:scale-[0.99]"
+            style={{ backgroundColor: color }}
+          >
+            {isFull ? "Plno" : "Přihlásit"}
+          </button>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -159,96 +235,100 @@ function IslandModal({
   const color = island.kioskDisplayColor ?? "#607D8B";
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={onClose}
-    >
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-[#020617]/85 px-10" onClick={onClose}>
       <div
-        className="relative mx-4 max-w-sm w-full rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="relative grid h-[520px] w-[920px] grid-cols-[1.02fr_1fr] overflow-hidden rounded-[30px] border border-white/15 bg-[#091a3f] shadow-[0_30px_70px_rgba(0,0,0,0.55)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-3 px-5 py-4" style={{ backgroundColor: color }}>
-          {island.kioskDisplayNumber != null && (
-            <span className="text-4xl font-black text-white drop-shadow">
-              {island.kioskDisplayNumber}
-            </span>
-          )}
-          <h2 className="flex-1 text-lg font-bold text-white leading-tight">{island.title}</h2>
-        </div>
-        <div className="px-5 py-4 space-y-3">
-          {island.thumbnailUrl && (
-            <img
-              src={island.thumbnailUrl}
-              alt=""
-              className="w-full h-32 object-cover rounded-xl"
-            />
-          )}
-          {island.description && (
-            <p className="text-sm text-gray-700 leading-relaxed">{island.description}</p>
-          )}
-          {island.location && (
-            <div className="text-sm text-gray-500">📍 {island.location}</div>
-          )}
-          {island.guides.length > 0 && (
-            <div className="text-sm text-gray-500">👤 {island.guides.join(", ")}</div>
-          )}
-          {island.capacity != null && (
-            <div className="text-sm text-gray-500">
-              Obsazenost: {island.occupied}/{island.capacity}
+        <div className="relative flex flex-col overflow-hidden border-r border-white/10 bg-[#0d2554]">
+          <div className="absolute -left-16 -top-16 h-56 w-56 rounded-full opacity-30" style={{ background: `radial-gradient(circle, ${color}, transparent 70%)` }} />
+          <div className="relative px-7 pb-5 pt-7">
+            <div className="mb-3 inline-flex h-11 min-w-11 items-center justify-center rounded-full px-3 text-[20px] font-black text-white" style={{ backgroundColor: color }}>
+              {island.kioskDisplayNumber ?? "-"}
             </div>
+            <h2 className="sv-display-sm text-[38px] leading-[1.03] text-white">{island.title}</h2>
+            {island.location && <p className="mt-3 text-[15px] text-slate-200">Místo: {island.location}</p>}
+            {island.guides.length > 0 && <p className="mt-1 text-[15px] text-slate-200">Průvodce: {island.guides.join(", ")}</p>}
+          </div>
+          <div className="relative px-7 pb-7">
+            {island.thumbnailUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={island.thumbnailUrl} alt="" className="h-[190px] w-full rounded-2xl object-cover" />
+            ) : (
+              <div className="h-[190px] w-full rounded-2xl bg-white/10" />
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col px-7 pb-6 pt-7">
+          {island.description ? (
+            <p className="line-clamp-[10] text-[15px] leading-relaxed text-slate-100/90">{island.description}</p>
+          ) : (
+            <p className="text-[15px] text-slate-300">K tomuto ostrovu zatím není detailní popis.</p>
           )}
-          {island.registrantNames.length > 0 && (
-            <div>
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Přihlášení
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {island.registrantNames.map((name, i) => (
+
+          <div className="mt-5 rounded-2xl border border-white/15 bg-white/5 p-4">
+            <div className="mb-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-white/70">Přihlášení</div>
+            {island.registrantNames.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {island.registrantNames.slice(0, 22).map((name, idx) => (
                   <span
-                    key={i}
-                    className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
-                    style={{ backgroundColor: island.kioskDisplayColor ?? "#607D8B" }}
+                    key={idx}
+                    className="rounded-full px-2.5 py-1 text-[12px] font-semibold text-white"
+                    style={{ backgroundColor: `${color}CC` }}
                   >
                     {name}
                   </span>
                 ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-[13px] text-white/70">Zatím nikdo.</p>
+            )}
+          </div>
+
+          {island.capacity != null && (
+            <p className="mt-4 text-[14px] font-semibold text-white/80">
+              Obsazenost: {island.occupied}/{island.capacity}
+            </p>
           )}
-        </div>
-        <div className="flex gap-3 px-5 pb-5">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-xl border border-gray-300 py-3 text-sm font-semibold text-gray-700"
-          >
-            Zavřít
-          </button>
-          {isMine ? (
+
+          <div className="mt-auto flex gap-3 pt-5">
             <button
-              onClick={() => { onUnregister(island); onClose(); }}
-              disabled={!island.unregisterOpen}
-              className="flex-1 rounded-xl py-3 text-sm font-bold text-white disabled:opacity-40"
-              style={{ backgroundColor: "#E74C3C" }}
+              onClick={onClose}
+              className="flex-1 rounded-xl border border-white/25 bg-white/5 py-3 text-[14px] font-semibold text-white"
             >
-              Odhlásit
+              Zavřít
             </button>
-          ) : (
-            <button
-              onClick={() => { onRegister(island); onClose(); }}
-              disabled={isFull || !island.registrationOpen}
-              className="flex-1 rounded-xl py-3 text-sm font-bold text-white disabled:opacity-40"
-              style={{ backgroundColor: isFull || !island.registrationOpen ? "#9CA3AF" : color }}
-            >
-              {isFull ? "Plno" : "Zapsat"}
-            </button>
-          )}
+            {isMine ? (
+              <button
+                onClick={() => {
+                  onUnregister(island);
+                  onClose();
+                }}
+                disabled={!island.unregisterOpen}
+                className="flex-1 rounded-xl bg-rose-500 py-3 text-[14px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Odhlásit
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  onRegister(island);
+                  onClose();
+                }}
+                disabled={isFull || !island.registrationOpen}
+                className="flex-1 rounded-xl py-3 text-[14px] font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-500 disabled:opacity-60"
+                style={{ backgroundColor: color }}
+              >
+                {isFull ? "Plno" : "Přihlásit"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
-// ─── Main app ─────────────────────────────────────────────────────────────────
 
 type Screen =
   | { kind: "idle" }
@@ -258,31 +338,38 @@ type Screen =
   | { kind: "success"; message: string };
 
 export function KioskApp() {
-  const [apiKey, setApiKey] = useState("");
   const [screen, setScreen] = useState<Screen>({ kind: "idle" });
   const [activeTerm, setActiveTerm] = useState(0);
   const [modalIsland, setModalIsland] = useState<KioskOstrov | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [lastScanDebug, setLastScanDebug] = useState<{
+    raw: string;
+    compact: string;
+    at: string;
+  } | null>(null);
 
-  const chipInputRef = useRef<HTMLInputElement>(null);
+  const apiKeyRef = useRef(getStoredKey());
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scanSubmitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chipBuffer = useRef("");
   const childRef = useRef<KioskChild | null>(null);
-  const termsRef = useRef<KioskTermGroup[]>([]);
-
-  // Keep refs in sync
-  if (screen.kind === "islands") {
-    childRef.current = screen.child;
-    termsRef.current = screen.terms;
-  }
 
   useEffect(() => {
-    setApiKey(getStoredKey());
+    if (screen.kind === "islands") {
+      childRef.current = screen.child;
+    }
+  }, [screen]);
+
+  const resolveApiKey = useCallback(() => {
+    if (!apiKeyRef.current) {
+      apiKeyRef.current = getStoredKey();
+    }
+    return apiKeyRef.current;
   }, []);
 
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3000);
+    setTimeout(() => setToastMsg(null), 3200);
   }, []);
 
   const logout = useCallback(() => {
@@ -291,10 +378,8 @@ export function KioskApp() {
     setModalIsland(null);
     chipBuffer.current = "";
     childRef.current = null;
-    termsRef.current = [];
   }, []);
 
-  // Inactivity timer
   const resetInactivity = useCallback(() => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
     inactivityTimer.current = setTimeout(logout, INACTIVITY_MS);
@@ -304,76 +389,120 @@ export function KioskApp() {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
   }, []);
 
-  // Start/stop inactivity based on screen
+  const stopScanSubmitTimer = useCallback(() => {
+    if (scanSubmitTimer.current) clearTimeout(scanSubmitTimer.current);
+    scanSubmitTimer.current = null;
+  }, []);
+
   useEffect(() => {
     if (screen.kind === "islands") {
       resetInactivity();
       return () => stopInactivity();
-    } else {
-      stopInactivity();
     }
+    stopInactivity();
   }, [screen.kind, resetInactivity, stopInactivity]);
 
-  // Keep focus on chip input always
   useEffect(() => {
-    const focus = () => { chipInputRef.current?.focus(); };
-    focus();
-    document.addEventListener("click", focus);
-    document.addEventListener("touchend", focus);
-    return () => {
-      document.removeEventListener("click", focus);
-      document.removeEventListener("touchend", focus);
-    };
-  }, []);
+    return () => stopScanSubmitTimer();
+  }, [stopScanSubmitTimer]);
 
-  // Chip input handling — accumulate keystrokes, submit on Enter
-  const handleChipKey = useCallback(
-    async (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleChipSubmit = useCallback(
+    async (rawCode: string) => {
+      const code = rawCode.trim();
+      if (!code) return;
+
+      if (process.env.NODE_ENV === "development") {
+        setLastScanDebug({
+          raw: rawCode,
+          compact: rawCode.replace(/\s+/g, ""),
+          at: new Date().toLocaleTimeString("cs-CZ"),
+        });
+      }
+
+      setScreen({ kind: "loading", message: "Ověřuji čip..." });
+      try {
+        const data = await apiPost<{ child: KioskChild; terms: KioskTermGroup[] }>(
+          "/api/kiosk/chip",
+          { chipCode: code },
+          resolveApiKey(),
+        );
+
+        if (data.terms.length === 0) {
+          const childName = data.child.nickname || data.child.displayName;
+          setScreen({
+            kind: "success",
+            message: `Čip rozpoznán (${childName}), ale momentálně nejsou dostupné žádné ostrovy.`,
+          });
+          setTimeout(logout, 5000);
+          return;
+        }
+
+        setActiveTerm(0);
+        setScreen({ kind: "islands", child: data.child, terms: data.terms });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Nastala chyba.";
+        setScreen({ kind: "error", message: msg });
+        setTimeout(logout, 4000);
+      }
+    },
+    [resolveApiKey, logout],
+  );
+
+  useEffect(() => {
+    const submitFromBuffer = () => {
+      const raw = chipBuffer.current.trim();
+      chipBuffer.current = "";
+      stopScanSubmitTimer();
+      if (!raw) return;
+      void handleChipSubmit(raw);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
       if (screen.kind === "loading") return;
       resetInactivity();
 
-      if (e.key === "Enter") {
-        const code = chipBuffer.current.trim();
-        chipBuffer.current = "";
-        if (chipInputRef.current) chipInputRef.current.value = "";
-        if (!code) return;
-
-        setScreen({ kind: "loading", message: "Ověřuji čip…" });
-        try {
-          const data = await apiPost("/api/kiosk/chip", { chipCode: code }, apiKey);
-          if ((data.terms as KioskTermGroup[]).length === 0) {
-            setScreen({ kind: "error", message: "Momentálně nejsou dostupné žádné ostrovy." });
-            setTimeout(logout, 4000);
-          } else {
-            setActiveTerm(0);
-            setScreen({ kind: "islands", child: data.child as KioskChild, terms: data.terms as KioskTermGroup[] });
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "Nastala chyba.";
-          setScreen({ kind: "error", message: msg });
-          setTimeout(logout, 4000);
-        }
-      } else {
-        chipBuffer.current += e.key;
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        submitFromBuffer();
+        return;
       }
-    },
-    [screen.kind, apiKey, resetInactivity, logout],
-  );
+
+      if (e.key === "Backspace") {
+        chipBuffer.current = chipBuffer.current.slice(0, -1);
+        stopScanSubmitTimer();
+        return;
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        chipBuffer.current += e.key;
+        stopScanSubmitTimer();
+        scanSubmitTimer.current = setTimeout(() => submitFromBuffer(), SCAN_SUBMIT_DELAY_MS);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [screen.kind, resetInactivity, handleChipSubmit, stopScanSubmitTimer]);
 
   const handleRegister = useCallback(
     async (island: KioskOstrov) => {
       if (!childRef.current) return;
       resetInactivity();
       try {
-        await apiPost("/api/kiosk/register", { childId: childRef.current.id, islandId: island.id }, apiKey);
-        // Auto-logout after register
-        setScreen({ kind: "success", message: `Přihlášení na „${island.title}" proběhlo úspěšně!` });
+        await apiPost<{ ok: true }>(
+          "/api/kiosk/register",
+          { childId: childRef.current.id, islandId: island.id },
+          resolveApiKey(),
+        );
+        setScreen({ kind: "success", message: `Přihlášení na "${island.title}" proběhlo úspěšně.` });
         setTimeout(logout, 3000);
       } catch (err) {
         showToast(err instanceof Error ? err.message : "Chyba při přihlašování.");
       }
     },
-    [apiKey, resetInactivity, logout, showToast],
+    [resolveApiKey, resetInactivity, logout, showToast],
   );
 
   const handleUnregister = useCallback(
@@ -381,159 +510,175 @@ export function KioskApp() {
       if (!childRef.current) return;
       resetInactivity();
       try {
-        await apiDelete("/api/kiosk/register", { childId: childRef.current.id, islandId: island.id }, apiKey);
-        showToast("Odhlásili jste se z ostrovu.");
-        // Refresh terms from server
-        const refreshData = await apiPost("/api/kiosk/chip", { childId: childRef.current.id }, apiKey).catch(() => null);
+        await apiDelete<{ ok: true }>(
+          "/api/kiosk/register",
+          { childId: childRef.current.id, islandId: island.id },
+          resolveApiKey(),
+        );
+        showToast("Byli jste odhlášeni z ostrovu.");
+
+        const refreshData = await apiPost<{ child: KioskChild; terms: KioskTermGroup[] }>(
+          "/api/kiosk/chip",
+          { childId: childRef.current.id },
+          resolveApiKey(),
+        ).catch(() => null);
+
         if (refreshData?.terms) {
-          setScreen((prev) =>
-            prev.kind === "islands"
-              ? { ...prev, terms: refreshData.terms as KioskTermGroup[] }
-              : prev,
-          );
-        } else {
-          // Optimistic local update if refresh fails
-          setScreen((prev) => {
-            if (prev.kind !== "islands") return prev;
-            return {
-              ...prev,
-              terms: prev.terms.map((term) => ({
-                ...term,
-                myRegistrationId: term.myRegistrationId === island.id ? null : term.myRegistrationId,
-                islands: term.islands.map((isl) =>
-                  isl.id === island.id
-                    ? { ...isl, myRegistrationId: null, occupied: Math.max(0, isl.occupied - 1) }
-                    : isl,
-                ),
-              })),
-            };
-          });
+          setScreen((prev) => (prev.kind === "islands" ? { ...prev, terms: refreshData.terms } : prev));
+          return;
         }
+
+        setScreen((prev) => {
+          if (prev.kind !== "islands") return prev;
+          return {
+            ...prev,
+            terms: prev.terms.map((term) => ({
+              ...term,
+              myRegistrationId: term.myRegistrationId === island.id ? null : term.myRegistrationId,
+              islands: term.islands.map((isl) =>
+                isl.id === island.id
+                  ? { ...isl, myRegistrationId: null, occupied: Math.max(0, isl.occupied - 1) }
+                  : isl,
+              ),
+            })),
+          };
+        });
       } catch (err) {
         showToast(err instanceof Error ? err.message : "Chyba při odhlašování.");
       }
     },
-    [apiKey, resetInactivity, showToast],
+    [resolveApiKey, resetInactivity, showToast],
   );
-
-  // ── Render ────────────────────────────────────────────────────────────────
 
   const currentTerms = screen.kind === "islands" ? screen.terms : [];
   const activeTGroup = currentTerms[activeTerm] ?? currentTerms[0];
 
   return (
     <div
-      className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#F0F4FA] select-none"
+      className="relative h-full w-full overflow-hidden bg-[#041236] text-white select-none"
       onPointerMove={screen.kind === "islands" ? resetInactivity : undefined}
     >
-      {/* Hidden chip input — always captures keyboard */}
-      <input
-        ref={chipInputRef}
-        className="absolute opacity-0 pointer-events-none w-0 h-0"
-        onKeyDown={handleChipKey}
-        readOnly
-        tabIndex={0}
-        aria-hidden
-      />
+      <div className="pointer-events-none absolute -left-20 -top-24 h-[380px] w-[380px] rounded-full bg-[#2b6e8a]/25 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 right-0 h-[320px] w-[320px] rounded-full bg-[#c68a2d]/25 blur-3xl" />
 
-      {/* ── IDLE ─────────────────────────────────────────────────────────── */}
       {screen.kind === "idle" && (
-        <div className="sv-paper-grain flex flex-1 flex-col items-center justify-center gap-8 bg-[#EEF2F7] px-10">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/svetoplavci_logo.png"
-            alt="Světoplavci"
-            className="h-auto w-48"
-          />
-          <div className="text-center">
-            <div className="sv-eyebrow mb-2 tracking-[0.18em] text-[#C8372D]">Ostrovy</div>
-            <h1 className="sv-display-md text-[#0E2A5C]">
-              Přilož čip<br />
-              <span className="sv-italic-serif">a přihlaš se</span>
-            </h1>
-          </div>
-          <div className="rounded-2xl border border-[#D6DFF0] bg-white px-6 py-4 text-center text-sm text-[#4A5A7C] shadow-[var(--sv-shadow-paper)]">
-            Přilož svůj čip ke čtečce a vyber si ostrov.
-          </div>
-        </div>
-      )}
-
-      {/* ── LOADING ──────────────────────────────────────────────────────── */}
-      {screen.kind === "loading" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <div className="h-16 w-16 animate-spin rounded-full border-4 border-[#3498DB] border-t-transparent" />
-          <p className="text-xl text-[#4A5A7C]">{screen.message}</p>
-        </div>
-      )}
-
-      {/* ── ERROR ────────────────────────────────────────────────────────── */}
-      {screen.kind === "error" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8">
-          <div className="text-6xl">⚠️</div>
-          <p className="text-center text-2xl font-bold text-[#C8372D]">{screen.message}</p>
-          <p className="text-center text-lg text-[#7F88A0]">Vracíme se za chvíli…</p>
-        </div>
-      )}
-
-      {/* ── SUCCESS ──────────────────────────────────────────────────────── */}
-      {screen.kind === "success" && (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8">
-          <div className="text-6xl">✅</div>
-          <p className="text-center text-2xl font-bold text-[#2ECC71]">{screen.message}</p>
-        </div>
-      )}
-
-      {/* ── ISLANDS ──────────────────────────────────────────────────────── */}
-      {screen.kind === "islands" && activeTGroup && (
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Top bar */}
-          <div className="flex items-center justify-between bg-[#0E2A5C] px-4 py-2.5">
-            <div>
-              <span className="text-sm font-semibold text-white/70">Ahoj, </span>
-              <span className="text-base font-bold text-white">
-                {screen.child.nickname || screen.child.displayName}
-              </span>
+        <div className="relative grid h-full grid-cols-[1.12fr_0.88fr] gap-5 p-8">
+          <section className="relative overflow-hidden rounded-[30px] border border-white/12 bg-[#071c46]/95 p-10 shadow-2xl">
+            <div className="mb-6 flex items-center gap-3 text-[12px] font-semibold uppercase tracking-[0.2em] text-[#a9c7ff]">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#7cd3ff]" />
+              Kiosk Ostrovy
             </div>
 
-            {/* Term tabs */}
-            {currentTerms.length > 1 && (
-              <div className="flex gap-1">
-                {currentTerms.map((term, idx) => (
-                  <button
-                    key={term.termId}
-                    onClick={() => { setActiveTerm(idx); resetInactivity(); }}
-                    className="rounded-lg px-3 py-1 text-sm font-semibold transition-colors"
-                    style={{
-                      backgroundColor: idx === activeTerm ? "white" : "transparent",
-                      color: idx === activeTerm ? "#0E2A5C" : "rgba(255,255,255,0.7)",
-                    }}
-                  >
-                    {term.termDate}
-                  </button>
-                ))}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/svetoplavci_logo.png" alt="Světoplavci" className="mb-7 h-auto w-[170px]" />
+
+            <h1 className="sv-display-md text-[74px] leading-[0.92] text-white">
+              Přilož čip
+              <br />
+              <span className="text-[#b7d7ff]">a vyber ostrov</span>
+            </h1>
+            <p className="mt-6 max-w-[540px] text-[22px] leading-[1.3] text-white/78">
+              Přihlášení trvá jen pár sekund. Po načtení čipu se hned zobrazí dostupné ostrovy.
+            </p>
+
+          </section>
+
+          <section className="relative flex flex-col justify-between rounded-[30px] border border-white/12 bg-[#0b275d]/95 p-9 shadow-2xl">
+            <div>
+              <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-[#98b8ee]">Jak to funguje</p>
+              <ol className="mt-5 space-y-4 text-[21px] font-semibold leading-[1.25] text-white/92">
+                <li>1. Přilož čip ke čtečce.</li>
+                <li>2. Vyber ostrov.</li>
+                <li>3. Potvrď tlačítkem Přihlásit.</li>
+              </ol>
+            </div>
+
+            <div className="relative mt-8 rounded-3xl border border-white/15 bg-[#071b45] p-6">
+              <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-[#7cd3ff]/25" />
+              <div className="relative mx-auto flex h-24 w-24 items-center justify-center rounded-full border-2 border-[#7cd3ff] bg-[#0d2f67] text-[13px] font-bold uppercase tracking-[0.14em] text-[#d2e7ff]">
+                ČIP
               </div>
-            )}
+              <p className="mt-4 text-center text-[15px] font-medium text-white/75">Čtečka je aktivní a připravená.</p>
+            </div>
+          </section>
+        </div>
+      )}
 
-            <button
-              onClick={logout}
-              className="rounded-lg bg-white/10 px-3 py-1 text-sm font-semibold text-white active:bg-white/20"
-            >
-              Odhlásit
-            </button>
-          </div>
+      {screen.kind === "loading" && (
+        <ScreenMessage title="Načítám" subtitle={screen.message} accent="blue" spinner />
+      )}
 
-          {/* Island grid */}
-          <div className="flex-1 overflow-hidden p-3">
+      {screen.kind === "error" && (
+        <ScreenMessage title="Nepodařilo se pokračovat" subtitle={`${screen.message} Za chvíli to zkusíme znovu.`} accent="red" />
+      )}
+
+      {screen.kind === "success" && (
+        <ScreenMessage title="Hotovo" subtitle={screen.message} accent="green" />
+      )}
+
+      {screen.kind === "islands" && activeTGroup && (
+        <div className="relative flex h-full gap-5 p-5">
+          <aside className="flex w-[290px] flex-col rounded-[26px] border border-white/12 bg-[#081f4d]/95 p-5 shadow-2xl">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[#9ec1fa]">Přihlášený</p>
+            <h2 className="mt-2 text-[34px] font-extrabold leading-[1.03] text-white">
+              {screen.child.nickname || screen.child.displayName}
+            </h2>
+            <p className="mt-2 text-[14px] text-white/70">Vyber ostrov pro tento termín.</p>
+
+            <div className="mt-6 space-y-2">
+              {currentTerms.map((term, idx) => (
+                <button
+                  key={term.termId}
+                  onClick={() => {
+                    setActiveTerm(idx);
+                    resetInactivity();
+                  }}
+                  className="w-full rounded-xl border px-3 py-2.5 text-left text-[14px] font-semibold transition"
+                  style={{
+                    borderColor: idx === activeTerm ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.15)",
+                    backgroundColor: idx === activeTerm ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
+                    color: idx === activeTerm ? "#FFFFFF" : "rgba(255,255,255,0.72)",
+                  }}
+                >
+                  {formatTermDate(term.termDate)}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-auto space-y-3 pt-6">
+              <button
+                onClick={logout}
+                className="w-full rounded-xl border border-white/20 bg-white/8 py-3 text-[14px] font-bold text-white"
+              >
+                Odhlásit se
+              </button>
+              <p className="text-center text-[12px] text-white/55">Po 30 sekundách nečinnosti se kiosk automaticky odhlásí.</p>
+            </div>
+          </aside>
+
+          <section className="flex min-w-0 flex-1 flex-col rounded-[26px] border border-white/12 bg-[#061a43]/95 p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-[#9ec1fa]">Dostupné ostrovy</p>
+                <h3 className="sv-display-sm mt-1 text-[44px] leading-[0.95] text-white">
+                  {formatTermLabel(activeTGroup.termDate, activeTGroup.termStartsAt)}
+                </h3>
+              </div>
+              <div className="rounded-full border border-white/20 bg-white/8 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.1em] text-white/80">
+                {activeTGroup.islands.length} možností
+              </div>
+            </div>
+
             {activeTGroup.islands.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-xl text-[#4A5A7C]">
-                Žádné ostrovy nejsou dostupné.
+              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white/5 text-[22px] text-white/72">
+                Žádný ostrov není k dispozici.
               </div>
             ) : (
               <div
-                className="h-full grid gap-3"
+                className="grid h-full gap-3 overflow-hidden"
                 style={{
-                  gridTemplateColumns: `repeat(${Math.ceil(activeTGroup.islands.length / 2)}, 1fr)`,
                   gridTemplateRows: "1fr 1fr",
+                  gridTemplateColumns: `repeat(${Math.ceil(activeTGroup.islands.length / 2)}, minmax(0, 1fr))`,
                 }}
               >
                 {activeTGroup.islands.map((island) => (
@@ -548,11 +693,10 @@ export function KioskApp() {
                 ))}
               </div>
             )}
-          </div>
+          </section>
         </div>
       )}
 
-      {/* Modal */}
       {modalIsland && screen.kind === "islands" && (
         <IslandModal
           island={modalIsland}
@@ -563,10 +707,18 @@ export function KioskApp() {
         />
       )}
 
-      {/* Toast */}
       {toastMsg && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-xl bg-[#0E2A5C] px-5 py-3 text-sm font-semibold text-white shadow-xl">
+        <div className="absolute bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-2xl border border-white/20 bg-[#091d45] px-5 py-3 text-[14px] font-semibold text-white shadow-2xl">
           {toastMsg}
+        </div>
+      )}
+
+      {process.env.NODE_ENV === "development" && lastScanDebug && (
+        <div className="absolute bottom-4 right-4 z-50 max-w-[520px] rounded-xl border border-white/20 bg-black/55 px-3 py-2 text-[11px] text-white/90 shadow-2xl">
+          <div className="font-semibold">DEV scan debug ({lastScanDebug.at})</div>
+          <div className="font-mono">raw: {JSON.stringify(lastScanDebug.raw)}</div>
+          <div className="font-mono">compact: {JSON.stringify(lastScanDebug.compact)}</div>
+          <div className="font-mono">length: {lastScanDebug.raw.length}</div>
         </div>
       )}
     </div>
