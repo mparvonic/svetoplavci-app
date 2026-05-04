@@ -50,6 +50,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             POSTGRES_PRISMA_URL=${{ secrets.POSTGRES_PRISMA_URL }}
+            NEXT_DEPLOYMENT_ID=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

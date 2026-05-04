@@ -126,6 +126,42 @@ Staging běží na stejném VPS v Coolify jako produkce, ale jako oddělená apl
 - Produkční Neon database
 - Produkční Coda tabulky
 
+### Produkční user sync z Edookit (závazné)
+
+User sync běží přes endpoint:
+
+- `POST /api/sync/users`
+- autorizace: `Authorization: Bearer ${USER_SYNC_SECRET}`
+
+Standardní provozní režim:
+
+- **2x denně** v produkci (`app.svetoplavci.cz`)
+- doporučené časy: **06:00** a **18:00** (`Europe/Prague`)
+- payload:
+  - `{"mode":"daily"}`
+
+Kontrola posledních běhů:
+
+- `GET /api/sync/users` se stejnou bearer autorizací
+- výsledky se ukládají do tabulky `app_user_sync_run`
+
+Příklad cron konfigurace (mimo aplikaci, na scheduleru/serveru):
+
+```cron
+# Edookit -> PROD users sync (2x denne)
+0 6,18 * * * curl -fsS -X POST "https://app.svetoplavci.cz/api/sync/users" \
+  -H "Authorization: Bearer ${USER_SYNC_SECRET}" \
+  -H "Content-Type: application/json" \
+  --data '{"mode":"daily"}' \
+  >> /var/log/svetoplavci/user-sync.log 2>&1
+```
+
+Doporučené guardrails:
+
+- `USER_SYNC_SECRET` jen v secrets (nikdy v repozitáři)
+- při non-2xx odpovědi job failne a pošle alert
+- 1x denně ověřit, že poslední úspěšný běh není starší než 18 hodin
+
 ### Databázové prostředí (závazné)
 
 - **`svetoplavci`** = produkční DB (ostrý provoz).

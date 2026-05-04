@@ -2,18 +2,18 @@ import type { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import { getPostLoginDefaultPath } from "@/src/lib/post-login-path";
 
+const resolvedAuthSecret =
+  process.env.AUTH_SECRET ??
+  process.env.NEXTAUTH_SECRET ??
+  (process.env.NODE_ENV === "development" ? "dev-secret-pro-localhost-zmen-v-produkci" : undefined);
+
 /**
  * Edge-kompatibilní konfigurace NextAuth (bez Nodemailer/Node.js modulů).
  * Používá se v middleware. signIn + jwt callbacky (s DB lookup) jsou v auth.ts.
  */
 export const authConfig = {
   trustHost: true,
-  secret:
-    process.env.AUTH_SECRET ??
-    process.env.NEXTAUTH_SECRET ??
-    (process.env.NODE_ENV === "development"
-      ? "dev-secret-pro-localhost-zmen-v-produkci"
-      : undefined),
+  secret: resolvedAuthSecret,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,

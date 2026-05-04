@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2, RefreshCw, UsersRound, XCircle } from "lucide-re
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SimpleMarkdown } from "@/components/ui/simple-markdown";
 import { cn } from "@/lib/utils";
 
 type RegistrationStatus = "REGISTERED" | "UNREGISTERED" | "WAITLIST" | "CANCELED_BY_GUIDE";
@@ -376,7 +377,12 @@ export default function OstrovyClient() {
                         </div>
                       </div>
                       {event.description && (
-                        <p className="text-sm text-slate-600">{event.description}</p>
+                        <SimpleMarkdown
+                          text={event.description}
+                          className="space-y-2 text-sm text-slate-600"
+                          paragraphClassName="leading-relaxed"
+                          listClassName="space-y-1"
+                        />
                       )}
                       <div className="mt-auto space-y-2 text-xs text-slate-500">
                         <p>{event.location || "Místo bude upřesněno"}</p>

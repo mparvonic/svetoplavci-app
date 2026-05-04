@@ -2,11 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { KioskChild, KioskOstrov, KioskTermGroup } from "@/src/lib/kiosk";
+import { SimpleMarkdown } from "@/components/ui/simple-markdown";
 
 const INACTIVITY_MS = 30_000;
 const API_KEY_PARAM = "k";
 const API_KEY_STORAGE = "kiosk_api_key";
 const SCAN_SUBMIT_DELAY_MS = 120;
+const DEV_BYPASS_CHILD_STORAGE = "kiosk_dev_child_id";
+
+type DevBypassChild = {
+  id: string;
+  displayName: string;
+  legalName: string;
+};
 
 function formatTermDate(value: string): string {
   const raw = value.trim();
@@ -262,7 +270,12 @@ function IslandModal({
 
         <div className="flex flex-col px-7 pb-6 pt-7">
           {island.description ? (
-            <p className="line-clamp-[10] text-[15px] leading-relaxed text-slate-100/90">{island.description}</p>
+            <SimpleMarkdown
+              text={island.description}
+              className="max-h-[250px] space-y-2 overflow-y-auto pr-1 text-[15px] leading-relaxed text-slate-100/90"
+              paragraphClassName="leading-relaxed"
+              listClassName="space-y-1"
+            />
           ) : (
             <p className="text-[15px] text-slate-300">K tomuto ostrovu zatím není detailní popis.</p>
           )}
@@ -342,6 +355,9 @@ export function KioskApp() {
   const [activeTerm, setActiveTerm] = useState(0);
   const [modalIsland, setModalIsland] = useState<KioskOstrov | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [devBypassUsers, setDevBypassUsers] = useState<DevBypassChild[]>([]);
+  const [devBypassSelectedId, setDevBypassSelectedId] = useState("");
+  const [devBypassLoading, setDevBypassLoading] = useState(false);
   const [lastScanDebug, setLastScanDebug] = useState<{
     raw: string;
     compact: string;
@@ -406,6 +422,36 @@ export function KioskApp() {
     return () => stopScanSubmitTimer();
   }, [stopScanSubmitTimer]);
 
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    let cancelled = false;
+
+    async function loadDevBypassUsers() {
+      try {
+        const res = await fetch("/api/kiosk/dev-users", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = (await res.json()) as { users?: DevBypassChild[]; selectedId?: string | null };
+        if (cancelled) return;
+
+        const users = Array.isArray(body.users) ? body.users : [];
+        setDevBypassUsers(users);
+        if (users.length === 0) return;
+
+        const storedId = sessionStorage.getItem(DEV_BYPASS_CHILD_STORAGE) ?? "";
+        const fallbackId = body.selectedId ?? users[0]?.id ?? "";
+        const nextId = users.some((user) => user.id === storedId) ? storedId : fallbackId;
+        setDevBypassSelectedId(nextId);
+      } catch {
+        // Dev helper is optional; ignore load errors.
+      }
+    }
+
+    void loadDevBypassUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleChipSubmit = useCallback(
     async (rawCode: string) => {
       const code = rawCode.trim();
@@ -448,6 +494,41 @@ export function KioskApp() {
     [resolveApiKey, logout],
   );
 
+  const handleDevBypassLogin = useCallback(async () => {
+    if (!devBypassSelectedId) return;
+    setDevBypassLoading(true);
+    setScreen({ kind: "loading", message: "Načítám testovacího uživatele..." });
+    try {
+      const data = await apiPost<{ child: KioskChild; terms: KioskTermGroup[] }>(
+        "/api/kiosk/chip",
+        { childId: devBypassSelectedId },
+        resolveApiKey(),
+      );
+
+      sessionStorage.setItem(DEV_BYPASS_CHILD_STORAGE, devBypassSelectedId);
+
+      if (data.terms.length === 0) {
+        const childName = data.child.nickname || data.child.displayName;
+        setScreen({
+          kind: "success",
+          message: `Uživatel ${childName} nemá pro tento termín dostupné ostrovy.`,
+        });
+        setTimeout(logout, 4000);
+        return;
+      }
+
+      setActiveTerm(0);
+      setModalIsland(null);
+      setScreen({ kind: "islands", child: data.child, terms: data.terms });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Nastala chyba.";
+      setScreen({ kind: "error", message: msg });
+      setTimeout(logout, 4000);
+    } finally {
+      setDevBypassLoading(false);
+    }
+  }, [devBypassSelectedId, logout, resolveApiKey]);
+
   useEffect(() => {
     const submitFromBuffer = () => {
       const raw = chipBuffer.current.trim();
@@ -459,6 +540,13 @@ export function KioskApp() {
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (screen.kind === "loading") return;
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest("input, textarea, select, [contenteditable='true']")
+      ) {
+        return;
+      }
       resetInactivity();
 
       if (e.key === "Enter" || e.key === "Tab") {
@@ -600,6 +688,34 @@ export function KioskApp() {
               </div>
               <p className="mt-4 text-center text-[15px] font-medium text-white/75">Čtečka je aktivní a připravená.</p>
             </div>
+
+            {process.env.NODE_ENV === "development" && devBypassUsers.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-amber-300/35 bg-amber-100/10 p-4">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-amber-100">Dev bypass</p>
+                <p className="mt-1 text-[13px] text-amber-100/80">Testovací vstup bez čipu (jen localhost dev).</p>
+                <div className="mt-3 flex gap-2">
+                  <select
+                    value={devBypassSelectedId}
+                    onChange={(event) => setDevBypassSelectedId(event.target.value)}
+                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/20 bg-[#0d2f67] px-3 text-[13px] text-white outline-none"
+                  >
+                    {devBypassUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.displayName}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => void handleDevBypassLogin()}
+                    disabled={!devBypassSelectedId || devBypassLoading}
+                    className="rounded-xl bg-amber-400 px-4 text-[13px] font-bold text-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Přepnout
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       )}
@@ -644,6 +760,31 @@ export function KioskApp() {
                 </button>
               ))}
             </div>
+
+            {process.env.NODE_ENV === "development" && devBypassUsers.length > 0 && (
+              <div className="mt-4 space-y-2 rounded-xl border border-amber-300/30 bg-amber-100/10 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-100">Dev přepínač uživatele</p>
+                <select
+                  value={devBypassSelectedId}
+                  onChange={(event) => setDevBypassSelectedId(event.target.value)}
+                  className="h-9 w-full rounded-lg border border-white/20 bg-[#0d2f67] px-2 text-[12px] text-white outline-none"
+                >
+                  {devBypassUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.displayName}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void handleDevBypassLogin()}
+                  disabled={!devBypassSelectedId || devBypassLoading}
+                  className="w-full rounded-lg bg-amber-400 py-1.5 text-[12px] font-bold text-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Přepnout bez čipu
+                </button>
+              </div>
+            )}
 
             <div className="mt-auto space-y-3 pt-6">
               <button

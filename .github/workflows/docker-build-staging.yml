@@ -50,6 +50,7 @@ jobs:
           build-args: |
             POSTGRES_PRISMA_URL=${{ secrets.POSTGRES_PRISMA_URL_STAGING }}
             RUN_PRISMA_DB_PUSH=0
+            NEXT_DEPLOYMENT_ID=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
