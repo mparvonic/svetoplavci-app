@@ -161,3 +161,31 @@ Technicky je pravidlo vynucené v `src/lib/user-sync.ts` při upsertu osoby:
 
 - API záznamy mohou profil aktualizovat,
 - CSV/manual záznamy profil aktualizují jen u osob bez API zdroje.
+
+---
+
+### 8. Převod čipu: `Čip UID` -> `Čip HID`
+
+Pro kiosky a interní evidenci se používá:
+
+- `chip_uid` (hex řetězec, typicky 8 hex znaků, např. `006A4E74`)
+- `chip_hid` (desítkové číslo odvozené z UID)
+
+Výpočet `chip_hid` je **little-endian převod 4 bajtů**:
+
+1. `UID` se rozdělí na 4 bajty po 2 hex znacích: `B0 B1 B2 B3`
+2. `HID = B0 + B1*256 + B2*65536 + B3*16777216`
+
+Stejný vzorec je použitý v Coda i v app sync skriptech.
+
+Příklad:
+
+- `UID = 006A4E74`
+- `B0=0x00`, `B1=0x6A`, `B2=0x4E`, `B3=0x74`
+- `HID = 0 + 106*256 + 78*65536 + 116*16777216 = 1951296000`
+
+Poznámky:
+
+- před výpočtem je potřeba UID normalizovat (`trim`, `uppercase`),
+- pokud UID není přesně 8 hex znaků, HID se nepočítá (neplatná hodnota),
+- cílové sloupce v DB jsou `app_person.chip_uid` a `app_person.chip_hid`.

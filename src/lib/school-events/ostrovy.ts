@@ -299,7 +299,8 @@ async function getOstrovyEventTypeId(client: DbClient): Promise<string> {
 }
 
 function termName(startsAt: Date): string {
-  return `Ostrovy ${formatPragueDate(startsAt)}`;
+  const parts = getTimeZoneParts(startsAt, OSTROVY_TIMEZONE);
+  return `Ostrovy ${parts.day}. ${parts.month}. ${parts.year}`;
 }
 
 async function findCollidingTerm(
