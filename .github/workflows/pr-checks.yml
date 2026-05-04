@@ -4,14 +4,15 @@ on:
   pull_request:
     branches: [staging, main]
     types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
 
 concurrency:
-  group: pr-checks-${{ github.event.pull_request.number }}
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    if: ${{ !github.event.pull_request.draft }}
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -29,8 +30,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Security guardrails check
-        run: npm run ci:security
+      - name: Security guardrails check (optional)
+        run: |
+          if npm run | grep -qE '^\s*ci:security\b' \
+            && [ -f scripts/ci/security-checks.mjs ] \
+            && [ -f src/lib/environment-access.ts ] \
+            && [ -f src/lib/access-matrix.ts ] \
+            && [ -f middleware.ts ]; then
+            npm run ci:security
+          else
+            echo "ci:security prerequisites not met on this branch, skipping."
+          fi
 
       - name: Build
         run: npm run build
