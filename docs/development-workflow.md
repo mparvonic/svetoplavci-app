@@ -136,7 +136,7 @@ User sync běží přes endpoint:
 Standardní provozní režim:
 
 - **2x denně** v produkci (`app.svetoplavci.cz`)
-- doporučené časy: **06:00** a **18:00** (`Europe/Prague`)
+- plánované časy: **11:00** a **23:00** (`Europe/Prague`)
 - payload:
   - `{"mode":"daily"}`
 
@@ -145,16 +145,18 @@ Kontrola posledních běhů:
 - `GET /api/sync/users` se stejnou bearer autorizací
 - výsledky se ukládají do tabulky `app_user_sync_run`
 
-Příklad cron konfigurace (mimo aplikaci, na scheduleru/serveru):
+Aktuální produkční cron job (server `vps`, root crontab):
 
 ```cron
-# Edookit -> PROD users sync (2x denne)
-0 6,18 * * * curl -fsS -X POST "https://app.svetoplavci.cz/api/sync/users" \
-  -H "Authorization: Bearer ${USER_SYNC_SECRET}" \
-  -H "Content-Type: application/json" \
-  --data '{"mode":"daily"}' \
-  >> /var/log/svetoplavci/user-sync.log 2>&1
+# Edookit -> PROD users sync (2x denne, Europe/Prague)
+0 11,23 * * * /opt/prod/jobs/svetoplavci/sync_users_edookit_prod.sh >> /var/log/prod-sync/user-sync-edookit.log 2>&1 # svetoplavci-user-sync-edookit
 ```
+
+Skript `/opt/prod/jobs/svetoplavci/sync_users_edookit_prod.sh`:
+
+- najde běžící produkční kontejner image `ghcr.io/mparvonic/svetoplavci-app:latest`,
+- použije `USER_SYNC_SECRET` z prostředí kontejneru,
+- zavolá `POST http://127.0.0.1:3000/api/sync/users` s payloadem `{"mode":"daily"}`.
 
 Doporučené guardrails:
 
