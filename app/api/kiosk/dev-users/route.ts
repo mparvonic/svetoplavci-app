@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { DEV_AUTH_COOKIE_NAME } from "@/src/lib/dev-auth";
+import { isDevAuthBypassEnabled } from "@/src/lib/dev-auth";
 import { isBypassAllowedForHost, normalizeHost } from "@/src/lib/environment-access";
 import { prisma } from "@/src/lib/prisma";
 import { resolvePersonName } from "@/src/lib/person-name";
@@ -14,7 +15,7 @@ type DevKioskUser = {
 };
 
 function isDevKioskBypassEnabledForRequest(req: NextRequest): boolean {
-  if (process.env.NODE_ENV !== "development") return false;
+  if (!isDevAuthBypassEnabled()) return false;
   const host = normalizeHost(req.headers.get("x-forwarded-host") || req.headers.get("host"));
   return isBypassAllowedForHost(host);
 }
