@@ -156,7 +156,15 @@ Skript `/opt/prod/jobs/svetoplavci/sync_users_edookit_prod.sh`:
 
 - najde běžící produkční kontejner image `ghcr.io/mparvonic/svetoplavci-app:latest`,
 - použije `USER_SYNC_SECRET` z prostředí kontejneru,
+- volá endpoint přes `node`/`fetch` uvnitř kontejneru,
 - zavolá `POST http://127.0.0.1:3000/api/sync/users` s payloadem `{"mode":"daily"}`.
+
+Produkční aplikace v Coolify musí mít nastavené runtime proměnné:
+
+- `USER_SYNC_SECRET`
+- `EDOOKIT_BASE_URL`
+- `EDOOKIT_API_USERNAME`
+- `EDOOKIT_API_PASSWORD`
 
 Doporučené guardrails:
 
