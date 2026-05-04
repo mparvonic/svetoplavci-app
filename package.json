@@ -10,6 +10,7 @@
     "coda:columns": "node scripts/list-coda-columns.mjs",
     "photos:migrate-db": "node scripts/migrate-person-photos-to-db.mjs",
     "db:tunnel": "node scripts/db-tunnel.mjs",
+    "dev:db:up": "./scripts/dev-db-up.sh",
     "db:push": "sh -c 'set -a; . ./.env.local; set +a; prisma db push'",
     "db:check:schema": "sh -c 'set -a; . ./.env.local; set +a; node scripts/check-schema-drift.mjs'",
     "db:refresh:dev": "./scripts/db-refresh-dev.sh",

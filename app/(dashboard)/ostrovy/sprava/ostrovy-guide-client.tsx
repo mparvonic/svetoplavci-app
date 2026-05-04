@@ -61,7 +61,13 @@ type Term = {
 type Student = {
   id: string;
   displayName: string;
-  identifier: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  nickname: string | null;
+  rocnik: string | null;
+  smecka: string | null;
+  smeckaCode: string | null;
+  groupPairs: Array<{ kind: string; code: string }>;
   currentRegistration: {
     eventId: string;
     eventTitle: string;
@@ -69,12 +75,37 @@ type Student = {
   } | null;
 };
 
+type StudentOverviewGroupBy = "smecka" | "rocnik";
+
+type OverviewGuestRow = {
+  key: string;
+  eventId: string;
+  eventTitle: string;
+  guestIndex: number;
+  name: string;
+};
+
 type GuideOption = {
   id: string;
   displayName: string;
+  legalName: string;
   identifier: string | null;
   email: string | null;
 };
+
+type MoveDialogState =
+  | {
+      kind: "student";
+      personId: string;
+      sourceEventId: string;
+      label: string;
+    }
+  | {
+      kind: "guest";
+      guestIndex: number;
+      sourceEventId: string;
+      label: string;
+    };
 
 type AudienceGroupOption = {
   kind: string;
@@ -189,9 +220,22 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("cs-CZ", {
   minute: "2-digit",
 });
 
+const DATE_ONLY_FORMATTER = new Intl.DateTimeFormat("cs-CZ", {
+  day: "numeric",
+  month: "numeric",
+  year: "numeric",
+});
+
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "-";
   return DATE_TIME_FORMATTER.format(new Date(value));
+}
+
+function formatTermName(term: Pick<Term, "name" | "startsAt">): string {
+  if (term.startsAt) {
+    return `Ostrovy ${DATE_ONLY_FORMATTER.format(new Date(term.startsAt))}`;
+  }
+  return term.name;
 }
 
 function toLocalInputValue(value: string | null | undefined): string {
@@ -331,6 +375,80 @@ function eventFocus(event: OstrovEvent): Focus {
 
 function focusLabel(focus: Focus): string {
   return FOCUS_OPTIONS.find((item) => item.value === focus)?.label ?? "Bez zaměření";
+}
+
+function registrationStatusLabel(status: RegistrationStatus): string {
+  switch (status) {
+    case "REGISTERED":
+      return "Zapsáno";
+    case "WAITLIST":
+      return "Náhradník";
+    case "UNREGISTERED":
+      return "Odhlášeno";
+    case "CANCELED_BY_GUIDE":
+      return "Zrušeno průvodcem";
+    default:
+      return status;
+  }
+}
+
+function formatRocnikLabel(rocnik: string | null): string {
+  if (!rocnik) return "Bez ročníku";
+  const normalized = rocnik.trim();
+  if (!normalized) return "Bez ročníku";
+  if (/^\d+$/.test(normalized)) return `${normalized}. ročník`;
+  return `Ročník ${normalized}`;
+}
+
+function formatStudentGroupMeta(student: Pick<Student, "smecka" | "rocnik">): string {
+  const smecka = student.smecka?.trim() || "Bez smečky";
+  return `${smecka} · ${formatRocnikLabel(student.rocnik)}`;
+}
+
+function studentSearchIndex(student: Pick<Student, "displayName" | "firstName" | "lastName" | "nickname" | "smecka" | "rocnik">): string {
+  return normalizeSearchValue([
+    student.displayName,
+    student.firstName ?? "",
+    student.lastName ?? "",
+    student.nickname ?? "",
+    student.smecka ?? "",
+    student.rocnik ?? "",
+  ].join(" "));
+}
+
+function studentStupenCode(student: Pick<Student, "rocnik">): string | null {
+  const rocnik = student.rocnik?.trim() ?? "";
+  if (!/^\d+$/.test(rocnik)) return null;
+  const grade = Number(rocnik);
+  if (!Number.isFinite(grade) || grade < 1) return null;
+  return grade <= 5 ? "1" : "2";
+}
+
+function studentMatchesAudienceRule(student: Pick<Student, "rocnik" | "smeckaCode" | "groupPairs">, rule: AudienceRule): boolean {
+  const kind = rule.groupKind?.trim().toLowerCase();
+  const code = rule.groupCode?.trim().toLowerCase();
+  if (!kind || !code) return false;
+
+  if (kind === "rocnik") {
+    return (student.rocnik?.trim().toLowerCase() ?? "") === code;
+  }
+  if (kind === "stupen") {
+    return studentStupenCode(student) === code;
+  }
+  if (kind === "smecka") {
+    return (student.smeckaCode?.trim().toLowerCase() ?? "") === code;
+  }
+  return student.groupPairs.some((group) => group.kind === kind && group.code === code);
+}
+
+function studentCanJoinEvent(student: Pick<Student, "rocnik" | "smeckaCode" | "groupPairs">, event: Pick<OstrovEvent, "audienceRules">): boolean {
+  const groupRules = event.audienceRules.filter((rule) => Boolean(rule.groupKind && rule.groupCode));
+  if (groupRules.length === 0) return true;
+  return groupRules.some((rule) => studentMatchesAudienceRule(student, rule));
+}
+
+function eventRegisteredChildrenCount(event: Pick<OstrovEvent, "registrations">): number {
+  return event.registrations.filter((registration) => registration.status === "REGISTERED" || registration.status === "WAITLIST").length;
 }
 
 function eventThumbnail(event: OstrovEvent): string {
@@ -619,6 +737,9 @@ export default function OstrovyGuideClient() {
   const [termMoveTargetId, setTermMoveTargetId] = useState("");
   const [showTermManagement, setShowTermManagement] = useState(false);
   const [isEventEditorOpen, setIsEventEditorOpen] = useState(false);
+  const [isStudentOverviewOpen, setIsStudentOverviewOpen] = useState(false);
+  const [studentOverviewGroupBy, setStudentOverviewGroupBy] = useState<StudentOverviewGroupBy>("smecka");
+  const [studentOverviewSearch, setStudentOverviewSearch] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const [imageSearching, setImageSearching] = useState(false);
   const [imageSearchInfo, setImageSearchInfo] = useState<string | null>(null);
@@ -629,9 +750,16 @@ export default function OstrovyGuideClient() {
   const [guideSearch, setGuideSearch] = useState("");
   const [guestGuideName, setGuestGuideName] = useState("");
   const [guestStudentName, setGuestStudentName] = useState("");
+  const [overviewGuestName, setOverviewGuestName] = useState("");
+  const [overviewGuestTargetEventId, setOverviewGuestTargetEventId] = useState("");
+  const [overviewGuestTransferTargets, setOverviewGuestTransferTargets] = useState<Record<string, string>>({});
   const [audienceMode, setAudienceMode] = useState<AudienceMode>("rocnik-stupen");
   const [studentToAdd, setStudentToAdd] = useState("");
-  const [transferTargets, setTransferTargets] = useState<Record<string, string>>({});
+  const [studentAddQuery, setStudentAddQuery] = useState("");
+  const [studentAddMenuOpen, setStudentAddMenuOpen] = useState(false);
+  const [moveDialog, setMoveDialog] = useState<MoveDialogState | null>(null);
+  const [moveDialogTargetId, setMoveDialogTargetId] = useState("");
+  const [overviewTargets, setOverviewTargets] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -706,10 +834,135 @@ export default function OstrovyGuideClient() {
       .filter((guide) => !selectedGuidePersonIds.has(guide.id))
       .filter((guide) => {
         if (!query) return true;
-        return normalizeSearchValue(`${guide.displayName} ${guide.email ?? ""} ${guide.identifier ?? ""}`).includes(query);
+        return normalizeSearchValue(
+          `${guide.displayName} ${guide.legalName} ${guide.email ?? ""} ${guide.identifier ?? ""}`,
+        ).includes(query);
       })
       .slice(0, 8);
   }, [guideOptions, guideSearch, selectedGuidePersonIds]);
+  const guideOptionById = useMemo(() => new Map(guideOptions.map((guide) => [guide.id, guide])), [guideOptions]);
+  const eligibleStudentsForSelectedEvent = useMemo(() => {
+    return students
+      .filter((student) => (selectedEvent ? studentCanJoinEvent(student, selectedEvent) : true))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, "cs"));
+  }, [selectedEvent, students]);
+  const studentAddSuggestions = useMemo(() => {
+    const query = normalizeSearchValue(studentAddQuery.trim());
+    return eligibleStudentsForSelectedEvent
+      .filter((student) => (query ? studentSearchIndex(student).includes(query) : true))
+      .slice(0, 14);
+  }, [eligibleStudentsForSelectedEvent, studentAddQuery]);
+  const studentsWithRegistrationCount = useMemo(
+    () => students.filter((student) => student.currentRegistration !== null).length,
+    [students],
+  );
+  const studentsWithoutRegistrationCount = Math.max(students.length - studentsWithRegistrationCount, 0);
+  const eligibleEventIdsByStudent = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    const termEvents = selectedTerm?.events ?? [];
+    for (const student of students) {
+      const allowed = new Set<string>();
+      for (const event of termEvents) {
+        if (studentCanJoinEvent(student, event)) allowed.add(event.id);
+      }
+      map.set(student.id, allowed);
+    }
+    return map;
+  }, [selectedTerm?.events, students]);
+  const moveDialogOptions = useMemo(() => {
+    if (!moveDialog || !selectedTerm) return [];
+    if (moveDialog.kind === "student") {
+      const allowed = eligibleEventIdsByStudent.get(moveDialog.personId) ?? new Set<string>();
+      return selectedTerm.events.filter((event) => (
+        event.id !== moveDialog.sourceEventId &&
+        allowed.has(event.id) &&
+        hasCapacity(event)
+      ));
+    }
+    return selectedTerm.events.filter((event) => event.id !== moveDialog.sourceEventId && hasCapacity(event));
+  }, [eligibleEventIdsByStudent, moveDialog, selectedTerm]);
+  const eventStatsById = useMemo(() => {
+    const stats = new Map<string, { capacity: number | null; registered: number; unregistered: number; eligible: number }>();
+    for (const event of selectedTerm?.events ?? []) {
+      const eligible = students.filter((student) => studentCanJoinEvent(student, event)).length;
+      const registered = eventRegisteredChildrenCount(event);
+      const capacity = event.registrationPolicy?.capacity ?? null;
+      const maxForUnregistered = capacity ?? eligible;
+      const unregistered = Math.max(maxForUnregistered - registered, 0);
+      stats.set(event.id, { capacity, registered, unregistered, eligible });
+    }
+    return stats;
+  }, [selectedTerm?.events, students]);
+  const termCapacity = useMemo(() => {
+    const capacities = (selectedTerm?.events ?? []).map((event) => event.registrationPolicy?.capacity ?? null);
+    if (capacities.length === 0) return null;
+    if (capacities.some((capacity) => capacity == null)) return null;
+    const finiteCapacities = capacities.filter((capacity): capacity is number => capacity != null);
+    return finiteCapacities.reduce((sum, capacity) => sum + capacity, 0);
+  }, [selectedTerm?.events]);
+  const filteredStudentsForOverview = useMemo(() => {
+    const query = normalizeSearchValue(studentOverviewSearch.trim());
+    return students
+      .filter((student) => (query ? studentSearchIndex(student).includes(query) : true))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, "cs"));
+  }, [studentOverviewSearch, students]);
+  const groupedStudentsForOverview = useMemo(() => {
+    const groups = new Map<string, { label: string; sortGrade: number; sortPack: string; students: Student[] }>();
+    for (const student of filteredStudentsForOverview) {
+      const rocnikCode = student.rocnik?.trim() ?? "";
+      const rocnikSort = /^\d+$/.test(rocnikCode) ? Number(rocnikCode) : 999;
+      const smeckaName = student.smecka?.trim() || "Nezařazené";
+      if (studentOverviewGroupBy === "rocnik") {
+        const label = formatRocnikLabel(student.rocnik);
+        const key = `rocnik:${rocnikCode || "__none"}`;
+        const group = groups.get(key) ?? { label, sortGrade: rocnikSort, sortPack: "", students: [] };
+        group.students.push(student);
+        groups.set(key, group);
+        continue;
+      }
+      const key = `smecka:${normalizeSearchValue(smeckaName)}`;
+      const label = smeckaName;
+      const group = groups.get(key) ?? { label, sortGrade: rocnikSort, sortPack: normalizeSearchValue(smeckaName), students: [] };
+      group.sortGrade = Math.min(group.sortGrade, rocnikSort);
+      group.students.push(student);
+      groups.set(key, group);
+    }
+    return [...groups.values()]
+      .sort((a, b) => {
+        if (a.sortGrade !== b.sortGrade) return a.sortGrade - b.sortGrade;
+        return a.sortPack.localeCompare(b.sortPack, "cs");
+      })
+      .map((group) => ({
+        label: group.label,
+        students: group.students.sort((a, b) => {
+          const aGrade = /^\d+$/.test(a.rocnik?.trim() ?? "") ? Number(a.rocnik?.trim()) : 999;
+          const bGrade = /^\d+$/.test(b.rocnik?.trim() ?? "") ? Number(b.rocnik?.trim()) : 999;
+          if (aGrade !== bGrade) return aGrade - bGrade;
+          return a.displayName.localeCompare(b.displayName, "cs");
+        }),
+      }));
+  }, [filteredStudentsForOverview, studentOverviewGroupBy]);
+  const filteredGuestsForOverview = useMemo(() => {
+    const query = normalizeSearchValue(studentOverviewSearch.trim());
+    const rows: OverviewGuestRow[] = [];
+    for (const event of selectedTerm?.events ?? []) {
+      const guests = guestChildrenFromEvent(event);
+      guests.forEach((guestName, guestIndex) => {
+        const trimmedName = guestName.trim();
+        if (!trimmedName) return;
+        const searchable = normalizeSearchValue(`${trimmedName} ${event.title}`);
+        if (query && !searchable.includes(query)) return;
+        rows.push({
+          key: `${event.id}:${guestIndex}:${trimmedName.toLowerCase()}`,
+          eventId: event.id,
+          eventTitle: event.title,
+          guestIndex,
+          name: trimmedName,
+        });
+      });
+    }
+    return rows.sort((a, b) => a.name.localeCompare(b.name, "cs"));
+  }, [selectedTerm?.events, studentOverviewSearch]);
 
   const loadTerms = useCallback(async () => {
     const from = encodeURIComponent(new Date().toISOString());
@@ -923,23 +1176,34 @@ export default function OstrovyGuideClient() {
     setSelectedTermId(termId);
     setSelectedEventId(null);
     setIsEventEditorOpen(false);
+    setIsStudentOverviewOpen(false);
   }
 
   function startNewEvent() {
     setSelectedEventId(null);
     setEventDraft(makeDraftForNewEvent(selectedTerm));
     setIsEventEditorOpen(true);
+    setIsStudentOverviewOpen(false);
   }
 
   function selectEvent(termId: string, eventId: string) {
     setSelectedTermId(termId);
     setSelectedEventId(eventId);
     setIsEventEditorOpen(true);
+    setIsStudentOverviewOpen(false);
+  }
+
+  function openStudentsOverview(termId: string) {
+    setSelectedTermId(termId);
+    setSelectedEventId(null);
+    setIsEventEditorOpen(false);
+    setIsStudentOverviewOpen(true);
   }
 
   function closeEventEditor() {
     setSelectedEventId(null);
     setIsEventEditorOpen(false);
+    setIsStudentOverviewOpen(false);
   }
 
   function applyImageResponse(body: ImageActionResponse) {
@@ -1041,6 +1305,11 @@ export default function OstrovyGuideClient() {
     setGuideSearch("");
   }
 
+  function guideDraftLabel(guide: GuideDraftItem): string {
+    if (!guide.personId) return guide.name;
+    return guideOptionById.get(guide.personId)?.displayName ?? guide.name;
+  }
+
   function addGuestGuide() {
     const name = guestGuideName.trim();
     if (!name) return;
@@ -1050,6 +1319,12 @@ export default function OstrovyGuideClient() {
 
   function removeGuide(index: number) {
     setGuideDraftItems(selectedGuides.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  function selectStudentToAdd(student: Student) {
+    setStudentToAdd(student.id);
+    setStudentAddQuery(student.displayName);
+    setStudentAddMenuOpen(false);
   }
 
   function toggleAudienceGroup(option: { kind: string; code: string }) {
@@ -1239,6 +1514,8 @@ export default function OstrovyGuideClient() {
       body: JSON.stringify({ personId, action: "register", allowTransfer }),
     }).then((res) => readJson(res));
     setStudentToAdd("");
+    setStudentAddQuery("");
+    setStudentAddMenuOpen(false);
   }
 
   async function unregisterStudent(eventId: string, personId: string) {
@@ -1258,12 +1535,44 @@ export default function OstrovyGuideClient() {
     mergeEventIntoSelectedTerm(body.event);
   }
 
+  function eventById(eventId: string): OstrovEvent | null {
+    return selectedTerm?.events.find((event) => event.id === eventId) ?? null;
+  }
+
+  async function addGuestStudentToEvent(eventId: string, name: string) {
+    const event = eventById(eventId);
+    if (!event) throw new Error("Vyberte ostrov pro hosta.");
+    await patchGuestChildren(event.id, [...guestChildrenFromEvent(event), name]);
+  }
+
+  async function removeGuestStudentFromEvent(eventId: string, guestIndex: number) {
+    const event = eventById(eventId);
+    if (!event) throw new Error("Vybraný ostrov už neexistuje.");
+    await patchGuestChildren(event.id, guestChildrenFromEvent(event).filter((_, index) => index !== guestIndex));
+  }
+
+  async function moveGuestStudentBetweenEvents(sourceEventId: string, guestIndex: number, targetEventId: string) {
+    if (sourceEventId === targetEventId) return;
+    const sourceEvent = eventById(sourceEventId);
+    const targetEvent = eventById(targetEventId);
+    if (!sourceEvent || !targetEvent) throw new Error("Zdrojový nebo cílový ostrov už neexistuje.");
+
+    const sourceGuests = [...guestChildrenFromEvent(sourceEvent)];
+    const movedName = sourceGuests[guestIndex];
+    if (!movedName) throw new Error("Host už na zdrojovém ostrově není.");
+
+    sourceGuests.splice(guestIndex, 1);
+    const targetGuests = [...guestChildrenFromEvent(targetEvent), movedName];
+
+    await patchGuestChildren(sourceEvent.id, sourceGuests);
+    await patchGuestChildren(targetEvent.id, targetGuests);
+  }
+
   function addGuestStudent() {
     const name = guestStudentName.trim();
     if (!name || !selectedEvent) return;
-    const current = guestChildrenFromEvent(selectedEvent);
     void runAction(
-      () => patchGuestChildren(selectedEvent.id, [...current, name]),
+      () => addGuestStudentToEvent(selectedEvent.id, name),
       "Host byl přidán.",
     );
     setGuestStudentName("");
@@ -1271,11 +1580,46 @@ export default function OstrovyGuideClient() {
 
   function removeGuestStudent(index: number) {
     if (!selectedEvent) return;
-    const current = guestChildrenFromEvent(selectedEvent);
     void runAction(
-      () => patchGuestChildren(selectedEvent.id, current.filter((_, i) => i !== index)),
+      () => removeGuestStudentFromEvent(selectedEvent.id, index),
       "Host byl odebrán.",
     );
+  }
+
+  function openStudentMoveDialog(personId: string, label: string) {
+    if (!selectedEvent) return;
+    setMoveDialog({
+      kind: "student",
+      personId,
+      sourceEventId: selectedEvent.id,
+      label,
+    });
+    setMoveDialogTargetId("");
+  }
+
+  function openGuestMoveDialog(guestIndex: number, label: string) {
+    if (!selectedEvent) return;
+    setMoveDialog({
+      kind: "guest",
+      guestIndex,
+      sourceEventId: selectedEvent.id,
+      label,
+    });
+    setMoveDialogTargetId("");
+  }
+
+  function closeMoveDialog() {
+    setMoveDialog(null);
+    setMoveDialogTargetId("");
+  }
+
+  async function submitMoveDialog() {
+    if (!moveDialog || !moveDialogTargetId) return;
+    if (moveDialog.kind === "student") {
+      await registerStudent(moveDialogTargetId, moveDialog.personId, true);
+      return;
+    }
+    await moveGuestStudentBetweenEvents(moveDialog.sourceEventId, moveDialog.guestIndex, moveDialogTargetId);
   }
 
   const registeredRows = selectedEvent?.registrations
@@ -1299,8 +1643,8 @@ export default function OstrovyGuideClient() {
       <header className="sv-section-header flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="sv-eyebrow text-[#C8372D]">Průvodce</p>
-          <h1 className="sv-display-md mt-1 text-[#0E2A5C]">Správa Ostrovů</h1>
-          <p className="mt-2 text-sm text-[#4A5A7C]">Jednorázové termíny, nabídka ostrovů a zápisy dětí.</p>
+          <h1 className="sv-display-md mt-1 text-[#0E2A5C]">Správa ostrovů</h1>
+          <p className="mt-2 text-sm text-[#4A5A7C]">Termíny, nabídka ostrovů a zápisy dětí.</p>
         </div>
         <Button
           type="button"
@@ -1367,7 +1711,7 @@ export default function OstrovyGuideClient() {
                 <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <div className="text-sm font-semibold text-[#0E2A5C]">Upravit vybraný termín</div>
-                    <div className="text-xs text-slate-500">{selectedTerm.name}</div>
+                    <div className="text-xs text-slate-500">{formatTermName(selectedTerm)}</div>
                   </div>
                   <Badge variant="outline">{selectedTerm.events.length} ostrovů</Badge>
                 </div>
@@ -1417,7 +1761,7 @@ export default function OstrovyGuideClient() {
                       >
                         <option value="">Přesunout ostrovy do termínu...</option>
                         {terms.filter((item) => item.id !== selectedTerm.id).map((item) => (
-                          <option key={item.id} value={item.id}>{item.name}</option>
+                          <option key={item.id} value={item.id}>{formatTermName(item)}</option>
                         ))}
                       </select>
                       <Button
@@ -1469,7 +1813,7 @@ export default function OstrovyGuideClient() {
                 onClick={() => selectTerm(term.id)}
               >
                 <span className="min-w-0">
-                  <span className="block truncate font-semibold text-[#0E2A5C]">{term.name}</span>
+                  <span className="block truncate font-semibold text-[#0E2A5C]">{formatTermName(term)}</span>
                   <span className="block text-xs text-slate-500">{formatDateTime(term.startsAt)} - {formatDateTime(term.endsAt)}</span>
                 </span>
                 <Badge variant="outline">{term.events.length}</Badge>
@@ -1482,7 +1826,7 @@ export default function OstrovyGuideClient() {
               <div>
                 <div className="text-xs font-semibold uppercase text-slate-500">Ostrovy ve vybraném termínu</div>
                 <div className="text-sm font-semibold text-[#0E2A5C]">
-                  {selectedTerm ? selectedTerm.name : "Bez termínu"}
+                  {selectedTerm ? formatTermName(selectedTerm) : "Bez termínu"}
                 </div>
               </div>
               <Button
@@ -1498,6 +1842,30 @@ export default function OstrovyGuideClient() {
 
             {!selectedTerm && (
               <p className="rounded-lg bg-[#EEF2F7] p-4 text-sm text-slate-500">Vyberte nebo založte termín.</p>
+            )}
+            {selectedTerm && (
+              <button
+                type="button"
+                className={cn(
+                  "flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm",
+                  isStudentOverviewOpen
+                    ? "border-[#0E2A5C] bg-[#EEF2F7] text-[#0E2A5C]"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-[#EEF2F7]",
+                )}
+                onClick={() => openStudentsOverview(selectedTerm.id)}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">Všechny děti a zápisy</span>
+                  <span className="block text-xs text-slate-500">Přehled zápisů v termínu</span>
+                </span>
+                <span className="shrink-0 text-right text-xs text-slate-500">
+                  <span>Kapacita {termCapacity ?? "bez limitu"}</span>
+                  <span className="mx-1.5">·</span>
+                  <span>Zapsáno {studentsWithRegistrationCount}</span>
+                  <span className="mx-1.5">·</span>
+                  <span>Nezapsáno {studentsWithoutRegistrationCount}</span>
+                </span>
+              </button>
             )}
             {selectedTerm && selectedTerm.events.length === 0 && (
               <p className="rounded-lg border border-dashed border-[#D6DFF0] bg-[#EEF2F7] p-4 text-sm text-slate-500">
@@ -1526,9 +1894,16 @@ export default function OstrovyGuideClient() {
                   <span>
                     <span className="block truncate font-medium">{event.title}</span>
                     <span className="block text-xs text-slate-500">
-                      {focusLabel(eventFocus(event))} · {occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"}
+                      {focusLabel(eventFocus(event))}
                     </span>
                   </span>
+                </span>
+                <span className="shrink-0 text-right text-xs text-slate-500">
+                  <span>Kapacita {eventStatsById.get(event.id)?.capacity ?? "bez limitu"}</span>
+                  <span className="mx-1.5">·</span>
+                  <span>Zapsáno {eventStatsById.get(event.id)?.registered ?? 0}</span>
+                  <span className="mx-1.5">·</span>
+                  <span>Nezapsáno {eventStatsById.get(event.id)?.unregistered ?? 0}</span>
                 </span>
                 {!event.isActive && <Badge variant="outline">zrušený</Badge>}
               </button>
@@ -1540,12 +1915,270 @@ export default function OstrovyGuideClient() {
       <Card className="border-[#D6DFF0]">
         <CardHeader className="pb-3">
           <CardTitle className="text-base text-[#0E2A5C]">
-            {isEventEditorOpen ? (selectedEvent ? "Detail ostrova" : "Nový ostrov") : "Detail ostrova"}
+            {isStudentOverviewOpen ? "Přehled zápisů dětí" : isEventEditorOpen ? (selectedEvent ? "Detail ostrova" : "Nový ostrov") : "Detail ostrova"}
           </CardTitle>
-          <CardDescription>{selectedTerm ? selectedTerm.name : "Nejdříve vyberte nebo založte termín."}</CardDescription>
+          <CardDescription>{selectedTerm ? formatTermName(selectedTerm) : "Nejdříve vyberte nebo založte termín."}</CardDescription>
         </CardHeader>
         <CardContent>
-          {isEventEditorOpen ? (
+          {isStudentOverviewOpen ? (
+            <div className="space-y-4">
+              <div className="rounded-md border border-[#D6DFF0] bg-[#EEF2F7] p-3">
+                <div className="text-sm font-semibold text-[#0E2A5C]">Všechny děti ve vybraném termínu</div>
+                <div className="text-xs text-slate-500">
+                  Zapsáno {studentsWithRegistrationCount} z {students.length} dětí
+                </div>
+              </div>
+              <div className="grid gap-2 rounded-md border border-[#D6DFF0] bg-white p-3 md:grid-cols-[minmax(220px,1fr)_auto]">
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium text-slate-700">Vyhledat dítě</span>
+                  <Input
+                    value={studentOverviewSearch}
+                    onChange={(event) => setStudentOverviewSearch(event.target.value)}
+                    placeholder="Jméno, příjmení nebo přezdívka"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium text-slate-700">Seskupit podle</span>
+                  <select
+                    className="h-10 rounded-[12px] border border-[#D6DFF0] bg-white px-3 text-sm text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20"
+                    value={studentOverviewGroupBy}
+                    onChange={(event) => setStudentOverviewGroupBy(event.target.value as StudentOverviewGroupBy)}
+                  >
+                    <option value="smecka">Smečky</option>
+                    <option value="rocnik">Ročníky</option>
+                  </select>
+                </label>
+              </div>
+              <div className="space-y-3 rounded-md border border-[#D6DFF0] bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-[#0E2A5C]">Hosté (děti bez účtu)</div>
+                    <div className="text-xs text-slate-500">
+                      {filteredGuestsForOverview.length > 0
+                        ? `${filteredGuestsForOverview.length} hostů v aktuálním filtru`
+                        : "Zatím nejsou zapsáni žádní hosté."}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-2 md:grid-cols-[minmax(180px,1fr)_minmax(220px,1fr)_auto]">
+                  <Input
+                    value={overviewGuestName}
+                    onChange={(event) => setOverviewGuestName(event.target.value)}
+                    placeholder="Jméno hosta"
+                  />
+                  <select
+                    className="h-10 rounded-[12px] border border-[#D6DFF0] bg-white px-3 text-sm text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20"
+                    value={overviewGuestTargetEventId}
+                    onChange={(event) => setOverviewGuestTargetEventId(event.target.value)}
+                  >
+                    <option value="">Vyberte ostrov...</option>
+                    {selectedTerm?.events.map((event) => (
+                      <option key={event.id} value={event.id} disabled={!hasCapacity(event)}>
+                        {event.title} ({occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"})
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={saving || !overviewGuestName.trim() || !overviewGuestTargetEventId}
+                    onClick={() => {
+                      const trimmedName = overviewGuestName.trim();
+                      if (!trimmedName || !overviewGuestTargetEventId) return;
+                      void runAction(
+                        () => addGuestStudentToEvent(overviewGuestTargetEventId, trimmedName),
+                        "Host byl přidán.",
+                      );
+                      setOverviewGuestName("");
+                    }}
+                  >
+                    <Plus />
+                    Přidat hosta
+                  </Button>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Host</TableHead>
+                      <TableHead>Aktuální zápis</TableHead>
+                      <TableHead>Změnit</TableHead>
+                      <TableHead className="text-right">Akce</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredGuestsForOverview.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-4 text-center text-sm text-slate-500">
+                          V aktuálním filtru nejsou žádní hosté.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {filteredGuestsForOverview.map((guest) => {
+                      const target = overviewGuestTransferTargets[guest.key] ?? "";
+                      return (
+                        <TableRow key={guest.key}>
+                          <TableCell>
+                            <div className="font-medium text-[#0E2A5C]">{guest.name}</div>
+                            <div className="text-xs text-slate-500">Host bez účtu</div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-sm text-slate-700">{guest.eventTitle}</div>
+                          </TableCell>
+                          <TableCell>
+                            <select
+                              className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs"
+                              value={target}
+                              onChange={(event) => setOverviewGuestTransferTargets((current) => ({ ...current, [guest.key]: event.target.value }))}
+                            >
+                              <option value="">Ostrov...</option>
+                              {selectedTerm?.events
+                                .filter((event) => event.id !== guest.eventId)
+                                .map((event) => (
+                                  <option key={event.id} value={event.id} disabled={!hasCapacity(event)}>
+                                    {event.title} ({occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"})
+                                  </option>
+                                ))}
+                            </select>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={saving || !target}
+                                onClick={() => void runAction(
+                                  () => moveGuestStudentBetweenEvents(guest.eventId, guest.guestIndex, target),
+                                  "Host byl přesunut.",
+                                )}
+                              >
+                                Změnit
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="border-[#C8372D] text-[#C8372D] hover:bg-[#FAEAE9]"
+                                disabled={saving}
+                                onClick={() => void runAction(
+                                  () => removeGuestStudentFromEvent(guest.eventId, guest.guestIndex),
+                                  "Host byl odebrán.",
+                                )}
+                              >
+                                Zrušit
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="space-y-4">
+                {groupedStudentsForOverview.length === 0 && (
+                  <div className="rounded-lg border border-dashed border-[#D6DFF0] bg-[#EEF2F7] p-4 text-sm text-slate-500">
+                    Žádné dítě neodpovídá aktuálnímu filtru.
+                  </div>
+                )}
+                {groupedStudentsForOverview.map((group) => (
+                  <div key={group.label} className="space-y-2 rounded-md border border-[#D6DFF0] bg-white p-3">
+                    <div className="text-sm font-semibold text-[#0E2A5C]">{group.label}</div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Dítě</TableHead>
+                          <TableHead>Aktuální zápis</TableHead>
+                          <TableHead>Změnit</TableHead>
+                          <TableHead className="text-right">Akce</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {group.students.map((student) => {
+                          const target = overviewTargets[student.id] ?? student.currentRegistration?.eventId ?? "";
+                          const eligibleEventIds = eligibleEventIdsByStudent.get(student.id) ?? new Set<string>();
+                          return (
+                            <TableRow key={student.id}>
+                              <TableCell>
+                                <div className="font-medium text-[#0E2A5C]">{student.displayName}</div>
+                                <div className="text-xs text-slate-500">{formatStudentGroupMeta(student)}</div>
+                              </TableCell>
+                              <TableCell>
+                                {student.currentRegistration ? (
+                                  <div className="space-y-1">
+                                    <div className="text-sm text-slate-700">{student.currentRegistration.eventTitle}</div>
+                                    <Badge className="bg-[#0E2A5C] text-white hover:bg-[#0E2A5C]">
+                                      {registrationStatusLabel(student.currentRegistration.status)}
+                                    </Badge>
+                                  </div>
+                                ) : (
+                                  <Badge variant="outline">Nezapsáno</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <select
+                                  className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs"
+                                  value={target}
+                                  onChange={(event) => setOverviewTargets((current) => ({ ...current, [student.id]: event.target.value }))}
+                                >
+                                  <option value="">Ostrov...</option>
+                                  {selectedTerm?.events.map((event) => (
+                                    <option
+                                      key={event.id}
+                                      value={event.id}
+                                      disabled={
+                                        !eligibleEventIds.has(event.id) ||
+                                        (!hasCapacity(event) && event.id !== student.currentRegistration?.eventId)
+                                      }
+                                    >
+                                      {event.title} ({occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"})
+                                    </option>
+                                  ))}
+                                </select>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={saving || !target || target === student.currentRegistration?.eventId || !eligibleEventIds.has(target)}
+                                    onClick={() => void runAction(
+                                      () => registerStudent(target, student.id, true),
+                                      student.currentRegistration ? "Zápis dítěte byl změněn." : "Dítě bylo zapsáno.",
+                                    )}
+                                  >
+                                    {student.currentRegistration ? "Změnit" : "Zapsat"}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-[#C8372D] text-[#C8372D] hover:bg-[#FAEAE9]"
+                                    disabled={saving || !student.currentRegistration}
+                                    onClick={() => {
+                                      const currentRegistration = student.currentRegistration;
+                                      if (!currentRegistration) return;
+                                      void runAction(
+                                        () => unregisterStudent(currentRegistration.eventId, student.id),
+                                        "Dítě bylo odhlášeno.",
+                                      );
+                                    }}
+                                  >
+                                    Zrušit
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : isEventEditorOpen ? (
             <div className="grid gap-4 lg:grid-cols-[minmax(420px,1.15fr)_minmax(340px,0.85fr)]">
               <section className="space-y-4">
                 <div className="grid gap-3 md:grid-cols-2">
@@ -1680,12 +2313,12 @@ export default function OstrovyGuideClient() {
                       <div className="flex flex-wrap gap-2">
                         {selectedGuides.map((guide, index) => (
                           <Badge key={`${guide.personId ?? guide.name}-${index}`} variant="outline" className="gap-1 border-[#D6DFF0] bg-[#EEF2F7] text-slate-700">
-                            {guide.name}
+                            {guideDraftLabel(guide)}
                             <button
                               type="button"
                               className="ml-1 rounded-full text-slate-500 hover:text-[#C8372D]"
                               onClick={() => removeGuide(index)}
-                              aria-label={`Odebrat ${guide.name}`}
+                              aria-label={`Odebrat ${guideDraftLabel(guide)}`}
                             >
                               <X className="size-3" />
                             </button>
@@ -1713,6 +2346,9 @@ export default function OstrovyGuideClient() {
                             >
                               <span className="min-w-0">
                                 <span className="block truncate font-medium text-[#0E2A5C]">{guide.displayName}</span>
+                                {guide.legalName !== guide.displayName && (
+                                  <span className="block truncate text-xs text-slate-500">{guide.legalName}</span>
+                                )}
                                 {guide.email && <span className="block truncate text-xs text-slate-500">{guide.email}</span>}
                               </span>
                               <UserPlus className="size-4 shrink-0 text-slate-500" />
@@ -1858,21 +2494,44 @@ export default function OstrovyGuideClient() {
                 {selectedEvent ? (
                   <>
                     <div className="flex flex-col gap-2">
-                      <label className="grid gap-1 text-sm">
+                      <label className="relative grid gap-1 text-sm">
                         <span className="font-medium text-slate-700">Přidat nebo přesunout dítě</span>
-                        <select
-                          className="h-9 rounded-md border border-input bg-white px-3 text-sm shadow-xs"
-                          value={studentToAdd}
-                          onChange={(event) => setStudentToAdd(event.target.value)}
-                        >
-                          <option value="">Vyberte dítě...</option>
-                          {students.map((student) => {
-                            const label = student.currentRegistration
-                              ? `${student.displayName} - ${student.currentRegistration.eventTitle}`
-                              : student.displayName;
-                            return <option key={student.id} value={student.id}>{label}</option>;
-                          })}
-                        </select>
+                        <Input
+                          value={studentAddQuery}
+                          onFocus={() => setStudentAddMenuOpen(true)}
+                          onBlur={() => setTimeout(() => setStudentAddMenuOpen(false), 120)}
+                          onChange={(event) => {
+                            const next = event.target.value;
+                            setStudentAddQuery(next);
+                            setStudentAddMenuOpen(true);
+                            setStudentToAdd("");
+                          }}
+                          placeholder="Jméno, příjmení nebo přezdívka"
+                        />
+                        {studentAddMenuOpen && (
+                          <div className="absolute z-20 mt-[68px] max-h-60 w-full overflow-auto rounded-md border border-[#D6DFF0] bg-white shadow-lg">
+                            {studentAddSuggestions.length === 0 && (
+                              <div className="px-3 py-2 text-sm text-slate-500">Žádné dítě neodpovídá zadání.</div>
+                            )}
+                            {studentAddSuggestions.map((student) => (
+                              <button
+                                key={student.id}
+                                type="button"
+                                className="w-full px-3 py-2 text-left text-sm hover:bg-[#EEF2F7]"
+                                onMouseDown={(event) => {
+                                  event.preventDefault();
+                                  selectStudentToAdd(student);
+                                }}
+                              >
+                                <span className="block truncate font-medium text-[#0E2A5C]">{student.displayName}</span>
+                                <span className="block truncate text-xs text-slate-500">
+                                  {student.firstName ?? ""} {student.lastName ?? ""} · {formatStudentGroupMeta(student)}
+                                  {student.currentRegistration ? ` · ${student.currentRegistration.eventTitle}` : ""}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </label>
                       <Button
                         type="button"
@@ -1904,39 +2563,21 @@ export default function OstrovyGuideClient() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Dítě</TableHead>
-                          <TableHead>Změnit</TableHead>
                           <TableHead className="text-right">Akce</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {registeredRows.length === 0 && guestChildrenFromEvent(selectedEvent).length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={3} className="py-6 text-center text-slate-500">Zatím není nikdo zapsaný.</TableCell>
+                            <TableCell colSpan={2} className="py-6 text-center text-slate-500">Zatím není nikdo zapsaný.</TableCell>
                           </TableRow>
                         )}
                         {registeredRows.map(({ registration, student }) => {
-                          const target = transferTargets[registration.personId] ?? "";
                           return (
                             <TableRow key={registration.personId}>
                               <TableCell>
                                 <div className="font-medium text-[#0E2A5C]">{student?.displayName ?? registration.personId}</div>
-                                {student?.identifier && <div className="text-xs text-slate-500">{student.identifier}</div>}
-                              </TableCell>
-                              <TableCell>
-                                <select
-                                  className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs"
-                                  value={target}
-                                  onChange={(event) => setTransferTargets((current) => ({ ...current, [registration.personId]: event.target.value }))}
-                                >
-                                  <option value="">Ostrov...</option>
-                                  {selectedTerm?.events
-                                    .filter((event) => event.id !== selectedEvent.id)
-                                    .map((event) => (
-                                      <option key={event.id} value={event.id} disabled={!hasCapacity(event)}>
-                                        {event.title} ({occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"})
-                                      </option>
-                                    ))}
-                                </select>
+                                {student && <div className="text-xs text-slate-500">{formatStudentGroupMeta(student)}</div>}
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
@@ -1944,11 +2585,8 @@ export default function OstrovyGuideClient() {
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    disabled={saving || !target}
-                                    onClick={() => void runAction(
-                                      () => registerStudent(target, registration.personId, true),
-                                      "Dítě bylo přesunuto.",
-                                    )}
+                                    disabled={saving}
+                                    onClick={() => openStudentMoveDialog(registration.personId, student?.displayName ?? registration.personId)}
                                   >
                                     Změnit
                                   </Button>
@@ -1976,18 +2614,28 @@ export default function OstrovyGuideClient() {
                               <div className="font-medium text-[#0E2A5C]">{name}</div>
                               <div className="text-xs text-slate-500">host</div>
                             </TableCell>
-                            <TableCell />
                             <TableCell className="text-right">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="border-[#C8372D] text-[#C8372D] hover:bg-[#FAEAE9]"
-                                disabled={saving}
-                                onClick={() => removeGuestStudent(idx)}
-                              >
-                                Odebrat
-                              </Button>
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={saving}
+                                  onClick={() => openGuestMoveDialog(idx, name)}
+                                >
+                                  Změnit
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-[#C8372D] text-[#C8372D] hover:bg-[#FAEAE9]"
+                                  disabled={saving}
+                                  onClick={() => removeGuestStudent(idx)}
+                                >
+                                  Odebrat
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -2008,6 +2656,51 @@ export default function OstrovyGuideClient() {
           )}
         </CardContent>
       </Card>
+
+      {moveDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-md rounded-xl border border-[#D6DFF0] bg-white p-4 shadow-xl">
+            <div className="mb-1 text-base font-semibold text-[#0E2A5C]">Změnit ostrov</div>
+            <div className="mb-3 text-sm text-slate-600">
+              {moveDialog.label}
+            </div>
+            <label className="grid gap-1 text-sm">
+              <span className="font-medium text-slate-700">Dostupné ostrovy</span>
+              <select
+                className="h-10 rounded-[12px] border border-[#D6DFF0] bg-white px-3 text-sm text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20"
+                value={moveDialogTargetId}
+                onChange={(event) => setMoveDialogTargetId(event.target.value)}
+              >
+                <option value="">Vyberte ostrov...</option>
+                {moveDialogOptions.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title} ({occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={closeMoveDialog} disabled={saving}>
+                Zrušit
+              </Button>
+              <Button
+                type="button"
+                className="bg-[#0E2A5C] text-white hover:bg-[#07173A]"
+                disabled={saving || !moveDialogTargetId}
+                onClick={() => void runAction(
+                  async () => {
+                    await submitMoveDialog();
+                    closeMoveDialog();
+                  },
+                  moveDialog.kind === "student" ? "Dítě bylo přesunuto." : "Host byl přesunut.",
+                )}
+              >
+                Přesunout
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
