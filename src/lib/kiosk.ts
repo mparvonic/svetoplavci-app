@@ -9,7 +9,14 @@ export function kioskAuthKey(): string {
   return process.env.KIOSK_API_KEY?.trim() ?? "";
 }
 
-export function checkKioskKey(provided: string | null | undefined): boolean {
+function isKioskDevBypassEnabled(host: string | null | undefined): boolean {
+  if (process.env.NODE_ENV !== "development") return false;
+  const normalizedHost = (host ?? "").split(":")[0].trim().toLowerCase();
+  return normalizedHost === "localhost" || normalizedHost === "127.0.0.1" || normalizedHost === "::1";
+}
+
+export function checkKioskKey(provided: string | null | undefined, host?: string | null): boolean {
+  if (isKioskDevBypassEnabled(host)) return true;
   const key = kioskAuthKey();
   return !!key && provided?.trim() === key;
 }
@@ -70,14 +77,70 @@ export interface KioskChild {
   groupKeys: string[]; // "kind::code" pairs
 }
 
+function buildChipCandidates(rawChipCode: string): string[] {
+  const set = new Set<string>();
+  const add = (value: string | null | undefined) => {
+    const trimmed = value?.trim();
+    if (trimmed) set.add(trimmed);
+  };
+  const addHidFromHex = (hex: string) => {
+    if (hex.length !== 8) return;
+    const b0 = parseInt(hex.slice(0, 2), 16);
+    const b1 = parseInt(hex.slice(2, 4), 16);
+    const b2 = parseInt(hex.slice(4, 6), 16);
+    const b3 = parseInt(hex.slice(6, 8), 16);
+    add(String(b0 + b1 * 256 + b2 * 65536 + b3 * 16777216));
+  };
+
+  add(rawChipCode);
+
+  const compact = rawChipCode.trim().replace(/\s+/g, "");
+  add(compact);
+  add(compact.toUpperCase());
+
+  const numeric = compact.replace(/[^0-9]/g, "");
+  add(numeric);
+  if (numeric) {
+    try {
+      add(BigInt(numeric).toString());
+    } catch {
+      // ignore malformed numeric candidate
+    }
+  }
+
+  const hexOnly = compact.replace(/^0x/i, "").replace(/[^0-9a-fA-F]/g, "").toUpperCase();
+  add(hexOnly);
+  addHidFromHex(hexOnly);
+
+  const hexChunks = compact.match(/[0-9A-Fa-f]{8}/g) ?? [];
+  for (const chunk of hexChunks) {
+    const normalized = chunk.toUpperCase();
+    add(normalized);
+    addHidFromHex(normalized);
+  }
+
+  const numberChunks = compact.match(/\d{8,}/g) ?? [];
+  for (const chunk of numberChunks) {
+    add(chunk);
+    try {
+      add(BigInt(chunk).toString());
+    } catch {
+      // ignore malformed numeric chunk
+    }
+  }
+
+  return Array.from(set);
+}
+
 export async function findChildByChip(chipCode: string): Promise<KioskChild | null> {
   const trimmed = chipCode.trim();
   if (!trimmed) return null;
+  const candidates = buildChipCandidates(trimmed);
 
   const person = await prisma.appPerson.findFirst({
     where: {
       isActive: true,
-      OR: [{ chipUid: trimmed }, { chipHid: trimmed }],
+      OR: [{ chipUid: { in: candidates } }, { chipHid: { in: candidates } }],
     },
     select: {
       id: true,
@@ -150,6 +213,7 @@ export interface KioskTermGroup {
   termId: string;
   termName: string;
   termDate: string;
+  termStartsAt: string | null;
   registrationOpen: boolean;
   islands: KioskOstrov[];
   myRegistrationId: string | null; // registered island id or null
@@ -218,6 +282,7 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
       title: true,
       description: true,
       location: true,
+      startsAt: true,
       metadata: true,
       kioskDisplayNumber: true,
       kioskDisplayColor: true,
@@ -239,8 +304,21 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
     orderBy: [{ offerGroup: { startsAt: "asc" } }, { kioskDisplayNumber: "asc" }],
   });
 
-  // Batch-load nicknames for all registrants
-  const allPersonIds = [...new Set(events.flatMap((e) => e.registrations.map((r) => r.personId)))];
+  // Batch-load preferred names (nickname first) for registrants and guides
+  const allPersonIds = [
+    ...new Set(
+      events.flatMap((e) => {
+        const rawMeta0 = (e.metadata as Record<string, unknown> | null) ?? {};
+        const eventMeta0 = (rawMeta0.ostrovy as Record<string, unknown> | null) ?? rawMeta0;
+        const guideIds = Array.isArray(eventMeta0["guides"])
+          ? (eventMeta0["guides"] as Array<{ personId?: string | null }>)
+              .map((g) => (typeof g.personId === "string" ? g.personId : null))
+              .filter((id): id is string => Boolean(id))
+          : [];
+        return [...e.registrations.map((r) => r.personId), ...guideIds];
+      }),
+    ),
+  ];
   const persons = allPersonIds.length > 0
     ? await prisma.appPerson.findMany({
         where: { id: { in: allPersonIds } },
@@ -286,7 +364,6 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
       now,
     );
     const myReg = event.registrations.find((r) => r.personId === child.id);
-    const rawMeta = rawMeta0;
     const eventMeta = eventMeta0;
 
     const island: KioskOstrov = {
@@ -300,7 +377,15 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
       focus: typeof eventMeta["focus"] === "string" ? eventMeta["focus"] : null,
       thumbnailUrl: typeof eventMeta["thumbnailUrl"] === "string" ? eventMeta["thumbnailUrl"] : null,
       guides: Array.isArray(eventMeta["guides"])
-        ? (eventMeta["guides"] as Array<{ name?: string }>).map((g) => g.name ?? "").filter(Boolean)
+        ? (eventMeta["guides"] as Array<{ personId?: string | null; name?: string }>)
+            .map((g) => {
+              if (typeof g.personId === "string") {
+                const preferred = personNameById.get(g.personId);
+                if (preferred) return preferred;
+              }
+              return typeof g.name === "string" ? g.name : "";
+            })
+            .filter(Boolean)
         : [],
       registrantNames: [
         ...event.registrations.map((r) => personNameById.get(r.personId) ?? ""),
@@ -320,6 +405,7 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
         termId,
         termName: event.offerGroup.name,
         termDate,
+        termStartsAt: event.startsAt?.toISOString() ?? null,
         registrationOpen: regOpen,
         islands: [],
         myRegistrationId: null,
