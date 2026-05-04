@@ -169,6 +169,21 @@ type LodickyResponse = {
   lodicky: LodickaRow[];
 };
 
+class SessionExpiredError extends Error {
+  constructor(message = "Přihlášení vypršelo.") {
+    super(message);
+    this.name = "SessionExpiredError";
+  }
+}
+
+async function readApiErrorMessage(response: Response, fallbackMessage: string): Promise<string> {
+  const body = await response.json().catch(() => ({}));
+  if (body && typeof body === "object" && "error" in body && typeof body.error === "string" && body.error.trim()) {
+    return body.error;
+  }
+  return fallbackMessage;
+}
+
 const DEFAULT_ROLE: ProtoRoleId = "rodic";
 const RIGHT_TABLE_LODICKY = "T321";
 const RIGHT_TABLE_LIDE = "T322";
@@ -329,8 +344,9 @@ function OsobniLodickyPrototypePageInner({
 
         const childrenRes = await fetch("/api/m01/my-children", { cache: "no-store" });
         if (!childrenRes.ok) {
-          const body = await childrenRes.json().catch(() => ({}));
-          throw new Error(body.error ?? "Nepodařilo se načíst děti.");
+          const message = await readApiErrorMessage(childrenRes, "Nepodařilo se načíst děti.");
+          if (childrenRes.status === 401) throw new SessionExpiredError(message);
+          throw new Error(message);
         }
 
         const childrenBody = (await childrenRes.json()) as ChildrenResponse;
@@ -379,13 +395,21 @@ function OsobniLodickyPrototypePageInner({
             batch.map(async (child) => {
               const lodickyRes = await fetch(`/api/m01/child/${child.id}/lodicky`, { cache: "no-store" });
               if (!lodickyRes.ok) {
-                const body = await lodickyRes.json().catch(() => ({}));
-                throw new Error(body.error ?? `Nepodařilo se načíst lodičky pro ${child.name}.`);
+                const message = await readApiErrorMessage(lodickyRes, `Nepodařilo se načíst lodičky pro ${child.name}.`);
+                if (lodickyRes.status === 401) throw new SessionExpiredError(message);
+                throw new Error(message);
               }
               const lodickyBody = (await lodickyRes.json()) as LodickyResponse;
               rowsByChild[child.id] = lodickyBody.lodicky;
             }),
           );
+
+          const authFailure = childResults.find(
+            (item): item is PromiseRejectedResult => item.status === "rejected" && item.reason instanceof SessionExpiredError,
+          );
+          if (authFailure) {
+            throw authFailure.reason;
+          }
 
           const failed = childResults.filter((item) => item.status === "rejected");
           failedCount += failed.length;
@@ -417,6 +441,13 @@ function OsobniLodickyPrototypePageInner({
         }
       } catch (error) {
         if (cancelled) return;
+        if (error instanceof SessionExpiredError) {
+          setDbError("Přihlášení vypršelo. Probíhá přesměrování na přihlášení.");
+          const callbackUrl = `${window.location.pathname}${window.location.search}`;
+          const loginUrl = `/auth/signin?reason=inactivity&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+          window.location.replace(loginUrl);
+          return;
+        }
         setDbError(error instanceof Error ? error.message : "Nepodařilo se načíst osobní lodičky.");
       } finally {
         if (!cancelled) {

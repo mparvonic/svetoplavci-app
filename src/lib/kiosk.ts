@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { AppSchoolEventLifecycleStatus, AppSchoolEventRegistrationStatus } from "@prisma/client";
 import { prisma } from "@/src/lib/prisma";
 import { resolvePersonName } from "@/src/lib/person-name";
+import { isBypassAllowedForHost, normalizeHost } from "@/src/lib/environment-access";
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -11,8 +12,7 @@ export function kioskAuthKey(): string {
 
 function isKioskDevBypassEnabled(host: string | null | undefined): boolean {
   if (process.env.NODE_ENV !== "development") return false;
-  const normalizedHost = (host ?? "").split(":")[0].trim().toLowerCase();
-  return normalizedHost === "localhost" || normalizedHost === "127.0.0.1" || normalizedHost === "::1";
+  return isBypassAllowedForHost(normalizeHost(host));
 }
 
 export function checkKioskKey(provided: string | null | undefined, host?: string | null): boolean {

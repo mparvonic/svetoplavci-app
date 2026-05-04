@@ -9,10 +9,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ personId: string }> }
 ) {
-  const context = await getApiSessionContext();
+  const context = await getApiSessionContext(req);
   if (!context) {
     return new Response("Unauthorized", { status: 401 });
   }
@@ -53,7 +53,7 @@ export async function GET(
 
 async function canAccessPersonPhoto(personIds: string[], roles: string[], personId: string): Promise<boolean> {
   const normalizedRoles = roles.map((role) => role.toLowerCase());
-  if (normalizedRoles.includes("admin") || normalizedRoles.includes("tester")) return true;
+  if (normalizedRoles.includes("tester")) return true;
   if (hasAnySessionRole(normalizedRoles, GUIDE_ROLE_CODES)) return true;
   if (personIds.includes(personId)) return true;
 

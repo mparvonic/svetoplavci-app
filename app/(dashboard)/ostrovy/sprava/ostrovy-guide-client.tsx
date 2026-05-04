@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarPlus, ImageIcon, Loader2, Plus, Save, Search, Trash2, UploadCloud, UserPlus, X } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Bold, CalendarPlus, ImageIcon, Italic, List, ListOrdered, Loader2, Plus, Save, Search, Trash2, UploadCloud, UserPlus, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { SimpleMarkdown } from "@/components/ui/simple-markdown";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
@@ -74,8 +75,6 @@ type Student = {
     status: RegistrationStatus;
   } | null;
 };
-
-type StudentOverviewGroupBy = "smecka" | "rocnik";
 
 type OverviewGuestRow = {
   key: string;
@@ -196,6 +195,7 @@ const ROCNIKY_BY_STUPEN: Record<string, string[]> = {
   "1": ["1", "2", "3", "4", "5"],
   "2": ["6", "7", "8", "9"],
 };
+const NONE_GROUP_FILTER_VALUE = "__none__";
 
 const EMPTY_EVENT_DRAFT: EventDraft = {
   title: "",
@@ -377,21 +377,6 @@ function focusLabel(focus: Focus): string {
   return FOCUS_OPTIONS.find((item) => item.value === focus)?.label ?? "Bez zaměření";
 }
 
-function registrationStatusLabel(status: RegistrationStatus): string {
-  switch (status) {
-    case "REGISTERED":
-      return "Zapsáno";
-    case "WAITLIST":
-      return "Náhradník";
-    case "UNREGISTERED":
-      return "Odhlášeno";
-    case "CANCELED_BY_GUIDE":
-      return "Zrušeno průvodcem";
-    default:
-      return status;
-  }
-}
-
 function formatRocnikLabel(rocnik: string | null): string {
   if (!rocnik) return "Bez ročníku";
   const normalized = rocnik.trim();
@@ -400,9 +385,11 @@ function formatRocnikLabel(rocnik: string | null): string {
   return `Ročník ${normalized}`;
 }
 
-function formatStudentGroupMeta(student: Pick<Student, "smecka" | "rocnik">): string {
-  const smecka = student.smecka?.trim() || "Bez smečky";
-  return `${smecka} · ${formatRocnikLabel(student.rocnik)}`;
+function formatStudentGroupMeta(student: Pick<Student, "smecka" | "rocnik">): { smecka: string; rocnik: string } {
+  return {
+    smecka: student.smecka?.trim() || "Bez smečky",
+    rocnik: formatRocnikLabel(student.rocnik),
+  };
 }
 
 function studentSearchIndex(student: Pick<Student, "displayName" | "firstName" | "lastName" | "nickname" | "smecka" | "rocnik">): string {
@@ -738,8 +725,9 @@ export default function OstrovyGuideClient() {
   const [showTermManagement, setShowTermManagement] = useState(false);
   const [isEventEditorOpen, setIsEventEditorOpen] = useState(false);
   const [isStudentOverviewOpen, setIsStudentOverviewOpen] = useState(false);
-  const [studentOverviewGroupBy, setStudentOverviewGroupBy] = useState<StudentOverviewGroupBy>("smecka");
   const [studentOverviewSearch, setStudentOverviewSearch] = useState("");
+  const [studentOverviewRocnikFilter, setStudentOverviewRocnikFilter] = useState("");
+  const [studentOverviewSmeckaFilter, setStudentOverviewSmeckaFilter] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const [imageSearching, setImageSearching] = useState(false);
   const [imageSearchInfo, setImageSearchInfo] = useState<string | null>(null);
@@ -759,7 +747,7 @@ export default function OstrovyGuideClient() {
   const [studentAddMenuOpen, setStudentAddMenuOpen] = useState(false);
   const [moveDialog, setMoveDialog] = useState<MoveDialogState | null>(null);
   const [moveDialogTargetId, setMoveDialogTargetId] = useState("");
-  const [overviewTargets, setOverviewTargets] = useState<Record<string, string>>({});
+  const [openOverviewStudentPickerId, setOpenOverviewStudentPickerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -767,6 +755,10 @@ export default function OstrovyGuideClient() {
 
   const selectedTerm = terms.find((term) => term.id === selectedTermId) ?? terms[0] ?? null;
   const selectedEvent = selectedTerm?.events.find((event) => event.id === selectedEventId) ?? null;
+  const selectedTermEventById = useMemo(
+    () => new Map((selectedTerm?.events ?? []).map((event) => [event.id, event])),
+    [selectedTerm?.events],
+  );
   const selectedTermSyncId = selectedTerm?.id ?? "";
   const selectedEventSyncId = selectedEvent?.id ?? "";
   const selectedTermRef = useRef<Term | null>(null);
@@ -775,6 +767,7 @@ export default function OstrovyGuideClient() {
   const autoSaveLastSignatureRef = useRef<string | null>(null);
   const autoSavePendingSignatureRef = useRef<string | null>(null);
   const autoSaveRequestRef = useRef(0);
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   selectedTermRef.current = selectedTerm;
   selectedEventRef.current = selectedEvent;
   const selectedEventDraftSignature = selectedEventSyncId && selectedTermSyncId
@@ -841,6 +834,19 @@ export default function OstrovyGuideClient() {
       .slice(0, 8);
   }, [guideOptions, guideSearch, selectedGuidePersonIds]);
   const guideOptionById = useMemo(() => new Map(guideOptions.map((guide) => [guide.id, guide])), [guideOptions]);
+  const eventGuideSummary = useCallback((event: OstrovEvent): string => {
+    const guides = parseGuides(eventGuides(event));
+    const names = guides
+      .map((guide) => {
+        const personId = guide.personId?.trim() ?? "";
+        if (personId) {
+          return guideOptionById.get(personId)?.displayName ?? guide.name?.trim() ?? personId;
+        }
+        return guide.name?.trim() ?? "";
+      })
+      .filter(Boolean);
+    return names.length > 0 ? names.join(", ") : "bez průvodce";
+  }, [guideOptionById]);
   const eligibleStudentsForSelectedEvent = useMemo(() => {
     return students
       .filter((student) => (selectedEvent ? studentCanJoinEvent(student, selectedEvent) : true))
@@ -893,6 +899,33 @@ export default function OstrovyGuideClient() {
     }
     return stats;
   }, [selectedTerm?.events, students]);
+  const sortedEventsInSelectedTerm = useMemo(() => {
+    const events = [...(selectedTerm?.events ?? [])];
+    return events.sort((a, b) => {
+      const aNumber = a.kioskDisplayNumber ?? Number.POSITIVE_INFINITY;
+      const bNumber = b.kioskDisplayNumber ?? Number.POSITIVE_INFINITY;
+      if (aNumber !== bNumber) return aNumber - bNumber;
+      return a.title.localeCompare(b.title, "cs");
+    });
+  }, [selectedTerm?.events]);
+  const eventAudienceSummary = useCallback((event: Pick<OstrovEvent, "audienceRules">): string => {
+    const groups = normalizeAudienceGroups(
+      event.audienceRules
+        .filter((group) => Boolean(group.groupKind && group.groupCode))
+        .map((group) => ({ kind: String(group.groupKind), code: String(group.groupCode) })),
+    );
+    if (groups.length === 0) return "všechny skupiny";
+    return groups
+      .map((group) => {
+        const option = groupOptionByKey.get(audienceGroupKey(group));
+        return groupLabel({
+          kind: group.kind,
+          code: group.code,
+          name: option?.name ?? null,
+        });
+      })
+      .join(", ");
+  }, [groupOptionByKey]);
   const termCapacity = useMemo(() => {
     const capacities = (selectedTerm?.events ?? []).map((event) => event.registrationPolicy?.capacity ?? null);
     if (capacities.length === 0) return null;
@@ -902,46 +935,115 @@ export default function OstrovyGuideClient() {
   }, [selectedTerm?.events]);
   const filteredStudentsForOverview = useMemo(() => {
     const query = normalizeSearchValue(studentOverviewSearch.trim());
+    const rocnikFilter = studentOverviewRocnikFilter.trim();
+    const smeckaFilter = studentOverviewSmeckaFilter.trim();
     return students
-      .filter((student) => (query ? studentSearchIndex(student).includes(query) : true))
+      .filter((student) => {
+        if (query && !studentSearchIndex(student).includes(query)) return false;
+        const studentRocnik = student.rocnik?.trim() ?? "";
+        if (rocnikFilter) {
+          if (rocnikFilter === NONE_GROUP_FILTER_VALUE) {
+            if (studentRocnik) return false;
+          } else if (studentRocnik !== rocnikFilter) {
+            return false;
+          }
+        }
+        const studentSmecka = student.smecka?.trim() ?? "";
+        if (smeckaFilter) {
+          if (smeckaFilter === NONE_GROUP_FILTER_VALUE) {
+            if (studentSmecka) return false;
+          } else if (studentSmecka !== smeckaFilter) {
+            return false;
+          }
+        }
+        return true;
+      })
       .sort((a, b) => a.displayName.localeCompare(b.displayName, "cs"));
-  }, [studentOverviewSearch, students]);
-  const groupedStudentsForOverview = useMemo(() => {
-    const groups = new Map<string, { label: string; sortGrade: number; sortPack: string; students: Student[] }>();
-    for (const student of filteredStudentsForOverview) {
-      const rocnikCode = student.rocnik?.trim() ?? "";
-      const rocnikSort = /^\d+$/.test(rocnikCode) ? Number(rocnikCode) : 999;
-      const smeckaName = student.smecka?.trim() || "Nezařazené";
-      if (studentOverviewGroupBy === "rocnik") {
-        const label = formatRocnikLabel(student.rocnik);
-        const key = `rocnik:${rocnikCode || "__none"}`;
-        const group = groups.get(key) ?? { label, sortGrade: rocnikSort, sortPack: "", students: [] };
-        group.students.push(student);
-        groups.set(key, group);
+  }, [studentOverviewRocnikFilter, studentOverviewSearch, studentOverviewSmeckaFilter, students]);
+  const overviewRocnikOptions = useMemo(() => {
+    const uniqueRocniky = new Set<string>();
+    let hasEmpty = false;
+
+    for (const student of students) {
+      const value = student.rocnik?.trim() ?? "";
+      if (!value) {
+        hasEmpty = true;
         continue;
       }
-      const key = `smecka:${normalizeSearchValue(smeckaName)}`;
-      const label = smeckaName;
-      const group = groups.get(key) ?? { label, sortGrade: rocnikSort, sortPack: normalizeSearchValue(smeckaName), students: [] };
-      group.sortGrade = Math.min(group.sortGrade, rocnikSort);
-      group.students.push(student);
-      groups.set(key, group);
+      uniqueRocniky.add(value);
     }
-    return [...groups.values()]
-      .sort((a, b) => {
-        if (a.sortGrade !== b.sortGrade) return a.sortGrade - b.sortGrade;
-        return a.sortPack.localeCompare(b.sortPack, "cs");
-      })
-      .map((group) => ({
-        label: group.label,
-        students: group.students.sort((a, b) => {
-          const aGrade = /^\d+$/.test(a.rocnik?.trim() ?? "") ? Number(a.rocnik?.trim()) : 999;
-          const bGrade = /^\d+$/.test(b.rocnik?.trim() ?? "") ? Number(b.rocnik?.trim()) : 999;
-          if (aGrade !== bGrade) return aGrade - bGrade;
-          return a.displayName.localeCompare(b.displayName, "cs");
-        }),
-      }));
-  }, [filteredStudentsForOverview, studentOverviewGroupBy]);
+
+    const values = [...uniqueRocniky].sort((a, b) => {
+      const aNumber = /^\d+$/.test(a) ? Number(a) : Number.POSITIVE_INFINITY;
+      const bNumber = /^\d+$/.test(b) ? Number(b) : Number.POSITIVE_INFINITY;
+      if (aNumber !== bNumber) return aNumber - bNumber;
+      return a.localeCompare(b, "cs");
+    });
+    const options = values.map((value) => ({ value, label: formatRocnikLabel(value) }));
+    if (hasEmpty) {
+      options.push({ value: NONE_GROUP_FILTER_VALUE, label: "Bez ročníku" });
+    }
+    return options;
+  }, [students]);
+  const overviewSmeckaOptions = useMemo(() => {
+    const uniqueSmecky = new Set<string>();
+    let hasEmpty = false;
+
+    for (const student of students) {
+      const value = student.smecka?.trim() ?? "";
+      if (!value) {
+        hasEmpty = true;
+        continue;
+      }
+      uniqueSmecky.add(value);
+    }
+
+    const values = [...uniqueSmecky].sort((a, b) => a.localeCompare(b, "cs"));
+    const options = values.map((value) => ({ value, label: value }));
+    if (hasEmpty) {
+      options.push({ value: NONE_GROUP_FILTER_VALUE, label: "Bez smečky" });
+    }
+    return options;
+  }, [students]);
+  const overviewStudentsByLevel = useMemo(() => {
+    const firstLevel: Student[] = [];
+    const secondLevel: Student[] = [];
+
+    for (const student of filteredStudentsForOverview) {
+      const levelCode = studentStupenCode(student);
+      if (levelCode === "1") {
+        firstLevel.push(student);
+      } else {
+        secondLevel.push(student);
+      }
+    }
+
+    const sortStudents = (a: Student, b: Student): number => {
+      const aGrade = /^\d+$/.test(a.rocnik?.trim() ?? "") ? Number(a.rocnik?.trim()) : 999;
+      const bGrade = /^\d+$/.test(b.rocnik?.trim() ?? "") ? Number(b.rocnik?.trim()) : 999;
+      if (aGrade !== bGrade) return aGrade - bGrade;
+      const aPack = a.smecka?.trim() ?? "";
+      const bPack = b.smecka?.trim() ?? "";
+      if (aPack !== bPack) return aPack.localeCompare(bPack, "cs");
+      return a.displayName.localeCompare(b.displayName, "cs");
+    };
+
+    firstLevel.sort(sortStudents);
+    secondLevel.sort(sortStudents);
+
+    return {
+      firstLevel,
+      secondLevel,
+    };
+  }, [filteredStudentsForOverview]);
+  const overviewEventOptionsForStudent = useCallback((student: Student): OstrovEvent[] => {
+    const eligibleEventIds = eligibleEventIdsByStudent.get(student.id) ?? new Set<string>();
+    return (selectedTerm?.events ?? []).filter((event) => {
+      if (!eligibleEventIds.has(event.id)) return false;
+      if (event.id === student.currentRegistration?.eventId) return true;
+      return hasCapacity(event);
+    });
+  }, [eligibleEventIdsByStudent, selectedTerm?.events]);
   const filteredGuestsForOverview = useMemo(() => {
     const query = normalizeSearchValue(studentOverviewSearch.trim());
     const rows: OverviewGuestRow[] = [];
@@ -963,6 +1065,10 @@ export default function OstrovyGuideClient() {
     }
     return rows.sort((a, b) => a.name.localeCompare(b.name, "cs"));
   }, [selectedTerm?.events, studentOverviewSearch]);
+
+  useEffect(() => {
+    setOpenOverviewStudentPickerId(null);
+  }, [selectedTermId, isStudentOverviewOpen, studentOverviewRocnikFilter, studentOverviewSearch, studentOverviewSmeckaFilter]);
 
   const loadTerms = useCallback(async () => {
     const from = encodeURIComponent(new Date().toISOString());
@@ -1074,6 +1180,128 @@ export default function OstrovyGuideClient() {
       [field]: value,
       ...(field === "thumbnailUrl" ? { thumbnailSourceImageUrl: "", thumbnailSourceUrl: "" } : {}),
     }));
+  }
+
+  function setDescriptionWithSelection(nextValue: string, selectionStart: number, selectionEnd: number) {
+    updateDraft("description", nextValue);
+    requestAnimationFrame(() => {
+      const textarea = descriptionTextareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(selectionStart, selectionEnd);
+    });
+  }
+
+  function wrapDescriptionSelection(wrapper: "**" | "*") {
+    const textarea = descriptionTextareaRef.current;
+    if (!textarea) return;
+    const value = textarea.value;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = value.slice(start, end);
+    if (!selected) {
+      const placeholder = "text";
+      const replacement = `${wrapper}${placeholder}${wrapper}`;
+      const nextValue = `${value.slice(0, start)}${replacement}${value.slice(end)}`;
+      const nextStart = start + wrapper.length;
+      setDescriptionWithSelection(nextValue, nextStart, nextStart + placeholder.length);
+      return;
+    }
+
+    const isWrapped = selected.startsWith(wrapper) && selected.endsWith(wrapper) && selected.length > wrapper.length * 2;
+    const replacement = isWrapped ? selected.slice(wrapper.length, -wrapper.length) : `${wrapper}${selected}${wrapper}`;
+    const nextValue = `${value.slice(0, start)}${replacement}${value.slice(end)}`;
+    const nextStart = start;
+    const nextEnd = start + replacement.length;
+    setDescriptionWithSelection(nextValue, nextStart, nextEnd);
+  }
+
+  function applyDescriptionList(mode: "bullet" | "ordered") {
+    const textarea = descriptionTextareaRef.current;
+    if (!textarea) return;
+
+    const value = textarea.value;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const lineStart = value.lastIndexOf("\n", Math.max(start - 1, 0)) + 1;
+    const nextBreak = value.indexOf("\n", end);
+    const lineEnd = nextBreak === -1 ? value.length : nextBreak;
+    const block = value.slice(lineStart, lineEnd);
+    const lines = block.split("\n");
+
+    const formatted = lines.map((line, index) => {
+      const trimmed = line.trimStart();
+      if (!trimmed) return line;
+      const indentation = line.slice(0, line.length - trimmed.length);
+      const clean = trimmed.replace(/^([-*]|\d+\.)\s+/, "");
+      if (mode === "bullet") return `${indentation}- ${clean}`;
+      return `${indentation}${index + 1}. ${clean}`;
+    });
+
+    const replacement = formatted.join("\n");
+    const nextValue = `${value.slice(0, lineStart)}${replacement}${value.slice(lineEnd)}`;
+    setDescriptionWithSelection(nextValue, lineStart, lineStart + replacement.length);
+  }
+
+  function onDescriptionKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const metaPressed = event.ctrlKey || event.metaKey;
+    if (metaPressed && !event.altKey) {
+      const key = event.key.toLowerCase();
+      if (key === "b") {
+        event.preventDefault();
+        wrapDescriptionSelection("**");
+        return;
+      }
+      if (key === "i") {
+        event.preventDefault();
+        wrapDescriptionSelection("*");
+        return;
+      }
+    }
+
+    if (event.key !== "Enter" || event.shiftKey || event.altKey) return;
+    const textarea = event.currentTarget;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    if (start !== end) return;
+
+    const value = textarea.value;
+    const lineStart = value.lastIndexOf("\n", Math.max(start - 1, 0)) + 1;
+    const line = value.slice(lineStart, start);
+    const bulletMatch = line.match(/^(\s*)([-*])\s+(.*)$/);
+    const orderedMatch = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+    if (!bulletMatch && !orderedMatch) return;
+
+    event.preventDefault();
+
+    if (bulletMatch) {
+      const [, indentation, marker, content] = bulletMatch;
+      if (!content.trim()) {
+        const after = value.slice(start);
+        const nextValue = `${value.slice(0, lineStart)}${after.startsWith("\n") ? after.slice(1) : after}`;
+        setDescriptionWithSelection(nextValue, lineStart, lineStart);
+        return;
+      }
+      const insert = `\n${indentation}${marker} `;
+      const nextValue = `${value.slice(0, start)}${insert}${value.slice(end)}`;
+      const cursor = start + insert.length;
+      setDescriptionWithSelection(nextValue, cursor, cursor);
+      return;
+    }
+
+    if (!orderedMatch) return;
+    const [, indentation, number, content] = orderedMatch;
+    if (!content.trim()) {
+      const after = value.slice(start);
+      const nextValue = `${value.slice(0, lineStart)}${after.startsWith("\n") ? after.slice(1) : after}`;
+      setDescriptionWithSelection(nextValue, lineStart, lineStart);
+      return;
+    }
+    const nextNumber = Number(number) + 1;
+    const insert = `\n${indentation}${nextNumber}. `;
+    const nextValue = `${value.slice(0, start)}${insert}${value.slice(end)}`;
+    const cursor = start + insert.length;
+    setDescriptionWithSelection(nextValue, cursor, cursor);
   }
 
   const mergeEventIntoSelectedTerm = useCallback((event: OstrovEvent) => {
@@ -1872,7 +2100,7 @@ export default function OstrovyGuideClient() {
                 V tomto termínu zatím nejsou založené žádné ostrovy.
               </p>
             )}
-            {selectedTerm?.events.map((event) => (
+            {sortedEventsInSelectedTerm.map((event) => (
               <button
                 key={event.id}
                 type="button"
@@ -1895,6 +2123,12 @@ export default function OstrovyGuideClient() {
                     <span className="block truncate font-medium">{event.title}</span>
                     <span className="block text-xs text-slate-500">
                       {focusLabel(eventFocus(event))}
+                    </span>
+                    <span className="block truncate text-xs text-slate-500">
+                      Průvodce: {eventGuideSummary(event)}
+                    </span>
+                    <span className="block truncate text-xs text-slate-500">
+                      Skupiny: {eventAudienceSummary(event)}
                     </span>
                   </span>
                 </span>
@@ -1928,7 +2162,7 @@ export default function OstrovyGuideClient() {
                   Zapsáno {studentsWithRegistrationCount} z {students.length} dětí
                 </div>
               </div>
-              <div className="grid gap-2 rounded-md border border-[#D6DFF0] bg-white p-3 md:grid-cols-[minmax(220px,1fr)_auto]">
+              <div className="grid gap-2 rounded-md border border-[#D6DFF0] bg-white p-3 md:grid-cols-[minmax(260px,1.2fr)_minmax(180px,0.9fr)_minmax(180px,0.9fr)]">
                 <label className="grid gap-1 text-sm">
                   <span className="font-medium text-slate-700">Vyhledat dítě</span>
                   <Input
@@ -1938,16 +2172,158 @@ export default function OstrovyGuideClient() {
                   />
                 </label>
                 <label className="grid gap-1 text-sm">
-                  <span className="font-medium text-slate-700">Seskupit podle</span>
+                  <span className="font-medium text-slate-700">Filtrovat podle ročníku</span>
                   <select
                     className="h-10 rounded-[12px] border border-[#D6DFF0] bg-white px-3 text-sm text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20"
-                    value={studentOverviewGroupBy}
-                    onChange={(event) => setStudentOverviewGroupBy(event.target.value as StudentOverviewGroupBy)}
+                    value={studentOverviewRocnikFilter}
+                    onChange={(event) => setStudentOverviewRocnikFilter(event.target.value)}
                   >
-                    <option value="smecka">Smečky</option>
-                    <option value="rocnik">Ročníky</option>
+                    <option value="">Všechny ročníky</option>
+                    {overviewRocnikOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                 </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="font-medium text-slate-700">Filtrovat podle smečky</span>
+                  <select
+                    className="h-10 rounded-[12px] border border-[#D6DFF0] bg-white px-3 text-sm text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20"
+                    value={studentOverviewSmeckaFilter}
+                    onChange={(event) => setStudentOverviewSmeckaFilter(event.target.value)}
+                  >
+                    <option value="">Všechny smečky</option>
+                    {overviewSmeckaOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="grid gap-4 xl:grid-cols-2">
+                {[
+                  { key: "first", label: "1. stupeň", students: overviewStudentsByLevel.firstLevel },
+                  { key: "second", label: "2. stupeň", students: overviewStudentsByLevel.secondLevel },
+                ].map((section) => (
+                  <div key={section.key} className="space-y-2 rounded-md border border-[#D6DFF0] bg-white p-3">
+                    <div className="text-sm font-semibold text-[#0E2A5C]">{section.label}</div>
+                    {section.students.length === 0 ? (
+                      <div className="rounded-md border border-dashed border-[#D6DFF0] bg-[#EEF2F7] p-3 text-sm text-slate-500">
+                        V aktuálním filtru zatím nikdo.
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Dítě</TableHead>
+                            <TableHead>Aktuální zápis</TableHead>
+                            <TableHead className="text-right">Akce</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {section.students.map((student) => {
+                            const isPickerOpen = openOverviewStudentPickerId === student.id;
+                            const eventOptions = overviewEventOptionsForStudent(student);
+                            const canSubmit = eventOptions.length > 0;
+                            const currentEvent = student.currentRegistration
+                              ? selectedTermEventById.get(student.currentRegistration.eventId) ?? null
+                              : null;
+
+                            return (
+                              <Fragment key={student.id}>
+                                <TableRow>
+                                  <TableCell>
+                                    <div className="font-medium text-[#0E2A5C]">{student.displayName}</div>
+                                    <div className="text-xs text-slate-500">{formatStudentGroupMeta(student).smecka}</div>
+                                    <div className="text-xs text-slate-500">{formatStudentGroupMeta(student).rocnik}</div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {student.currentRegistration?.eventTitle ? (
+                                      <div className="flex items-center gap-2 text-sm text-slate-700">
+                                        {currentEvent?.kioskDisplayNumber != null && currentEvent.kioskDisplayColor && (
+                                          <span
+                                            className="inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black text-white"
+                                            style={{ backgroundColor: currentEvent.kioskDisplayColor }}
+                                          >
+                                            {currentEvent.kioskDisplayNumber}
+                                          </span>
+                                        )}
+                                        <span>{student.currentRegistration.eventTitle}</span>
+                                      </div>
+                                    ) : (
+                                      <Badge variant="outline">Nezapsáno</Badge>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={saving || !canSubmit}
+                                        onClick={() => setOpenOverviewStudentPickerId((current) => (current === student.id ? null : student.id))}
+                                      >
+                                        {student.currentRegistration ? "Změnit" : "Zapsat"}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-[#C8372D] text-[#C8372D] hover:bg-[#FAEAE9]"
+                                        disabled={saving || !student.currentRegistration}
+                                        onClick={() => {
+                                          const currentRegistration = student.currentRegistration;
+                                          if (!currentRegistration) return;
+                                          void runAction(
+                                            () => unregisterStudent(currentRegistration.eventId, student.id),
+                                            "Dítě bylo odhlášeno.",
+                                          );
+                                        }}
+                                      >
+                                        Zrušit
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                                {isPickerOpen && (
+                                  <TableRow>
+                                    <TableCell colSpan={3} className="bg-[#EEF2F7]">
+                                      <div className="space-y-1">
+                                        <div className="text-xs font-medium text-slate-600">Vyberte dostupný ostrov</div>
+                                        {eventOptions.length === 0 ? (
+                                          <div className="text-xs text-slate-500">Pro dítě není dostupný žádný ostrov.</div>
+                                        ) : (
+                                          <div className="flex flex-wrap gap-2">
+                                            {eventOptions.map((event) => {
+                                              const isCurrent = event.id === student.currentRegistration?.eventId;
+                                              return (
+                                                <Button
+                                                  key={event.id}
+                                                  type="button"
+                                                  size="sm"
+                                                  variant={isCurrent ? "default" : "outline"}
+                                                  disabled={saving || isCurrent}
+                                                  onClick={() => void runAction(
+                                                    () => registerStudent(event.id, student.id, true),
+                                                    student.currentRegistration ? "Zápis dítěte byl změněn." : "Dítě bylo zapsáno.",
+                                                  ).then(() => setOpenOverviewStudentPickerId(null))}
+                                                >
+                                                  {event.title} ({occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"})
+                                                </Button>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </Fragment>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+                ))}
               </div>
               <div className="space-y-3 rounded-md border border-[#D6DFF0] bg-white p-3">
                 <div className="flex items-center justify-between gap-2">
@@ -2075,108 +2451,6 @@ export default function OstrovyGuideClient() {
                   </TableBody>
                 </Table>
               </div>
-              <div className="space-y-4">
-                {groupedStudentsForOverview.length === 0 && (
-                  <div className="rounded-lg border border-dashed border-[#D6DFF0] bg-[#EEF2F7] p-4 text-sm text-slate-500">
-                    Žádné dítě neodpovídá aktuálnímu filtru.
-                  </div>
-                )}
-                {groupedStudentsForOverview.map((group) => (
-                  <div key={group.label} className="space-y-2 rounded-md border border-[#D6DFF0] bg-white p-3">
-                    <div className="text-sm font-semibold text-[#0E2A5C]">{group.label}</div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Dítě</TableHead>
-                          <TableHead>Aktuální zápis</TableHead>
-                          <TableHead>Změnit</TableHead>
-                          <TableHead className="text-right">Akce</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {group.students.map((student) => {
-                          const target = overviewTargets[student.id] ?? student.currentRegistration?.eventId ?? "";
-                          const eligibleEventIds = eligibleEventIdsByStudent.get(student.id) ?? new Set<string>();
-                          return (
-                            <TableRow key={student.id}>
-                              <TableCell>
-                                <div className="font-medium text-[#0E2A5C]">{student.displayName}</div>
-                                <div className="text-xs text-slate-500">{formatStudentGroupMeta(student)}</div>
-                              </TableCell>
-                              <TableCell>
-                                {student.currentRegistration ? (
-                                  <div className="space-y-1">
-                                    <div className="text-sm text-slate-700">{student.currentRegistration.eventTitle}</div>
-                                    <Badge className="bg-[#0E2A5C] text-white hover:bg-[#0E2A5C]">
-                                      {registrationStatusLabel(student.currentRegistration.status)}
-                                    </Badge>
-                                  </div>
-                                ) : (
-                                  <Badge variant="outline">Nezapsáno</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <select
-                                  className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs"
-                                  value={target}
-                                  onChange={(event) => setOverviewTargets((current) => ({ ...current, [student.id]: event.target.value }))}
-                                >
-                                  <option value="">Ostrov...</option>
-                                  {selectedTerm?.events.map((event) => (
-                                    <option
-                                      key={event.id}
-                                      value={event.id}
-                                      disabled={
-                                        !eligibleEventIds.has(event.id) ||
-                                        (!hasCapacity(event) && event.id !== student.currentRegistration?.eventId)
-                                      }
-                                    >
-                                      {event.title} ({occupancy(event)}/{event.registrationPolicy?.capacity ?? "bez limitu"})
-                                    </option>
-                                  ))}
-                                </select>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={saving || !target || target === student.currentRegistration?.eventId || !eligibleEventIds.has(target)}
-                                    onClick={() => void runAction(
-                                      () => registerStudent(target, student.id, true),
-                                      student.currentRegistration ? "Zápis dítěte byl změněn." : "Dítě bylo zapsáno.",
-                                    )}
-                                  >
-                                    {student.currentRegistration ? "Změnit" : "Zapsat"}
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-[#C8372D] text-[#C8372D] hover:bg-[#FAEAE9]"
-                                    disabled={saving || !student.currentRegistration}
-                                    onClick={() => {
-                                      const currentRegistration = student.currentRegistration;
-                                      if (!currentRegistration) return;
-                                      void runAction(
-                                        () => unregisterStudent(currentRegistration.eventId, student.id),
-                                        "Dítě bylo odhlášeno.",
-                                      );
-                                    }}
-                                  >
-                                    Zrušit
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ))}
-              </div>
             </div>
           ) : isEventEditorOpen ? (
             <div className="grid gap-4 lg:grid-cols-[minmax(420px,1.15fr)_minmax(340px,0.85fr)]">
@@ -2188,11 +2462,45 @@ export default function OstrovyGuideClient() {
                   </label>
                   <label className="grid gap-1 text-sm md:col-span-2">
                     <span className="font-medium text-slate-700">Popis</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => wrapDescriptionSelection("**")} title="Tučné (Ctrl/Cmd + B)">
+                        <Bold className="size-4" />
+                        Tučné
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => wrapDescriptionSelection("*")} title="Kurzíva (Ctrl/Cmd + I)">
+                        <Italic className="size-4" />
+                        Kurzíva
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => applyDescriptionList("bullet")} title="Odrážky">
+                        <List className="size-4" />
+                        Odrážky
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => applyDescriptionList("ordered")} title="Číslování">
+                        <ListOrdered className="size-4" />
+                        Číslování
+                      </Button>
+                    </div>
                     <textarea
                       className="min-h-24 rounded-[12px] border border-[#D6DFF0] bg-white px-3 py-2 text-sm text-[#0E2A5C] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/25"
                       value={eventDraft.description}
+                      ref={descriptionTextareaRef}
+                      onKeyDown={onDescriptionKeyDown}
                       onChange={(event) => updateDraft("description", event.target.value)}
                     />
+                    <span className="text-xs text-slate-500">
+                      Zkratky: Ctrl/Cmd + B (tučné), Ctrl/Cmd + I (kurzíva). V seznamech Enter automaticky pokračuje.
+                    </span>
+                    {eventDraft.description.trim() && (
+                      <div className="rounded-md border border-[#D6DFF0] bg-[#EEF2F7] p-3">
+                        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Náhled</div>
+                        <SimpleMarkdown
+                          text={eventDraft.description}
+                          className="space-y-2 text-sm text-slate-700"
+                          paragraphClassName="leading-relaxed"
+                          listClassName="space-y-1"
+                        />
+                      </div>
+                    )}
                   </label>
                   <label className="grid gap-1 text-sm">
                     <span className="font-medium text-slate-700">Místo</span>
@@ -2525,7 +2833,7 @@ export default function OstrovyGuideClient() {
                               >
                                 <span className="block truncate font-medium text-[#0E2A5C]">{student.displayName}</span>
                                 <span className="block truncate text-xs text-slate-500">
-                                  {student.firstName ?? ""} {student.lastName ?? ""} · {formatStudentGroupMeta(student)}
+                                  {student.firstName ?? ""} {student.lastName ?? ""} · {formatStudentGroupMeta(student).smecka} · {formatStudentGroupMeta(student).rocnik}
                                   {student.currentRegistration ? ` · ${student.currentRegistration.eventTitle}` : ""}
                                 </span>
                               </button>
@@ -2577,7 +2885,12 @@ export default function OstrovyGuideClient() {
                             <TableRow key={registration.personId}>
                               <TableCell>
                                 <div className="font-medium text-[#0E2A5C]">{student?.displayName ?? registration.personId}</div>
-                                {student && <div className="text-xs text-slate-500">{formatStudentGroupMeta(student)}</div>}
+                                {student && (
+                                  <>
+                                    <div className="text-xs text-slate-500">{formatStudentGroupMeta(student).smecka}</div>
+                                    <div className="text-xs text-slate-500">{formatStudentGroupMeta(student).rocnik}</div>
+                                  </>
+                                )}
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">

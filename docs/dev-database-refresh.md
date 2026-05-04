@@ -43,11 +43,23 @@ export ANONYMIZE_SALT='rotate-me-regularly'
 ./scripts/db-refresh-dev.sh
 ```
 
+### Kontrola schema pred/po refreshi
+
+Pred refreshi i po refreshi spust:
+
+```bash
+npm run db:check:schema
+```
+
+Pokud check selze, nejdriv dorovnej schema (migrace / SQL patch), az pak res data refresh.
+
 ### Spusteni pres npm scripts
 
 ```bash
+npm run db:check:schema
 npm run db:refresh:dev
 npm run db:refresh:staging
+npm run db:check:schema
 ```
 
 `db:refresh:staging` vyzaduje:

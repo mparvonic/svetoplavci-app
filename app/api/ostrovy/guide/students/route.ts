@@ -36,7 +36,7 @@ type StudentRow = {
 };
 
 export async function GET(req: NextRequest) {
-  const sessionContext = await getApiSessionContext();
+  const sessionContext = await getApiSessionContext(req);
   if (!sessionContext) return unauthorized();
   if (!hasAnySessionRole(sessionContext.roles, GUIDE_ROLE_CODES)) return forbidden();
 

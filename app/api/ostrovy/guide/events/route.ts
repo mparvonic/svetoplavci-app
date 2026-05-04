@@ -23,7 +23,7 @@ function forbidden() {
 }
 
 export async function GET(req: NextRequest) {
-  const context = await getApiSessionContext();
+  const context = await getApiSessionContext(req);
   if (!context) return unauthorized();
   if (!hasAnySessionRole(context.roles, GUIDE_ROLE_CODES)) return forbidden();
 
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const context = await getApiSessionContext();
+  const context = await getApiSessionContext(req);
   if (!context) return unauthorized();
   if (!hasAnySessionRole(context.roles, GUIDE_ROLE_CODES)) return forbidden();
 

@@ -7,8 +7,8 @@ import {
 } from "@/src/lib/api/session";
 import { getReportParentAndChildrenForActor } from "@/src/lib/reports-db";
 
-export async function GET() {
-  const context = await getApiSessionContext();
+export async function GET(req: Request) {
+  const context = await getApiSessionContext(req);
   if (!context) {
     return NextResponse.json({ error: "Nepřihlášen" }, { status: 401 });
   }

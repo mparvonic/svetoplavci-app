@@ -8,10 +8,10 @@ import {
 import { getChildVysvedceniForActor } from "@/src/lib/reports-db";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ childId: string }> },
 ) {
-  const context = await getApiSessionContext();
+  const context = await getApiSessionContext(req);
   if (!context) {
     return NextResponse.json({ error: "Nepřihlášen" }, { status: 401 });
   }

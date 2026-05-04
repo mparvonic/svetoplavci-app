@@ -24,8 +24,8 @@ function forbidden() {
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
-export async function GET(_req: NextRequest, context: { params: Promise<{ termId: string }> }) {
-  const sessionContext = await getApiSessionContext();
+export async function GET(req: NextRequest, context: { params: Promise<{ termId: string }> }) {
+  const sessionContext = await getApiSessionContext(req);
   if (!sessionContext) return unauthorized();
   if (!hasAnySessionRole(sessionContext.roles, GUIDE_ROLE_CODES)) return forbidden();
 
@@ -36,7 +36,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ termId
 }
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ termId: string }> }) {
-  const sessionContext = await getApiSessionContext();
+  const sessionContext = await getApiSessionContext(req);
   if (!sessionContext) return unauthorized();
   if (!hasAnySessionRole(sessionContext.roles, GUIDE_ROLE_CODES)) return forbidden();
 
@@ -60,7 +60,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ termI
 }
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ termId: string }> }) {
-  const sessionContext = await getApiSessionContext();
+  const sessionContext = await getApiSessionContext(req);
   if (!sessionContext) return unauthorized();
   if (!hasAnySessionRole(sessionContext.roles, GUIDE_ROLE_CODES)) return forbidden();
 

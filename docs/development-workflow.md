@@ -31,6 +31,14 @@ feature/xxx          ●──●  (lokální vývoj, PR do staging)
 - **`feature/xxx`** — pracovní větve pro každou novou funkcionalitu nebo opravu. Pojmenování: `feature/lodicky-pruvodce`, `fix/auth-redirect`, apod.
 - **Nikdy nepushujeme přímo do `main`** (vyjma kritických hotfixů).
 
+### Dlouhodobý governance model (závazné)
+
+- **Jediný povolený tok změn:** `feature/fix -> staging -> main`.
+- **`staging` je integrační a testovací větev** (nejaktuálnější funkční stav před produkcí).
+- **`main` je pouze release větev** (obsahuje jen změny ověřené na staging).
+- **Do `main` se nikdy nemerguje přímo feature větev.**
+- **`main` se nikdy nepoužívá jako zdroj pro vývoj nové feature.**
+
 ---
 
 ## Typický vývojový cyklus
@@ -118,6 +126,81 @@ Staging běží na stejném VPS v Coolify jako produkce, ale jako oddělená apl
 - Produkční Neon database
 - Produkční Coda tabulky
 
+### Produkční user sync z Edookit (závazné)
+
+User sync běží přes endpoint:
+
+- `POST /api/sync/users`
+- autorizace: `Authorization: Bearer ${USER_SYNC_SECRET}`
+
+Standardní provozní režim:
+
+- **2x denně** v produkci (`app.svetoplavci.cz`)
+- doporučené časy: **06:00** a **18:00** (`Europe/Prague`)
+- payload:
+  - `{"mode":"daily"}`
+
+Kontrola posledních běhů:
+
+- `GET /api/sync/users` se stejnou bearer autorizací
+- výsledky se ukládají do tabulky `app_user_sync_run`
+
+Příklad cron konfigurace (mimo aplikaci, na scheduleru/serveru):
+
+```cron
+# Edookit -> PROD users sync (2x denne)
+0 6,18 * * * curl -fsS -X POST "https://app.svetoplavci.cz/api/sync/users" \
+  -H "Authorization: Bearer ${USER_SYNC_SECRET}" \
+  -H "Content-Type: application/json" \
+  --data '{"mode":"daily"}' \
+  >> /var/log/svetoplavci/user-sync.log 2>&1
+```
+
+Doporučené guardrails:
+
+- `USER_SYNC_SECRET` jen v secrets (nikdy v repozitáři)
+- při non-2xx odpovědi job failne a pošle alert
+- 1x denně ověřit, že poslední úspěšný běh není starší než 18 hodin
+
+### Databázové prostředí (závazné)
+
+- **`svetoplavci`** = produkční DB (ostrý provoz).
+- **`svetoplavci_test`** = test/staging DB (věrná kopie produkce, bez anonymizace; stejné bezpečnostní zacházení jako produkce).
+- **`svetoplavci_dev`** = vývojová DB (kopie produkce po anonymizační transformaci).
+
+Detaily postupu refresh/anonymizace jsou v:
+
+- `docs/dev-database-refresh.md`
+- `docs/schema-rollout.md`
+
+---
+
+## Branch Protection (GitHub)
+
+Nastavení pro budoucí konzistenci:
+
+### `main`
+
+- Zakázat direct push.
+- Povolit pouze merge přes Pull Request.
+- Vyžadovat úspěšné CI checky před merge.
+- Vyžadovat aktuální větev (`Require branches to be up to date`).
+- Doporučeno: minimálně 1 review před merge.
+- V `Require status checks` vybrat check **`PR checks / build`**.
+
+### `staging`
+
+- Zakázat direct push (výjimky jen pro vlastníka repozitáře, pokud jsou potřeba).
+- Povolit merge pouze přes Pull Request z `feature/*` / `fix/*`.
+- Vyžadovat úspěšné CI checky.
+- V `Require status checks` vybrat check **`PR checks / build`**.
+
+### Správa větví
+
+- Pravidelně mazat merge-nuté feature/fix větve.
+- Udržovat `staging` jako jediný zdroj pro release do `main`.
+- Pokud vznikne divergence mezi `main` a `staging`, řešit ji standardně přes PR `staging -> main`.
+
 ---
 
 ## Správa dat pro staging
@@ -149,6 +232,78 @@ Kdykoli chceš mít na staging čerstvá produkční data (např. před větší
 3. Domain: `app-test.svetoplavci.cz`
 4. Environment variables: stejné jako produkce, jen s jiným `POSTGRES_PRISMA_URL` (Neon staging branch)
 5. Nastav **Webhook** pro automatický redeploy při novém `:staging` tagu
+
+---
+
+## Přístupová pravidla podle prostředí
+
+### Produkce (`app.svetoplavci.cz`)
+
+- Žádný auth bypass.
+- Přístup pouze přes standardní přihlášení.
+- Žádné testovací zkratky ani přepínače uživatele.
+
+### Staging (`app-test.svetoplavci.cz`)
+
+- Žádný auth bypass.
+- Přístup jen pro role `tester` nebo `admin`.
+- Volitelně lze přidat e-mail whitelist přes env proměnnou:
+  - `STAGING_ALLOWED_EMAILS=email1@domena.cz,email2@domena.cz`
+- Whitelist slouží jen jako výjimka pro vstup na staging (např. externí tester bez role).
+
+### Lokální vývoj (`localhost`, `127.0.0.1`)
+
+- Auth bypass je povolen pouze lokálně.
+- Bypass se řídí:
+  - `AUTH_BYPASS=1` => vždy zapnuto
+  - `AUTH_BYPASS=0` => vždy vypnuto
+  - bez hodnoty => zapnuto jen při `NODE_ENV=development`
+- Lokální přepínač uživatele je určen pouze pro dev scénáře a simulaci rolí.
+
+### Důležité bezpečnostní pravidlo
+
+- I když je `AUTH_BYPASS=1`, bypass se nikdy nepovolí na produkční ani staging doméně.
+- Rozhoduje host aplikace; bypass je technicky omezen na lokální hosty.
+- Pokusy o obcházení (bypass mimo local, zamítnutý vstup na staging) se logují jako security eventy.
+
+### Admin role a osobní data (závazné)
+
+- Role `admin` je určena pro správu systému (uživatelé/role/konfigurace), ne pro automatické čtení osobních dat žáků a zaměstnanců.
+- Přístupy k osobním datům jsou vynucené přes role matrix; `admin` není v běžných osobních data guardech.
+- Podpora se řeší primárně přes metadata a logy, ne přes „nahlížení do cizího účtu“.
+- Přihlašování pod cizím účtem není povoleno.
+
+### Support workflow
+
+- Uživatel hlásí problém přes `POST /api/support/tickets`.
+- Endpoint ukládá auditní metadata do security logu:
+  - kdo hlásil,
+  - kde problém vznikl,
+  - identifikátor ticketu,
+  - hash popisu (bez ukládání citlivého obsahu do logu).
+- Administrátor řeší incident primárně podle ticket ID, request ID a systémových logů.
+
+### Break-glass workflow
+
+- Endpoint `POST /api/internal/support/break-glass-request` slouží pro auditní záznam žádosti o mimořádný přístup.
+- Každá žádost musí obsahovat explicitní důvod a cíl.
+- Stav žádosti je `pending_manual_dual_approval` (schválení dvěma osobami mimo aplikaci).
+- Každý požadavek je logovaný jako security event.
+
+### Interní security health endpoint
+
+- Endpoint: `GET /api/internal/security-health`
+- Přístup:
+  - přihlášený uživatel s rolí `admin`, nebo
+  - `Authorization: Bearer <INTERNAL_SECURITY_HEALTH_TOKEN>`
+- Doporučení: token nastavovat jen v interním monitoringu, ne v klientské aplikaci.
+
+### Centrální role matrix
+
+- Oprávnění pro route jsou centralizovaná v `src/lib/access-matrix.ts`.
+- Nové chráněné route přidávat do role matrix (ne přes ad-hoc podmínky v jednotlivých souborech).
+- `middleware.ts` používá role matrix pro app i API route.
+- API route, které používají `getApiSessionContext(req)`, navíc aplikují host-based guard (staging gate + fail-closed při nebezpečné bypass konfiguraci).
 
 ---
 
@@ -241,6 +396,9 @@ Používej konvenci:
 - [ ] Data se načítají správně
 - [ ] Mobil: responzivita OK
 - [ ] Žádné console errory v prohlížeči
+- [ ] `npm run ci:security` prochází
+- [ ] Staging gate aktivní (přístup jen tester/admin + případný whitelist)
+- [ ] Produkční/staging bypass deaktivovaný (ověřeno přes `/api/internal/security-health`)
 - [ ] PR `staging → main` vytvořen a zkontrolován
 
 ---
@@ -268,3 +426,24 @@ PR: staging → main
   ▼
 Produkce (app.svetoplavci.cz) ✓
 ```
+
+---
+
+## Odložený plán: Admin/Support bezpečnost
+
+Následující body jsou odsouhlasené jako další etapa a mají se realizovat později:
+
+- [ ] **Support ticket provozní workflow**
+  - definovat ownera, SLA, nástroj (Jira/Linear/Notion) a mapování `ticketId`.
+- [ ] **Centralizace bezpečnostních logů**
+  - napojit `support_ticket_created` a `break_glass_requested` na centrální log storage + alerting.
+- [ ] **Schvalovací vrstva pro break-glass**
+  - zavést 2-person approval, expiraci, read-only scope a možnost revokace.
+- [ ] **Support impersonation session (bez loginu cizím účtem)**
+  - read-only režim, maskování citlivých polí, krátká expirace, plný audit.
+- [ ] **Repo governance bez bypassu**
+  - v GitHub branch protection odebrat bypass pro `staging` a `main`.
+- [ ] **Role regression smoke test**
+  - ověřit přístupové scénáře pro role `admin`, `tester`, `rodic`, `zak`, `pruvodce`.
+- [ ] **Produkční rollout**
+  - po release `staging -> main` ověřit `/api/internal/security-health` na produkci.

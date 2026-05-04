@@ -211,8 +211,8 @@ async function listGuides(now: Date): Promise<GuideRow[]> {
   }
 }
 
-export async function GET() {
-  const context = await getApiSessionContext();
+export async function GET(req: Request) {
+  const context = await getApiSessionContext(req);
   if (!context) return unauthorized();
   if (!hasAnySessionRole(context.roles, GUIDE_ROLE_CODES)) return forbidden();
 

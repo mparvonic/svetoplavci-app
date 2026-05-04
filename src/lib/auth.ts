@@ -6,6 +6,7 @@ import { authConfig } from "@/src/lib/auth.config";
 import { prisma } from "@/src/lib/prisma";
 import { getUserByEmail } from "@/src/lib/auth-utils";
 import { getDevAuthSession, isDevAuthBypassEnabled } from "@/src/lib/dev-auth";
+import { getConfiguredAppHost, isUnsafeBypassConfigurationForHost, warnUnsafeBypassConfiguration } from "@/src/lib/environment-access";
 
 const emailServer = process.env.EMAIL_SERVER ?? process.env.SMTP_URL;
 const emailFromAddress = process.env.EMAIL_FROM ?? process.env.EMAIL_FROM_ADDRESS ?? "noreply@localhost";
@@ -94,6 +95,15 @@ const emailProviders = [
       ]
     : []),
 ];
+
+const configuredHost = getConfiguredAppHost();
+if (
+  process.env.NODE_ENV === "production" &&
+  process.env.AUTH_BYPASS === "1" &&
+  (!configuredHost || isUnsafeBypassConfigurationForHost(configuredHost))
+) {
+  warnUnsafeBypassConfiguration(configuredHost || "unknown");
+}
 
 async function resolveAuthUser(email: string) {
   return getUserByEmail(email);

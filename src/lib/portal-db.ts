@@ -119,7 +119,7 @@ type PortalActorAccessInput = {
   roles: string[];
 };
 
-const GLOBAL_CHILD_ACCESS_ROLES = new Set(["admin", "tester", "garant", "pruvodce", "ucitel", "zamestnanec"]);
+const GLOBAL_CHILD_ACCESS_ROLES = new Set(["tester", "garant", "pruvodce", "ucitel", "zamestnanec"]);
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();

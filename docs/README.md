@@ -19,5 +19,6 @@ Primární účel je **referenční bod pro AI asistenta** (a vývojáře) – a
 - `security.md` – shrnutí bezpečnostního modelu a odkaz na `GDPR.md`.
 - `school-year-groups.md` – datový model školního roku, skupin, členství a změnové historie stavu dítěte.
 - `dev-database-refresh.md` – standardní refresh TEST/DEV databází z produkce (v DEV s anonymizací).
+- `schema-rollout.md` – mini-playbook pro pořadí schema rolloutu a data refresh (prevence DB driftu).
 
 Stav odpovídá commitům kolem nasazení verze s metro dlaždicemi, českými texty přihlášení a doplněnou ochranou rodič/dítě přes Codu.

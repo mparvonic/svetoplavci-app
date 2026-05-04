@@ -13,7 +13,7 @@ type DbClient = PrismaClient | Prisma.TransactionClient;
 
 type RegistrationAction = "register" | "unregister";
 
-const EXCEPTION_ALLOWED_ROLES = new Set(["admin", "ucitel", "zamestnanec", "pruvodce", "garant"]);
+const EXCEPTION_ALLOWED_ROLES = new Set(["ucitel", "zamestnanec", "pruvodce", "garant"]);
 
 interface RegistrationAuditEntry {
   at: string;
