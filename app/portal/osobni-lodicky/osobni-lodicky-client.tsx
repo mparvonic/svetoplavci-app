@@ -7,13 +7,6 @@ import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "l
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ProtoDebugPanel, createProtoDebugEvent, type ProtoDebugEvent } from "@/components/proto/proto-debug-panel";
@@ -163,10 +156,11 @@ type ChildrenResponse = {
   children: Child[];
 };
 
-type LodickyResponse = {
+type LodickyBulkResponse = {
   parent: Parent;
-  child: Child;
-  lodicky: LodickaRow[];
+  userEmail: string | null;
+  children: Child[];
+  lodickyByChild: Record<string, LodickaRow[]>;
 };
 
 class SessionExpiredError extends Error {
@@ -227,6 +221,10 @@ function getProtoRoleLabel(role: ProtoRoleId): string {
   return PROTO_ROLE_OPTIONS.find((option) => option.id === role)?.label ?? role;
 }
 
+function isWorkProtoRole(role: ProtoRoleId): boolean {
+  return role === "garant" || role === "spravce";
+}
+
 function mapSessionRolesToProto(roles: string[], fallbackRole: string): ProtoRoleId[] {
   const mapped = new Set<ProtoRoleId>();
   roles.forEach((role) => {
@@ -248,8 +246,13 @@ function OsobniLodickyPrototypePageInner({
 }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const queryRole = adminToolsEnabled ? searchParams.get("role") : null;
+  const queryRole = searchParams.get("role");
   const sessionRoleOptions = mapSessionRolesToProto(sessionUser.roles, sessionUser.role);
+  const workRoleOptions = sessionRoleOptions.filter(isWorkProtoRole);
+  const preferredWorkRole: ProtoRoleId | null = workRoleOptions.includes("garant")
+    ? "garant"
+    : (workRoleOptions[0] ?? null);
+  const canToggleParentWorkContext = sessionRoleOptions.includes("rodic") && !!preferredWorkRole;
   const preferredSessionRole: ProtoRoleId = sessionRoleOptions.includes("rodic")
     ? "rodic"
     : (sessionRoleOptions[0] ?? DEFAULT_ROLE);
@@ -272,8 +275,6 @@ function OsobniLodickyPrototypePageInner({
     total: number;
     failed: number;
   } | null>(null);
-  const initialRoleRef = useRef<ProtoRoleId>(initialRole);
-  const initialQueryUserIdRef = useRef(queryUserId);
   const usersForRoleRaw = useMemo(() => getActorsByRole(activeRole), [activeRole, datasetVersion]);
 
   const [selectedUserId, setSelectedUserId] = useState<string>(queryUserId);
@@ -290,6 +291,7 @@ function OsobniLodickyPrototypePageInner({
     initialRole === "rodic" || initialRole === "zak" ? "po_lidech" : "po_lodickach",
   );
   const [viewDate, setViewDate] = useState<string>(semesterBounds.maxDate);
+  const [viewDateDraft, setViewDateDraft] = useState<string>(semesterBounds.maxDate);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(true);
 
@@ -325,6 +327,7 @@ function OsobniLodickyPrototypePageInner({
   const [viewportWidth, setViewportWidth] = useState<number>(0);
   const [panesHeight, setPanesHeight] = useState<number>(420);
   const panesSectionRef = useRef<HTMLElement | null>(null);
+  const requestGarantId = adminToolsEnabled && (activeRole === "garant" || activeRole === "spravce") ? selectedUserId : "";
   const pushDebug = useCallback((event: Omit<ProtoDebugEvent, "id" | "at">) => {
     const debugEvent = createProtoDebugEvent(event);
     setDebugEvents((prev) => [debugEvent, ...prev].slice(0, 80));
@@ -342,16 +345,29 @@ function OsobniLodickyPrototypePageInner({
         setDbLoading(true);
         setDbError(null);
 
-        const childrenRes = await fetch("/api/m01/my-children", { cache: "no-store" });
-        if (!childrenRes.ok) {
-          const message = await readApiErrorMessage(childrenRes, "Nepodařilo se načíst děti.");
-          if (childrenRes.status === 401) throw new SessionExpiredError(message);
+        const requestParams = new URLSearchParams();
+        const includeHistory = clampDate(viewDate, semesterBounds.minDate, semesterBounds.maxDate) !== todayIso;
+        requestParams.set("role", activeRole);
+        requestParams.set("scope", "moje");
+        requestParams.set("includeHistory", includeHistory ? "1" : "0");
+        if (requestGarantId) {
+          requestParams.set("garantId", requestGarantId);
+        }
+
+        const bulkRes = await fetch(`/api/m01/lodicky?${requestParams.toString()}`, { cache: "no-store" });
+        if (!bulkRes.ok) {
+          const message = await readApiErrorMessage(bulkRes, "Nepodařilo se načíst osobní lodičky.");
+          if (bulkRes.status === 401) throw new SessionExpiredError(message);
           throw new Error(message);
         }
 
-        const childrenBody = (await childrenRes.json()) as ChildrenResponse;
-        const rowsByChild: Record<string, LodickaRow[]> = {};
-        let failedCount = 0;
+        const bulkBody = (await bulkRes.json()) as LodickyBulkResponse;
+        const childrenBody: ChildrenResponse = {
+          parent: bulkBody.parent,
+          userEmail: bulkBody.userEmail,
+          children: bulkBody.children,
+        };
+        const rowsByChild = bulkBody.lodickyByChild ?? {};
 
         const commitDataset = (dataset: ProtoDatasetFromDb, resetUserSelection: boolean) => {
           if (cancelled) return;
@@ -359,9 +375,9 @@ function OsobniLodickyPrototypePageInner({
           applyProtoDataset(dataset);
 
           if (resetUserSelection) {
-            const nextRole: ProtoRoleId = initialRoleRef.current;
+            const nextRole: ProtoRoleId = activeRole;
             const usersForNextRole = getActorsByRole(nextRole);
-            const preferredQueryUserId = initialQueryUserIdRef.current;
+            const preferredQueryUserId = requestGarantId;
             const nextUserId =
               (preferredQueryUserId &&
                 usersForNextRole.some((item) => item.id === preferredQueryUserId) &&
@@ -370,7 +386,6 @@ function OsobniLodickyPrototypePageInner({
               usersForNextRole[0]?.id ||
               dataset.parentActorId;
 
-            setActiveRole(nextRole);
             setSelectedUserId(nextUserId);
             setInvalidatedEventIds([]);
             setStatusUndoActions({});
@@ -380,65 +395,16 @@ function OsobniLodickyPrototypePageInner({
           setDatasetVersion((prev) => prev + 1);
         };
 
-        commitDataset(buildProtoDatasetFromDb(childrenBody, rowsByChild), true);
-        setDbLoading(false);
-        setDbLoadProgress({
-          loaded: 0,
-          total: childrenBody.children.length,
-          failed: 0,
+        const finalDataset = buildProtoDatasetFromDb(childrenBody, rowsByChild);
+        commitDataset(finalDataset, true);
+        pushDebug({
+          elementId: "API-M01-HYDRATE-FINAL",
+          label: "Hydratace proto UI z DB (bulk)",
+          action: "load-final",
+          hierarchy: "OSOBNI_LODICKY > INIT",
+          payload: `children=${childrenBody.children.length}; rows=${finalDataset.lodickyRowsCount}`,
         });
-
-        const batchSize = 8;
-        for (let index = 0; index < childrenBody.children.length; index += batchSize) {
-          const batch = childrenBody.children.slice(index, index + batchSize);
-          const childResults = await Promise.allSettled(
-            batch.map(async (child) => {
-              const lodickyRes = await fetch(`/api/m01/child/${child.id}/lodicky`, { cache: "no-store" });
-              if (!lodickyRes.ok) {
-                const message = await readApiErrorMessage(lodickyRes, `Nepodařilo se načíst lodičky pro ${child.name}.`);
-                if (lodickyRes.status === 401) throw new SessionExpiredError(message);
-                throw new Error(message);
-              }
-              const lodickyBody = (await lodickyRes.json()) as LodickyResponse;
-              rowsByChild[child.id] = lodickyBody.lodicky;
-            }),
-          );
-
-          const authFailure = childResults.find(
-            (item): item is PromiseRejectedResult => item.status === "rejected" && item.reason instanceof SessionExpiredError,
-          );
-          if (authFailure) {
-            throw authFailure.reason;
-          }
-
-          const failed = childResults.filter((item) => item.status === "rejected");
-          failedCount += failed.length;
-          if (failed.length > 0) {
-            console.error("[portal/osobni-lodicky] partial load failure", failed);
-          }
-
-          const nextDataset = buildProtoDatasetFromDb(childrenBody, rowsByChild);
-          commitDataset(nextDataset, false);
-
-          const loaded = Math.min(index + batch.length, childrenBody.children.length);
-          setDbLoadProgress({
-            loaded,
-            total: childrenBody.children.length,
-            failed: failedCount,
-          });
-
-          pushDebug({
-            elementId: "API-M01-HYDRATE",
-            label: "Hydratace proto UI z DB",
-            action: "load",
-            hierarchy: "OSOBNI_LODICKY > INIT",
-            payload: `children=${childrenBody.children.length}; loaded=${loaded}; rows=${nextDataset.lodickyRowsCount}; failed=${failedCount}`,
-          });
-        }
-
-        if (!cancelled) {
-          setDbLoadProgress(null);
-        }
+        setDbLoadProgress(null);
       } catch (error) {
         if (cancelled) return;
         if (error instanceof SessionExpiredError) {
@@ -461,7 +427,17 @@ function OsobniLodickyPrototypePageInner({
     return () => {
       cancelled = true;
     };
-  }, [pushDebug]);
+  }, [
+    activeRole,
+    adminToolsEnabled,
+    pushDebug,
+    queryUserId,
+    requestGarantId,
+    semesterBounds.maxDate,
+    semesterBounds.minDate,
+    todayIso,
+    viewDate,
+  ]);
 
   useEffect(() => {
     if (!activeUserId) return;
@@ -500,6 +476,8 @@ function OsobniLodickyPrototypePageInner({
 
   const activeUser = usersForRoleRaw.find((item) => item.id === activeUserId) ?? usersForRoleRaw[0] ?? null;
   const effectiveViewDate = clampDate(viewDate, semesterBounds.minDate, semesterBounds.maxDate);
+  const effectiveViewDateDraft = clampDate(viewDateDraft, semesterBounds.minDate, semesterBounds.maxDate);
+  const hasPendingViewDate = effectiveViewDateDraft !== effectiveViewDate;
   const hasHistoricalViewDate = effectiveViewDate !== todayIso;
   const effectiveScope: ScopeMode = activeRole === "garant" || activeRole === "spravce" ? scopeMode : "moje";
   const isReadonly = activeRole === "rodic" || activeRole === "zak";
@@ -514,6 +492,13 @@ function OsobniLodickyPrototypePageInner({
   const pageDescription = isReadonly
     ? "Přehled aktuálních lodiček, stavu a posledních záznamů."
     : "Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal.";
+  const activeUserContext: "rodic" | "pracovni" | null = activeRole === "rodic"
+    ? "rodic"
+    : (isWorkProtoRole(activeRole) ? "pracovni" : null);
+
+  useEffect(() => {
+    setViewDateDraft(effectiveViewDate);
+  }, [effectiveViewDate]);
 
   const filterOptions = useMemo(() => {
     const rocniky = [...new Set(PROTO_STUDENTS.map((student) => String(student.rocnik)))].sort(
@@ -862,15 +847,6 @@ function OsobniLodickyPrototypePageInner({
     return rightRows[0]?.personal.id ?? null;
   }, [rightRows, selectedPersonalId]);
 
-  const selectedPersonalRow = rightRows.find((row) => row.personal.id === selectedPersonalEffective) ?? null;
-  const selectedPersonalHistory = (selectedPersonalEffective
-    ? [...(eventsByPersonalAll.get(selectedPersonalEffective) ?? [])]
-    : []
-  ).sort((a, b) => {
-    if (a.datumStavu === b.datumStavu) return b.zapsanoAt.localeCompare(a.zapsanoAt);
-    return b.datumStavu.localeCompare(a.datumStavu);
-  });
-
   const lodickaGroupKeys = useMemo(() => {
     const keys: LodickaGroupKey[] = [];
     if (groupLodickyPredmet) keys.push("predmet");
@@ -973,6 +949,7 @@ function OsobniLodickyPrototypePageInner({
       : (usersForNextRole[0]?.id ?? "");
     setActiveRole(nextRole);
     setSelectedUserId(nextUserId);
+    setViewMode(nextRole === "rodic" || nextRole === "zak" ? "po_lidech" : "po_lodickach");
 
     pushDebug({
       elementId: "HDR-ROLE",
@@ -1032,6 +1009,20 @@ function OsobniLodickyPrototypePageInner({
     });
   }
 
+  function applyViewDate() {
+    const clamped = clampDate(viewDateDraft, semesterBounds.minDate, semesterBounds.maxDate);
+    setViewDateDraft(clamped);
+    if (clamped === effectiveViewDate) return;
+    setViewDate(clamped);
+    pushDebug({
+      elementId: "DATE-VIEW",
+      label: "Datum pohledu",
+      action: "change-date",
+      hierarchy: "PERSONAL_LODICKY > TOP_BAR",
+      payload: `date=${clamped}`,
+    });
+  }
+
   function applySuggestion(suggestion: SearchSuggestion, index: number) {
     if (suggestion.type === "smecka") {
       setPeopleSmeckaFilter((prev) => (prev.includes(suggestion.value) ? prev : [...prev, suggestion.value]));
@@ -1078,6 +1069,13 @@ function OsobniLodickyPrototypePageInner({
     const previousStatus = statusSnapshotByPersonal.get(personalId)?.stav ?? 0;
     const sameDateEvents = activeEvents.filter((event) => event.datumStavu === effectiveViewDate);
     const newerEvents = activeEvents.filter((event) => event.datumStavu > effectiveViewDate);
+
+    if (nextStatus < previousStatus) {
+      const allowDowngrade = window.confirm(
+        `Měníš stav lodičky zpět (${TEST_LODICKA_STAV_LABEL[previousStatus]} → ${TEST_LODICKA_STAV_LABEL[nextStatus]}). Opravdu pokračovat?`,
+      );
+      if (!allowDowngrade) return;
+    }
 
     if (sameDateEvents.length > 0) {
       const allowOverwrite = window.confirm(
@@ -1280,7 +1278,14 @@ function OsobniLodickyPrototypePageInner({
     onSetStatus: updateStatus,
     onOpenLodickaDetail: openLodickaDetail,
     onOpenStudentDetail: openStudentDetail,
+    onOpenPersonalDetail: openPersonalDetail,
   });
+
+  const isParentView = activeRole === "rodic";
+  const showParentChildList = !isParentView || leftItems.length > 1;
+  const panesGridClass = showParentChildList
+    ? "grid min-h-0 gap-4 min-[1180px]:items-start min-[1180px]:grid-cols-[minmax(0,0.38fr)_minmax(0,0.62fr)]"
+    : "grid min-h-0 gap-4 min-[1180px]:items-start min-[1180px]:grid-cols-1";
 
   if (dbLoading) {
     return (
@@ -1318,6 +1323,7 @@ function OsobniLodickyPrototypePageInner({
             </div>
 
             {(Boolean(dbLoadProgress && dbLoadProgress.loaded < dbLoadProgress.total) ||
+              canToggleParentWorkContext ||
               (adminToolsEnabled && sessionRoleOptions.length > 1)) && (
             <div className="flex flex-wrap items-center justify-end gap-2">
               {dbLoadProgress && dbLoadProgress.loaded < dbLoadProgress.total && (
@@ -1325,6 +1331,29 @@ function OsobniLodickyPrototypePageInner({
                   Načítám detailní data: {dbLoadProgress.loaded}/{dbLoadProgress.total}
                   {dbLoadProgress.failed > 0 ? `, chyb ${dbLoadProgress.failed}` : ""}
                 </Badge>
+              )}
+
+              {canToggleParentWorkContext && preferredWorkRole && (
+                <div className="inline-flex rounded-xl border border-[#D6DFF0] bg-white p-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSessionRoleChange("rodic")}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                      activeUserContext === "rodic" ? "bg-[#0E2A5C] text-white" : "text-slate-600 hover:bg-[#EEF2F7]"
+                    }`}
+                  >
+                    Rodičský pohled
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSessionRoleChange(preferredWorkRole)}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+                      activeUserContext === "pracovni" ? "bg-[#0E2A5C] text-white" : "text-slate-600 hover:bg-[#EEF2F7]"
+                    }`}
+                  >
+                    Pracovní pohled
+                  </button>
+                </div>
               )}
 
               {adminToolsEnabled && sessionRoleOptions.length > 1 && (
@@ -1409,131 +1438,155 @@ function OsobniLodickyPrototypePageInner({
           </Card>
         )}
 
+        {!isParentView && (
         <Card className="border-[#D6DFF0]">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="space-y-4">
               <CardTitle className="text-[#0E2A5C]">Řízení pohledu a filtry</CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="border-[#D6DFF0]"
-                  onClick={clearAllFilters}
-                >
-                  Vymazat filtry
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="border-[#D6DFF0]"
-                  onClick={() => setFiltersCollapsed((prev) => !prev)}
-                >
-                  {filtersCollapsed ? (
-                    <>
-                      <ChevronDown className="size-4" />
-                      Rozbalit filtry
-                    </>
-                  ) : (
-                    <>
-                      <ChevronUp className="size-4" />
-                      Skrýt filtry
-                    </>
-                  )}
-                </Button>
+
+              <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-nowrap xl:items-start xl:gap-2">
+                  <div className="xl:min-w-[250px]">
+                    <SegmentControl
+                      label="Základní volba"
+                      options={[
+                        { id: "moje", label: "Moje lodičky" },
+                        { id: "vsechny", label: "Všechny lodičky" },
+                      ]}
+                      value={effectiveScope}
+                      onChange={(value) => {
+                        if (activeRole === "zak") return;
+                        setScopeMode(value as ScopeMode);
+                        pushDebug({
+                          elementId: "SEG-SCOPE",
+                          label: "Přepnutí rozsahu",
+                          action: "change-scope",
+                          hierarchy: "PERSONAL_LODICKY > TOP_BAR",
+                          payload: `scope=${value}`,
+                        });
+                      }}
+                      disabled={activeRole === "zak"}
+                    />
+                  </div>
+
+                  <div className="xl:min-w-[250px]">
+                    <SegmentControl
+                      label="Pohled"
+                      options={[
+                        { id: "po_lodickach", label: "Po lodičkách" },
+                        { id: "po_lidech", label: "Po dětech" },
+                      ]}
+                      value={viewMode}
+                      onChange={(value) => {
+                        setViewMode(value as ViewMode);
+                        setSelectedLeftId(null);
+                        setSelectedPersonalId(null);
+                        setLeftSort("nazev");
+                        setRightSort("jmeno");
+                        pushDebug({
+                          elementId: "SEG-VIEW",
+                          label: "Přepnutí režimu zobrazení",
+                          action: "change-view",
+                          hierarchy: "PERSONAL_LODICKY > TOP_BAR",
+                          payload: `view=${value}`,
+                        });
+                      }}
+                    />
+                  </div>
+
+                  <label className="block xl:min-w-[280px]">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-normal text-slate-500">
+                      Datum pohledu
+                    </span>
+                    <div
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
+                        hasHistoricalViewDate ? "border-[#C8372D] bg-[#FAEAE9]" : "border-[#D6DFF0] bg-[#EEF2F7]"
+                      }`}
+                    >
+                      <CalendarDays className={`size-4 ${hasHistoricalViewDate ? "text-[#C8372D]" : "text-[#1E3F7A]"}`} />
+                      <input
+                        type="date"
+                        min={semesterBounds.minDate}
+                        max={semesterBounds.maxDate}
+                        value={effectiveViewDateDraft}
+                        onChange={(e) => {
+                          setViewDateDraft(e.target.value);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            applyViewDate();
+                          }
+                        }}
+                        className={`w-full bg-transparent text-sm outline-none ${
+                          hasHistoricalViewDate ? "text-[#B42318]" : "text-slate-700"
+                        }`}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="h-7 border-[#C7D4EA] px-2 text-[11px] text-[#1E3F7A]"
+                        onClick={applyViewDate}
+                        disabled={!hasPendingViewDate}
+                      >
+                        Použít
+                      </Button>
+                    </div>
+                    <span className="mt-1 block text-[11px] text-slate-500">
+                      Aktivní pololetí: {formatDateCz(semesterBounds.minDate)} až {formatDateCz(semesterBounds.maxDate)}
+                    </span>
+                    {hasPendingViewDate && (
+                      <span className="mt-1 block text-[11px] font-medium text-[#1E3F7A]">
+                        Datum je změněné, ale zatím neaplikované.
+                      </span>
+                    )}
+                    {hasHistoricalViewDate && (
+                      <span className="mt-1 block text-[11px] font-medium text-[#B42318]">
+                        Zobrazuješ historické datum.
+                      </span>
+                    )}
+                  </label>
+                </div>
+
+                <div className="flex items-stretch justify-start gap-2 xl:justify-end">
+                  <div className="flex flex-col gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-[#D6DFF0]"
+                      onClick={clearAllFilters}
+                    >
+                      Vymazat filtry
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-[#D6DFF0]"
+                      onClick={() => setFiltersCollapsed((prev) => !prev)}
+                    >
+                      {filtersCollapsed ? (
+                        <>
+                          <ChevronDown className="size-4" />
+                          Rozbalit filtry
+                        </>
+                      ) : (
+                        <>
+                          <ChevronUp className="size-4" />
+                          Skrýt filtry
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </CardHeader>
 
           {!filtersCollapsed && (
             <CardContent className="space-y-4">
-              <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
-                <SegmentControl
-                  label="Základní volba"
-                  options={[
-                    { id: "moje", label: "Moje lodičky" },
-                    { id: "vsechny", label: "Všechny lodičky" },
-                  ]}
-                  value={effectiveScope}
-                  onChange={(value) => {
-                    if (activeRole === "rodic" || activeRole === "zak") return;
-                    setScopeMode(value as ScopeMode);
-                    pushDebug({
-                      elementId: "SEG-SCOPE",
-                      label: "Přepnutí rozsahu",
-                      action: "change-scope",
-                      hierarchy: "PERSONAL_LODICKY > TOP_BAR",
-                      payload: `scope=${value}`,
-                    });
-                  }}
-                  disabled={activeRole === "rodic" || activeRole === "zak"}
-                />
-
-                <SegmentControl
-                  label="Pohled"
-                  options={[
-                    { id: "po_lodickach", label: "Po lodičkách" },
-                    { id: "po_lidech", label: "Po dětech" },
-                  ]}
-                  value={viewMode}
-                  onChange={(value) => {
-                    setViewMode(value as ViewMode);
-                    setSelectedLeftId(null);
-                    setSelectedPersonalId(null);
-                    setLeftSort("nazev");
-                    setRightSort("jmeno");
-                    pushDebug({
-                      elementId: "SEG-VIEW",
-                      label: "Přepnutí režimu zobrazení",
-                      action: "change-view",
-                      hierarchy: "PERSONAL_LODICKY > TOP_BAR",
-                      payload: `view=${value}`,
-                    });
-                  }}
-                />
-
-                <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-normal text-slate-500">
-                    Datum pohledu
-                  </span>
-                  <div
-                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
-                      hasHistoricalViewDate ? "border-[#C8372D] bg-[#FAEAE9]" : "border-[#D6DFF0] bg-[#EEF2F7]"
-                    }`}
-                  >
-                    <CalendarDays className={`size-4 ${hasHistoricalViewDate ? "text-[#C8372D]" : "text-[#1E3F7A]"}`} />
-                    <input
-                      type="date"
-                      min={semesterBounds.minDate}
-                      max={semesterBounds.maxDate}
-                      value={effectiveViewDate}
-                      onChange={(e) => {
-                        const clamped = clampDate(e.target.value, semesterBounds.minDate, semesterBounds.maxDate);
-                        setViewDate(clamped);
-                        pushDebug({
-                          elementId: "DATE-VIEW",
-                          label: "Datum pohledu",
-                          action: "change-date",
-                          hierarchy: "PERSONAL_LODICKY > TOP_BAR",
-                          payload: `date=${clamped}`,
-                        });
-                      }}
-                      className={`w-full bg-transparent text-sm outline-none ${
-                        hasHistoricalViewDate ? "text-[#B42318]" : "text-slate-700"
-                      }`}
-                    />
-                  </div>
-                  <span className="mt-1 block text-[11px] text-slate-500">
-                    Aktivní pololetí: {formatDateCz(semesterBounds.minDate)} až {formatDateCz(semesterBounds.maxDate)}
-                  </span>
-                  {hasHistoricalViewDate && (
-                    <span className="mt-1 block text-[11px] font-medium text-[#B42318]">
-                      Zobrazuješ historické datum.
-                    </span>
-                  )}
-                </label>
-              </div>
 
               <div className="relative">
                 <div className="flex items-center gap-2 rounded-2xl border border-[#D6DFF0] bg-white px-3 py-2">
@@ -1684,11 +1737,13 @@ function OsobniLodickyPrototypePageInner({
             </CardContent>
           )}
         </Card>
+        )}
 
         <section
           ref={panesSectionRef}
-          className="grid min-h-0 gap-4 min-[1180px]:items-start min-[1180px]:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]"
+          className={panesGridClass}
         >
+          {showParentChildList && (
           <Card
             className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
             style={paneCardStyle}
@@ -1698,6 +1753,7 @@ function OsobniLodickyPrototypePageInner({
                 <div>
                   <CardTitle className="text-[#0E2A5C]">{viewMode === "po_lodickach" ? "Lodičky" : "Děti"}</CardTitle>
                 </div>
+                {!isParentView && (
                 <div className="flex items-center gap-2">
                   <SortSelect
                     value={leftSort}
@@ -1729,6 +1785,7 @@ function OsobniLodickyPrototypePageInner({
                     />
                   )}
                 </div>
+                )}
               </div>
             </CardHeader>
             <CardContent className="overflow-auto min-[1180px]:min-h-0 min-[1180px]:flex-1">
@@ -1762,6 +1819,7 @@ function OsobniLodickyPrototypePageInner({
               </Table>
             </CardContent>
           </Card>
+          )}
 
           <Card
             className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
@@ -1771,7 +1829,11 @@ function OsobniLodickyPrototypePageInner({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-[#0E2A5C]">
-                    {viewMode === "po_lodickach" ? "Děti pro vybranou lodičku" : "Lodičky vybraného dítěte"}
+                    {viewMode === "po_lodickach"
+                      ? "Děti pro vybranou lodičku"
+                      : showParentChildList
+                        ? "Lodičky vybraného dítěte"
+                        : "Lodičky dítěte"}
                   </CardTitle>
                 </div>
                 <SortSelect
@@ -1809,14 +1871,16 @@ function OsobniLodickyPrototypePageInner({
                   <TableRow>
                     <TableHead>{viewMode === "po_lodickach" ? "Dítě" : "Lodička"}</TableHead>
                     <TableHead>Stav</TableHead>
-                    <TableHead className="text-right">Změna</TableHead>
+                    <TableHead className="text-right">Akce</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rightRows.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={3} className="py-8 text-center text-slate-500">
-                        Pravý panel je prázdný. Vyber vlevo řádek nebo uprav filtr.
+                        {showParentChildList
+                          ? "Pravý panel je prázdný. Vyber vlevo řádek nebo uprav filtr."
+                          : "Zatím nejsou dostupné lodičky pro zvolené datum."}
                       </TableCell>
                     </TableRow>
                   )}
@@ -1826,69 +1890,12 @@ function OsobniLodickyPrototypePageInner({
             </CardContent>
           </Card>
 
-          <Card
-            className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
-            style={paneCardStyle}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-[#0E2A5C]">
-                  {selectedPersonalRow
-                    ? getStudentDisplayName(selectedPersonalRow.student, activeRole)
-                    : "Historie osobní lodičky"}
-                </CardTitle>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="border-[#D6DFF0]"
-                  disabled={!selectedPersonalRow}
-                  onClick={() => {
-                    if (!selectedPersonalRow) return;
-                    openPersonalDetail(
-                      selectedPersonalRow.personal.id,
-                      selectedPersonalHistory[0]?.id,
-                    );
-                  }}
-                >
-                  Detail
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="overflow-auto min-[1180px]:min-h-0 min-[1180px]:flex-1">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Datum stavu</TableHead>
-                    <TableHead>Stav</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedPersonalHistory.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={2} className="py-6 text-center text-slate-500">
-                        Pro vybranou položku zatím nejsou eventy.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {selectedPersonalHistory.map((event) => (
-                    <TableRow key={event.id}>
-                      <TableCell>{formatDateCz(event.datumStavu)}</TableCell>
-                      <TableCell>
-                        <Badge className={stavBadgeClass(event.stav)}>{TEST_LODICKA_STAV_LABEL[event.stav]}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
         </section>
       </section>
 
-      <DetailSheet
+      <DetailModal
         state={detailSheet}
-        eventsByPersonal={eventsByPersonalAll}
+        eventsByPersonal={eventsByPersonalActive}
         activeRole={activeRole}
         onClose={() => setDetailSheet({ type: "none" })}
       />
@@ -1930,7 +1937,7 @@ export default function OsobniLodickyPrototypePage({
   );
 }
 
-function DetailSheet({
+function DetailModal({
   state,
   eventsByPersonal,
   activeRole,
@@ -1942,9 +1949,15 @@ function DetailSheet({
   onClose: () => void;
 }) {
   const open = state.type !== "none";
-  const onOpenChange = (next: boolean) => {
-    if (!next) onClose();
-  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
 
   const personal =
     state.type === "personal" ? PROTO_OSOBNI_LODICKY.find((item) => item.id === state.personalId) ?? null : null;
@@ -1972,21 +1985,52 @@ function DetailSheet({
   const highlightedEventId = state.type === "personal" ? state.eventId : undefined;
   const detailWidthClass =
     state.type === "student"
-      ? "w-[84vw] max-w-[460px] sm:max-w-[460px]"
+      ? "w-[84vw] max-w-[520px]"
       : state.type === "personal"
-        ? "w-[92vw] max-w-[920px] sm:max-w-[920px]"
-        : "w-[88vw] max-w-[620px] sm:max-w-[620px]";
+        ? "w-[94vw] max-w-[1120px]"
+        : "w-[90vw] max-w-[760px]";
+
+  if (!open) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className={`${detailWidthClass} overflow-y-auto`}>
-        {state.type === "student" && student && (
-          <>
-            <SheetHeader>
-              <SheetTitle>Detail dítěte</SheetTitle>
-              <SheetDescription>{student.prezdivka}</SheetDescription>
-            </SheetHeader>
-            <div className="space-y-4 p-4 pt-0">
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0E2A5C]/40 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className={`${detailWidthClass} max-h-[92vh] overflow-hidden rounded-2xl border border-[#D6DFF0] bg-white shadow-2xl`}
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-[#D6DFF0] px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-[#0E2A5C]">
+              {state.type === "student"
+                ? "Detail dítěte"
+                : state.type === "lodicka"
+                  ? "Detail lodičky"
+                  : "Detail osobní lodičky"}
+            </p>
+            <p className="mt-1 truncate text-sm text-slate-600">
+              {state.type === "student" && student
+                ? student.prezdivka
+                : state.type === "lodicka" && lodicka
+                  ? lodicka.nazev
+                  : state.type === "personal" && student && lodicka
+                    ? `${getStudentDisplayName(student, activeRole)} · ${lodicka.nazev}`
+                    : ""}
+            </p>
+          </div>
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-slate-500" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
+        </div>
+
+        <div className="max-h-[calc(92vh-72px)] overflow-y-auto p-4">
+          {state.type === "student" && student && (
+            <div className="space-y-4">
               <div className="flex items-start gap-4 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
                 <Image
                   src={getStudentPhotoUrl(student)}
@@ -2005,16 +2049,10 @@ function DetailSheet({
                 </div>
               </div>
             </div>
-          </>
-        )}
+          )}
 
-        {state.type === "lodicka" && lodicka && (
-          <>
-            <SheetHeader>
-              <SheetTitle>Detail lodičky</SheetTitle>
-              <SheetDescription>{lodicka.nazev}</SheetDescription>
-            </SheetHeader>
-            <div className="space-y-4 p-4 pt-0">
+          {state.type === "lodicka" && lodicka && (
+            <div className="space-y-4">
               <div className="grid gap-2 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
                 <InfoCell label="Kód" value={lodicka.kod} />
                 <InfoCell label="Předmět" value={lodicka.predmet} />
@@ -2024,27 +2062,20 @@ function DetailSheet({
                 <InfoCell label="Ročníky plnění" value={formatLodickaRocnikRange(lodicka.odRocniku, lodicka.doRocniku)} />
                 <InfoCell label="Typ" value={formatLodickaTyp(lodicka.typ)} />
               </div>
-
             </div>
-          </>
-        )}
+          )}
 
-        {state.type === "personal" && personal && student && lodicka && (
-          <>
-            <SheetHeader>
-              <SheetTitle>Detail osobní lodičky</SheetTitle>
-              <SheetDescription>
-                {getStudentDisplayName(student, activeRole)} · {lodicka.nazev}
-              </SheetDescription>
-            </SheetHeader>
-            <div className="space-y-4 p-4 pt-0">
-              <div className="grid gap-2 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
-                <InfoCell label="Dítě" value={student.jmeno} />
-                <InfoCell label="Přezdívka" value={student.prezdivka} />
-                <InfoCell label="Ročník" value={`${student.rocnik}. ročník`} />
-                <InfoCell label="Smečka" value={student.smecka} />
-                <InfoCell label="Lodička" value={lodicka.nazev} />
-                <InfoCell label="Kód lodičky" value={lodicka.kod} />
+          {state.type === "personal" && personal && student && lodicka && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <InfoCell label="Dítě" value={student.jmeno} />
+                  <InfoCell label="Přezdívka" value={student.prezdivka} />
+                  <InfoCell label="Ročník" value={`${student.rocnik}. ročník`} />
+                  <InfoCell label="Smečka" value={student.smecka} />
+                  <InfoCell label="Lodička" value={lodicka.nazev} />
+                  <InfoCell label="Kód lodičky" value={lodicka.kod} />
+                </div>
               </div>
 
               <Table className="min-w-[840px]">
@@ -2077,10 +2108,10 @@ function DetailSheet({
                 </TableBody>
               </Table>
             </div>
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2576,7 +2607,7 @@ function InfoCell({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-[#D6DFF0] bg-white px-3 py-2">
       <p className="text-[11px] font-semibold uppercase tracking-normal text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-medium text-[#0E2A5C]">{value}</p>
+      <p className="mt-1 break-words text-sm font-medium text-[#0E2A5C]">{value}</p>
     </div>
   );
 }
@@ -2778,6 +2809,7 @@ function renderRightPaneRows({
   onSetStatus,
   onOpenLodickaDetail,
   onOpenStudentDetail,
+  onOpenPersonalDetail,
 }: {
   rows: PersonalWithSnapshot[];
   selectedPersonalId: string | null;
@@ -2791,6 +2823,7 @@ function renderRightPaneRows({
   onSetStatus: (personalId: string, status: LodickaStav) => void;
   onOpenLodickaDetail: (lodickaId: string, rowId: string, tableId: string) => void;
   onOpenStudentDetail: (studentId: string, rowId: string, tableId: string) => void;
+  onOpenPersonalDetail: (personalId: string, eventId?: string) => void;
 }) {
   const grouped = groupBy(rows, (row) => {
     if (viewMode === "po_lodickach") {
@@ -2871,29 +2904,43 @@ function renderRightPaneRows({
           </TableCell>
           <TableCell className="text-right">
             <TooltipProvider delayDuration={450}>
-              <div className="inline-flex gap-1">
-                {STATUS_BUTTONS.map((statusButton) => (
-                  <Tooltip key={statusButton.value}>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={readonly}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onSetStatus(row.personal.id, statusButton.value);
-                        }}
-                        className={statusButtonClass(statusButton.value, row.stav === statusButton.value)}
-                      >
-                        {statusButton.label}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" sideOffset={8}>
-                      {TEST_LODICKA_STAV_LABEL[statusButton.value]}
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
+              <div className="inline-flex items-center">
+                <div className="inline-flex gap-1">
+                  {STATUS_BUTTONS.map((statusButton) => (
+                    <Tooltip key={statusButton.value}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          disabled={readonly}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onSetStatus(row.personal.id, statusButton.value);
+                          }}
+                          className={statusButtonClass(statusButton.value, row.stav === statusButton.value)}
+                        >
+                          {statusButton.label}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={8}>
+                        {TEST_LODICKA_STAV_LABEL[statusButton.value]}
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenPersonalDetail(row.personal.id, row.lastEvent?.id);
+                  }}
+                  className="ml-3 border-[#D6DFF0] px-2 text-[11px] text-[#1E3F7A]"
+                >
+                  Detail
+                </Button>
               </div>
             </TooltipProvider>
           </TableCell>
