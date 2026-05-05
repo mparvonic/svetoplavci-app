@@ -15,6 +15,13 @@ export async function GET(
   if (!childId) {
     return NextResponse.json({ error: "Chybí childId" }, { status: 400 });
   }
+  const url = new URL(req.url);
+  const includeHistory = url.searchParams.get("includeHistory") === "1";
+  const role = (url.searchParams.get("role") ?? "").trim().toLowerCase();
+  const scope = (url.searchParams.get("scope") ?? "").trim().toLowerCase();
+  const garantId = (url.searchParams.get("garantId") ?? "").trim();
+  const garantFilter =
+    (role === "garant" || role === "spravce") && scope === "moje" && garantId ? garantId : null;
 
   try {
     const result = await getPortalChildLodickyForActor(
@@ -24,6 +31,7 @@ export async function GET(
         roles: context.roles,
       },
       childId,
+      { includeHistory, garantPersonId: garantFilter },
     );
     if (!result) {
       return NextResponse.json({ error: "Toto dítě vám není přiřazeno." }, { status: 403 });

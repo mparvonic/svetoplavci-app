@@ -172,7 +172,7 @@ export async function DevAppMenu() {
                   >
                     {devUsers.map((user) => (
                       <option key={user.personId} value={user.personId}>
-                        {user.displayName} | {getDevAuthRoleLabel(user.role)}
+                        {user.displayName} | {user.roles.map((role) => getDevAuthRoleLabel(role)).join(", ")}
                       </option>
                     ))}
                   </select>

@@ -67,8 +67,14 @@ Pokud chceš nejprve vizuálně ověřit návrh **bez reálných dat**:
 ### 3. Vývoj
 
 1. Uprav kód, přidej komponenty, napoj na reálné API
-2. Testuj lokálně na `localhost:3000`
-3. Průběžně commituj:
+2. Pro DB na dev spusť watchdog tunelu (automaticky tunel hlídá a při výpadku obnoví):
+
+```bash
+npm run dev:db:tunnel:up
+```
+
+3. Testuj lokálně na `localhost:3000`
+4. Průběžně commituj:
 
 ```bash
 git add src/components/nova-komponenta.tsx
@@ -171,6 +177,21 @@ Doporučené guardrails:
 - `USER_SYNC_SECRET` jen v secrets (nikdy v repozitáři)
 - při non-2xx odpovědi job failne a pošle alert
 - 1x denně ověřit, že poslední úspěšný běh není starší než 18 hodin
+
+### Odložený krok: Google Workspace e-maily žáků
+
+Budoucí krok k realizaci: doplnit automatický sync žákovských e-mailů z Google Workspace do produkční DB, aby se ruční import exportu uživatelů nemusel opakovat.
+
+Navržený bezpečný směr:
+
+- číst uživatele z Google Workspace přes Admin SDK Directory API,
+- použít jen read-only scope `https://www.googleapis.com/auth/admin.directory.user.readonly`,
+- synchronizovat pouze aktivní žákovské účty z domény `svetoplavci.cz` / příslušné OU nebo skupiny,
+- mapovat Google uživatele na aktivní žáky v DB ideálně přes stabilní externí ID (`externalIds` nebo custom schema s Edookit PersonId / interním `identifier`), ne pouze podle jména,
+- vytvářet nebo udržovat `app_login_identity` a schválený `app_login_person_link`,
+- e-mail, který už má aktivní vazbu na jinou osobu, nepřepisovat automaticky; založit konflikt k ruční kontrole,
+- spouštět až po Edookit user syncu, například denně,
+- logovat počty: načteno z Google Workspace, spárováno, nově potvrzeno, přeskočeno, konflikty.
 
 ### Databázové prostředí (závazné)
 
