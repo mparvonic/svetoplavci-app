@@ -169,6 +169,12 @@ type LodickyResponse = {
   lodicky: LodickaRow[];
 };
 
+type SaveStatusApiResponse = {
+  ok: true;
+  event: ProtoOsobniLodickaEvent;
+  invalidatedEventIds: string[];
+};
+
 class SessionExpiredError extends Error {
   constructor(message = "Přihlášení vypršelo.") {
     super(message);
@@ -320,6 +326,7 @@ function OsobniLodickyPrototypePageInner({
 
   const [events, setEvents] = useState<ProtoOsobniLodickaEvent[]>(PROTO_OSOBNI_LODICKA_EVENTS);
   const [invalidatedEventIds, setInvalidatedEventIds] = useState<string[]>([]);
+  const [statusSavePendingFor, setStatusSavePendingFor] = useState<string | null>(null);
   const [debugEvents, setDebugEvents] = useState<ProtoDebugEvent[]>([]);
   const [statusUndoActions, setStatusUndoActions] = useState<Record<string, StatusUndoAction>>({});
   const [viewportWidth, setViewportWidth] = useState<number>(0);
@@ -1071,8 +1078,8 @@ function OsobniLodickyPrototypePageInner({
     });
   }
 
-  function updateStatus(personalId: string, nextStatus: LodickaStav) {
-    if (isReadonly || !activeUser) return;
+  async function updateStatus(personalId: string, nextStatus: LodickaStav) {
+    if (isReadonly || !activeUser || statusSavePendingFor) return;
 
     const activeEvents = [...(eventsByPersonalActive.get(personalId) ?? [])];
     const previousStatus = statusSnapshotByPersonal.get(personalId)?.stav ?? 0;
@@ -1087,35 +1094,58 @@ function OsobniLodickyPrototypePageInner({
     }
 
     let invalidateNewer = false;
+    let allowHistorical = newerEvents.length === 0;
     if (newerEvents.length > 0) {
       const proceedHistorical = window.confirm(
         `Zapisuješ historický stav (${formatDateCz(effectiveViewDate)}), ale existuje ${newerEvents.length} novější záznam(ů). Pokračovat?`,
       );
       if (!proceedHistorical) return;
+      allowHistorical = true;
 
       invalidateNewer = window.confirm(
         "Chceš novější záznamy zneplatnit?\nOK = zneplatnit novější záznamy\nStorno = ponechat novější záznamy platné",
       );
     }
 
-    const now = new Date();
-    const hour = String(now.getHours()).padStart(2, "0");
-    const minute = String(now.getMinutes()).padStart(2, "0");
-    const event: ProtoOsobniLodickaEvent = {
-      id: `evt-manual-${personalId}-${now.getTime()}`,
-      osobniLodickaId: personalId,
-      datumStavu: effectiveViewDate,
-      zapsanoAt: `${effectiveViewDate} ${hour}:${minute}`,
-      stav: nextStatus,
-      zapsalId: activeUser.id,
-      poznamka: "Prototyp: ruční změna stavu.",
-    };
+    setStatusSavePendingFor(personalId);
 
-    const toInvalidate = [
-      ...sameDateEvents.map((event) => event.id),
-      ...(invalidateNewer ? newerEvents.map((event) => event.id) : []),
-    ];
-    const newlyInvalidatedIds = toInvalidate.filter((id) => !invalidatedEventIdSet.has(id));
+    let event: ProtoOsobniLodickaEvent;
+    let newlyInvalidatedIds: string[] = [];
+    try {
+      const response = await fetch(`/api/m01/lodicky/${personalId}/status`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          status: nextStatus,
+          effectiveDate: effectiveViewDate,
+          overwriteSameDate: sameDateEvents.length > 0,
+          allowHistorical,
+          invalidateNewer,
+          note: "Ruční změna stavu z portálu osobních lodiček.",
+        }),
+      });
+
+      if (!response.ok) {
+        const message = await readApiErrorMessage(response, "Nepodařilo se uložit stav lodičky.");
+        throw new Error(message);
+      }
+
+      const body = (await response.json()) as SaveStatusApiResponse;
+      if (!body.ok || !body.event) {
+        throw new Error("API nevrátilo validní potvrzení změny stavu.");
+      }
+
+      event = body.event;
+      newlyInvalidatedIds = body.invalidatedEventIds.filter((id) => !invalidatedEventIdSet.has(id));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Nepodařilo se uložit stav lodičky.");
+      return;
+    } finally {
+      setStatusSavePendingFor(null);
+    }
+
     if (newlyInvalidatedIds.length > 0) {
       setInvalidatedEventIds((prev) => uniqueValues([...prev, ...newlyInvalidatedIds]));
     }
@@ -1262,7 +1292,7 @@ function OsobniLodickyPrototypePageInner({
     selectedPersonalId: selectedPersonalEffective,
     viewMode,
     tableId: rightTableId,
-    readonly: isReadonly,
+    readonly: isReadonly || statusSavePendingFor !== null,
     activeRole,
     peopleGroupBy,
     lodickaGroupKeys,

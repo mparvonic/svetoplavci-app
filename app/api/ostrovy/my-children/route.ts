@@ -44,28 +44,6 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
     for (const link of links) parentChildIds.add(link.childPersonId);
   }
 
-  if (normalizedRoles.includes("tester")) {
-    const students = await prisma.appPerson.findMany({
-      where: {
-        isActive: true,
-        roles: { some: { role: "zak", isActive: true } },
-      },
-      select: { id: true, displayName: true, firstName: true, nickname: true },
-      orderBy: { displayName: "asc" },
-    });
-    return students.map((student) => ({
-      ...student,
-      displayName: resolvePersonName(
-        {
-          nickname: student.nickname,
-          displayName: student.displayName,
-          firstName: student.firstName,
-        },
-        { preferFirstName: parentChildIds.has(student.id) },
-      ),
-    }));
-  }
-
   const directStudents = normalizedRoles.includes("zak")
     ? await prisma.appPerson.findMany({
         where: {
@@ -122,27 +100,6 @@ async function resolveAccessibleChild(
   childId: string,
 ): Promise<ChildSummary | null> {
   const normalizedRoles = roles.map((role) => role.toLowerCase());
-
-  if (normalizedRoles.includes("tester")) {
-    const child = await prisma.appPerson.findFirst({
-      where: {
-        id: childId,
-        isActive: true,
-        roles: { some: { role: "zak", isActive: true } },
-      },
-      select: { id: true, displayName: true, firstName: true, nickname: true },
-    });
-    return child
-      ? {
-          ...child,
-          displayName: resolvePersonName({
-            nickname: child.nickname,
-            displayName: child.displayName,
-            firstName: child.firstName,
-          }),
-        }
-      : null;
-  }
 
   if (normalizedRoles.includes("zak") && personIds.includes(childId)) {
     const child = await prisma.appPerson.findFirst({

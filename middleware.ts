@@ -29,6 +29,11 @@ function hasRole(roles: string[], allowed: string[]): boolean {
   return roles.some((role) => allowed.includes(role.toLowerCase()));
 }
 
+function scopeTesterRoleByHost(roles: string[], host: string, isTestHost: boolean): string[] {
+  if (isTestHost || isBypassAllowedForHost(host)) return roles;
+  return roles.filter((role) => role !== "tester");
+}
+
 function isAuthBypassEnabledForHost(host: string): boolean {
   if (!isBypassAllowedForHost(host)) return false;
   if (process.env.AUTH_BYPASS === "1") return true;
@@ -91,19 +96,20 @@ export default auth((req) => {
   }
 
   const roles = collectUserRoles(session);
+  const effectiveRoles = scopeTesterRoleByHost(roles, host, isTestHost);
   const normalizedEmail = (session.user.email ?? "").trim().toLowerCase();
   const stagingAllowedEmails = getStagingAllowedEmailsFromEnv();
   const allowByStagingEmail = normalizedEmail && stagingAllowedEmails.has(normalizedEmail);
 
   // Staging: přístup pouze pro tester/admin nebo explicitní e-mail whitelist.
-  if (isTestHost && !hasRole(roles, ["tester", "admin"]) && !allowByStagingEmail) {
+  if (isTestHost && !hasRole(effectiveRoles, ["tester", "admin"]) && !allowByStagingEmail) {
     logSecurityEvent("warn", {
       event: "staging_access_denied",
       message: "Staging access denied by tester gate.",
       host,
       pathname,
       email: normalizedEmail || undefined,
-      roles,
+      roles: effectiveRoles,
     });
     return Response.redirect(new URL("/auth/error?error=NoEnvRole", req.nextUrl.origin));
   }
@@ -115,7 +121,7 @@ export default auth((req) => {
 
   // /admin/* – pouze role admin
   const requiredRoles = getRequiredRolesForPath(pathname);
-  if (requiredRoles && !hasAnyRole(roles, requiredRoles)) {
+  if (requiredRoles && !hasAnyRole(effectiveRoles, requiredRoles)) {
     if (pathname.startsWith("/api/")) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
     }

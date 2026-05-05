@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/src/lib/prisma";
 import { resolvePersonName } from "@/src/lib/person-name";
@@ -119,7 +120,43 @@ type PortalActorAccessInput = {
   roles: string[];
 };
 
-const GLOBAL_CHILD_ACCESS_ROLES = new Set(["tester", "garant", "pruvodce", "ucitel", "zamestnanec"]);
+export type PortalLodickaStav = 0 | 1 | 2 | 3 | 4;
+
+type PortalSaveLodickaStatusInput = {
+  personalLodickaId: string;
+  effectiveDate: string;
+  status: PortalLodickaStav;
+  overwriteSameDate: boolean;
+  allowHistorical: boolean;
+  invalidateNewer: boolean;
+  note?: string | null;
+  actorPersonId: string | null;
+  actorLabel: string;
+};
+
+type PortalSaveLodickaStatusResult =
+  | {
+      ok: true;
+      event: {
+        id: string;
+        osobniLodickaId: string;
+        datumStavu: string;
+        zapsanoAt: string;
+        stav: PortalLodickaStav;
+        zapsalId: string;
+        poznamka?: string;
+      };
+      invalidatedEventIds: string[];
+    }
+  | {
+      ok: false;
+      code: "NOT_FOUND" | "FORBIDDEN" | "SAME_DATE_EXISTS" | "HISTORICAL_CONFLICT" | "INVALID_INPUT";
+      message: string;
+      sameDateCount?: number;
+      newerCount?: number;
+    };
+
+const GLOBAL_CHILD_ACCESS_ROLES = new Set(["garant", "pruvodce", "ucitel", "zamestnanec"]);
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -744,4 +781,236 @@ export async function getPortalChildLodickyForActor(
   const context = await getPortalParentAndChildrenForActor(input);
   if (!context) return null;
   return getPortalChildLodickyFromContext(context, childId);
+}
+
+function formatProtoDateTime(value: Date): string {
+  const iso = value.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+}
+
+function statusToLabel(status: PortalLodickaStav): string {
+  if (status === 4) return "Samostatně";
+  if (status === 3) return "Částečně";
+  if (status === 2) return "S dopomocí";
+  if (status === 1) return "Zahájeno";
+  return "Nezahájeno";
+}
+
+function toActorFallbackId(label: string): string {
+  const slug = label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug ? `db-label-${slug}` : "db-unknown-actor";
+}
+
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+export async function savePortalLodickaStatusForActor(
+  actor: PortalActorAccessInput,
+  input: PortalSaveLodickaStatusInput,
+): Promise<PortalSaveLodickaStatusResult> {
+  if (!isIsoDate(input.effectiveDate)) {
+    return { ok: false, code: "INVALID_INPUT", message: "Neplatné datum stavu." };
+  }
+  if (![0, 1, 2, 3, 4].includes(input.status)) {
+    return { ok: false, code: "INVALID_INPUT", message: "Neplatná hodnota stavu lodičky." };
+  }
+
+  const context = await getPortalParentAndChildrenForActor(actor);
+  if (!context) {
+    return { ok: false, code: "FORBIDDEN", message: "Přístup zamítnut." };
+  }
+
+  const targetRows = await prisma.$queryRaw<Array<{ personal_id: string; child_id: string }>>(Prisma.sql`
+    SELECT
+      ol.id AS personal_id,
+      os.person_id AS child_id
+    FROM app_m01_osobni_lodicka ol
+    JOIN app_m01_osobni_sada_lodicek os
+      ON os.id = ol.osobni_sada_id
+    WHERE ol.id = ${input.personalLodickaId}
+      AND ol.is_deleted = false
+      AND os.status = 'ACTIVE'
+    LIMIT 1
+  `);
+
+  const target = targetRows[0];
+  if (!target) {
+    return { ok: false, code: "NOT_FOUND", message: "Osobní lodička nebyla nalezena." };
+  }
+
+  const accessibleChildIds = new Set(context.children.map((child) => child.id));
+  if (!accessibleChildIds.has(target.child_id)) {
+    return { ok: false, code: "FORBIDDEN", message: "Tato osobní lodička vám není přiřazena." };
+  }
+
+  const sameDayRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT id
+    FROM app_m01_osobni_lodicka_event
+    WHERE osobni_lodicka_id = ${input.personalLodickaId}
+      AND COALESCE(is_invalidated, false) = false
+      AND DATE(datum_stavu AT TIME ZONE 'UTC') = ${input.effectiveDate}::date
+  `);
+
+  const newerRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT id
+    FROM app_m01_osobni_lodicka_event
+    WHERE osobni_lodicka_id = ${input.personalLodickaId}
+      AND COALESCE(is_invalidated, false) = false
+      AND DATE(datum_stavu AT TIME ZONE 'UTC') > ${input.effectiveDate}::date
+  `);
+
+  if (sameDayRows.length > 0 && !input.overwriteSameDate) {
+    return {
+      ok: false,
+      code: "SAME_DATE_EXISTS",
+      message: "Pro dané datum už existuje stav lodičky.",
+      sameDateCount: sameDayRows.length,
+    };
+  }
+
+  if (newerRows.length > 0 && !input.allowHistorical) {
+    return {
+      ok: false,
+      code: "HISTORICAL_CONFLICT",
+      message: "Existují novější záznamy. Potvrďte historický zápis.",
+      newerCount: newerRows.length,
+    };
+  }
+
+  const toInvalidate = [
+    ...sameDayRows.map((row) => row.id),
+    ...(input.invalidateNewer ? newerRows.map((row) => row.id) : []),
+  ];
+  const note = input.note?.trim() || null;
+  const now = new Date();
+  const eventId = `evt-manual-${randomUUID()}`;
+  const eventDate = new Date(`${input.effectiveDate}T12:00:00.000Z`);
+  const statusLabel = statusToLabel(input.status);
+  const actorLabel = input.actorLabel.trim() || "Neznámý uživatel";
+  const source = "portal_osobni_lodicky_manual_v1";
+
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO app_m01_osobni_lodicka_event (
+        id,
+        osobni_lodicka_id,
+        stupen,
+        stav_label,
+        hodnota,
+        datum_stavu,
+        poznamka,
+        uspech,
+        changed_by_person_id,
+        source,
+        source_row_id,
+        changed_by_label,
+        source_created_by_person_id,
+        source_created_by_label,
+        source_created_at,
+        source_modified_by_person_id,
+        source_modified_by_label,
+        source_modified_at
+      ) VALUES (
+        ${eventId},
+        ${input.personalLodickaId},
+        ${input.status},
+        ${statusLabel},
+        ${input.status},
+        ${eventDate},
+        ${note},
+        NULL,
+        ${input.actorPersonId},
+        ${source},
+        NULL,
+        ${actorLabel},
+        ${input.actorPersonId},
+        ${actorLabel},
+        ${now},
+        ${input.actorPersonId},
+        ${actorLabel},
+        ${now}
+      )
+    `);
+
+    if (toInvalidate.length > 0) {
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE app_m01_osobni_lodicka_event
+        SET
+          is_invalidated = true,
+          invalidated_at = ${now},
+          invalidated_reason = ${input.invalidateNewer ? "manual_overwrite_same_or_newer" : "manual_overwrite_same_day"},
+          invalidated_by_event_id = ${eventId}
+        WHERE osobni_lodicka_id = ${input.personalLodickaId}
+          AND id IN (${Prisma.join(toInvalidate)})
+          AND COALESCE(is_invalidated, false) = false
+      `);
+    }
+
+    const latestRows = await tx.$queryRaw<Array<{
+      id: string;
+      stupen: number;
+      stav_label: string | null;
+      hodnota: number | null;
+      datum_stavu: Date | string | null;
+      poznamka: string | null;
+      uspech: string | null;
+    }>>(Prisma.sql`
+      SELECT
+        id,
+        stupen,
+        stav_label,
+        hodnota,
+        datum_stavu,
+        poznamka,
+        uspech
+      FROM app_m01_osobni_lodicka_event
+      WHERE osobni_lodicka_id = ${input.personalLodickaId}
+        AND COALESCE(is_invalidated, false) = false
+      ORDER BY datum_stavu DESC, source_modified_at DESC NULLS LAST, created_at DESC, id DESC
+      LIMIT 1
+    `);
+
+    const latest = latestRows[0];
+    if (!latest) {
+      throw new Error("Nepodařilo se určit aktuální stav osobní lodičky po zápisu.");
+    }
+
+    await tx.$executeRaw(Prisma.sql`
+      UPDATE app_m01_osobni_lodicka
+      SET
+        current_stupen = ${latest.stupen},
+        current_stav_label = ${latest.stav_label},
+        current_hodnota = ${latest.hodnota},
+        datum_stavu = ${latest.datum_stavu as Date | string | null},
+        poznamka = ${latest.poznamka},
+        uspech = ${latest.uspech},
+        last_event_id = ${latest.id},
+        updated_at = ${now}
+      WHERE id = ${input.personalLodickaId}
+    `);
+
+  });
+
+  const eventWriterId = input.actorPersonId?.trim() || toActorFallbackId(actorLabel);
+  const writtenAt = now;
+
+  return {
+    ok: true,
+    event: {
+      id: eventId,
+      osobniLodickaId: input.personalLodickaId,
+      datumStavu: input.effectiveDate,
+      zapsanoAt: formatProtoDateTime(writtenAt),
+      stav: input.status,
+      zapsalId: eventWriterId,
+      poznamka: note ?? undefined,
+    },
+    invalidatedEventIds: toInvalidate,
+  };
 }

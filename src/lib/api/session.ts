@@ -50,6 +50,11 @@ export function hasAnySessionRole(roles: string[], allowed: Set<string>): boolea
   return hasAnyRole(roles, allowed);
 }
 
+function scopeTesterRoleByHost(roles: string[], host: string): string[] {
+  if (isStagingHost(host) || isBypassAllowedForHost(host)) return roles;
+  return roles.filter((role) => role !== "tester");
+}
+
 function isLocalDevEmail(email: string): boolean {
   return email.trim().toLowerCase().endsWith("@svetoplavci.local");
 }
@@ -150,7 +155,8 @@ export async function getApiSessionContext(request?: Request): Promise<ApiSessio
     if (!isLocalDevAuthBypass(requestHost)) throw error;
     console.error("[api/session] failed to load login profile in local dev; continuing without actor person", error);
   }
-  const roles = collectSessionRoles(session);
+  const rawRoles = collectSessionRoles(session);
+  const roles = scopeTesterRoleByHost(rawRoles, requestHost);
   if (isStagingHost(requestHost)) {
     const normalizedEmail = email.trim().toLowerCase();
     const stagingAllowlist = getStagingAllowedEmailsFromEnv();
