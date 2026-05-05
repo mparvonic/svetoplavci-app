@@ -1455,7 +1455,7 @@ function OsobniLodickyPrototypePageInner({
                       ]}
                       value={effectiveScope}
                       onChange={(value) => {
-                        if (activeRole === "rodic" || activeRole === "zak") return;
+                        if (activeRole === "zak") return;
                         setScopeMode(value as ScopeMode);
                         pushDebug({
                           elementId: "SEG-SCOPE",
@@ -1465,7 +1465,7 @@ function OsobniLodickyPrototypePageInner({
                           payload: `scope=${value}`,
                         });
                       }}
-                      disabled={activeRole === "rodic" || activeRole === "zak"}
+                      disabled={activeRole === "zak"}
                     />
                   </div>
 

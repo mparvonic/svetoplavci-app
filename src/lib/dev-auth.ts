@@ -14,6 +14,14 @@ export type DevAuthUserOption = {
   roles: AppRole[];
 };
 
+type ApprovedEmailLink = {
+  personId: string;
+  identity: {
+    normalizedValue: string | null;
+    identityValue: string;
+  };
+};
+
 const ROLE_LABELS: Partial<Record<AppRole, string>> = {
   admin: "admin",
   tester: "tester",
@@ -143,7 +151,7 @@ async function getApprovedEmailsByPersonId(personIds: string[]): Promise<Map<str
   const uniquePersonIds = [...new Set(personIds.filter(Boolean))];
   if (uniquePersonIds.length === 0) return new Map();
 
-  let links: Awaited<ReturnType<typeof prisma.appLoginPersonLink.findMany>>;
+  let links: ApprovedEmailLink[];
   try {
     links = await prisma.appLoginPersonLink.findMany({
       where: {
