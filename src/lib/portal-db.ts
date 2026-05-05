@@ -85,6 +85,7 @@ type ActiveChildRow = {
 };
 
 type LodickaQueryRow = {
+  child_id?: string;
   id: string;
   lodicka_id: string;
   kod_lodicky: string | null;
@@ -309,7 +310,10 @@ async function getActiveChildren(
       AND cra.role = 'zak'
       AND cra.is_active = true
     LEFT JOIN LATERAL (
-      SELECT s.current_grade_num
+      SELECT
+        s.current_grade_num,
+        s.study_mode_code,
+        s.study_mode_key
       FROM app_student_state s
       WHERE s.person_id = c.id
         AND (s.effective_to IS NULL OR s.effective_to::date >= CURRENT_DATE)
@@ -353,6 +357,10 @@ async function getActiveChildren(
       LIMIT 1
     ) grp_smecka ON true
     WHERE c.is_active = true
+      AND (
+        ss.study_mode_code = '11'
+        OR lower(ss.study_mode_key::text) = 'denni'
+      )
       ${idFilter}
     ORDER BY c.display_name
   `);
@@ -495,6 +503,29 @@ export async function getPortalParentAndChildrenForActor(input: PortalActorAcces
   };
 }
 
+export async function filterChildrenByGarant(children: PortalChild[], garantPersonId: string): Promise<PortalChild[]> {
+  const trimmedGarantId = garantPersonId.trim();
+  if (!trimmedGarantId || children.length === 0) return children;
+
+  const childIds = children.map((child) => child.id);
+  const rows = await prisma.$queryRaw<Array<{ child_id: string }>>(Prisma.sql`
+    SELECT DISTINCT os.person_id AS child_id
+    FROM app_m01_osobni_sada_lodicek os
+    JOIN app_m01_osobni_lodicka ol
+      ON ol.osobni_sada_id = os.id
+      AND ol.is_deleted = false
+    JOIN app_m01_lodicka l
+      ON l.id = ol.lodicka_id
+      AND l.is_deleted = false
+    WHERE os.status = 'ACTIVE'
+      AND os.person_id IN (${Prisma.join(childIds)})
+      AND l.garant_person_id = ${trimmedGarantId}
+  `);
+
+  const allowed = new Set(rows.map((row) => row.child_id));
+  return children.filter((child) => allowed.has(child.id));
+}
+
 export async function getPortalParentAndChildrenByEmail(email: string): Promise<{
   parent: PortalParent;
   children: PortalChild[];
@@ -544,7 +575,10 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
       ON c.id = rel.child_person_id
       AND c.is_active = true
     LEFT JOIN LATERAL (
-      SELECT s.current_grade_num
+      SELECT
+        s.current_grade_num,
+        s.study_mode_code,
+        s.study_mode_key
       FROM app_student_state s
       WHERE s.person_id = c.id
         AND (s.effective_to IS NULL OR s.effective_to::date >= CURRENT_DATE)
@@ -590,6 +624,10 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
     WHERE li.identity_type = 'email'
       AND li.normalized_value = ${normalizedEmail}
       AND li.is_active = true
+      AND (
+        ss.study_mode_code = '11'
+        OR lower(ss.study_mode_key::text) = 'denni'
+      )
   `;
 
   if (rows.length === 0) return null;
@@ -657,6 +695,7 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
 async function getPortalChildLodickyFromContext(
   context: { parent: PortalParent; children: PortalChild[] },
   childId: string,
+  options?: { includeHistory?: boolean; garantPersonId?: string | null },
 ): Promise<{
   parent: PortalParent;
   child: PortalChild;
@@ -664,6 +703,42 @@ async function getPortalChildLodickyFromContext(
 } | null> {
   const child = context.children.find((item) => item.id === childId);
   if (!child) return null;
+
+  const includeHistory = options?.includeHistory === true;
+  const garantPersonId = options?.garantPersonId?.trim() ?? "";
+  const historySelect = includeHistory
+    ? Prisma.sql`ev.history_json AS history_json`
+    : Prisma.sql`'[]'::json AS history_json`;
+  const historyJoin = includeHistory
+    ? Prisma.sql`
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', e.id,
+            'stavLabel', e.stav_label,
+            'hodnota', e.hodnota,
+            'datumStavu', e.datum_stavu,
+            'poznamka', e.poznamka,
+            'uspech', e.uspech,
+            'changedByPersonId', e.changed_by_person_id,
+            'changedByLabel', e.changed_by_label,
+            'sourceCreatedByLabel', e.source_created_by_label,
+            'sourceModifiedByLabel', e.source_modified_by_label,
+            'sourceCreatedAt', e.source_created_at,
+            'sourceModifiedAt', e.source_modified_at,
+            'createdAt', e.created_at
+          )
+          ORDER BY e.datum_stavu ASC, e.created_at ASC
+        ) AS history_json
+        FROM app_m01_osobni_lodicka_event e
+        WHERE e.osobni_lodicka_id = ol.id
+          AND COALESCE(e.is_invalidated, false) = false
+      ) ev ON true
+    `
+    : Prisma.empty;
+  const garantFilter = garantPersonId
+    ? Prisma.sql`AND l.garant_person_id = ${garantPersonId}`
+    : Prisma.empty;
 
   const rows = await prisma.$queryRaw<LodickaQueryRow[]>`
     SELECT
@@ -686,7 +761,7 @@ async function getPortalChildLodickyFromContext(
       ol.uspech AS uspech,
       ol.poznamka AS poznamka,
       ol.datum_stavu AS datum_stavu,
-      ev.history_json AS history_json
+      ${historySelect}
     FROM app_m01_osobni_sada_lodicek os
     JOIN app_m01_osobni_lodicka ol
       ON ol.osobni_sada_id = os.id
@@ -702,31 +777,10 @@ async function getPortalChildLodickyFromContext(
       ON ob.id = l.oblast_id
     LEFT JOIN app_person gp
       ON gp.id = l.garant_person_id
-    LEFT JOIN LATERAL (
-      SELECT json_agg(
-        json_build_object(
-          'id', e.id,
-          'stavLabel', e.stav_label,
-          'hodnota', e.hodnota,
-          'datumStavu', e.datum_stavu,
-          'poznamka', e.poznamka,
-          'uspech', e.uspech,
-          'changedByPersonId', e.changed_by_person_id,
-          'changedByLabel', e.changed_by_label,
-          'sourceCreatedByLabel', e.source_created_by_label,
-          'sourceModifiedByLabel', e.source_modified_by_label,
-          'sourceCreatedAt', e.source_created_at,
-          'sourceModifiedAt', e.source_modified_at,
-          'createdAt', e.created_at
-        )
-        ORDER BY e.datum_stavu ASC, e.created_at ASC
-      ) AS history_json
-      FROM app_m01_osobni_lodicka_event e
-      WHERE e.osobni_lodicka_id = ol.id
-        AND COALESCE(e.is_invalidated, false) = false
-    ) ev ON true
+    ${historyJoin}
     WHERE os.person_id = ${child.id}
       AND os.status = 'ACTIVE'
+      ${garantFilter}
     ORDER BY pr.nazev ASC, pp.nazev ASC NULLS FIRST, ob.nazev ASC, l.nazev ASC
   `;
 
@@ -767,12 +821,13 @@ export async function getPortalChildLodickyByEmail(email: string, childId: strin
 } | null> {
   const context = await getPortalParentAndChildrenByEmail(email);
   if (!context) return null;
-  return getPortalChildLodickyFromContext(context, childId);
+  return getPortalChildLodickyFromContext(context, childId, { includeHistory: true });
 }
 
 export async function getPortalChildLodickyForActor(
   input: PortalActorAccessInput,
   childId: string,
+  options?: { includeHistory?: boolean; garantPersonId?: string | null },
 ): Promise<{
   parent: PortalParent;
   child: PortalChild;
@@ -780,7 +835,155 @@ export async function getPortalChildLodickyForActor(
 } | null> {
   const context = await getPortalParentAndChildrenForActor(input);
   if (!context) return null;
-  return getPortalChildLodickyFromContext(context, childId);
+  return getPortalChildLodickyFromContext(context, childId, options);
+}
+
+export async function getPortalLodickyByActor(
+  input: PortalActorAccessInput,
+  options?: {
+    includeHistory?: boolean;
+    garantPersonId?: string | null;
+    childIds?: string[];
+  },
+): Promise<{
+  parent: PortalParent;
+  children: PortalChild[];
+  lodickyByChild: Record<string, PortalLodickaRow[]>;
+} | null> {
+  const context = await getPortalParentAndChildrenForActor(input);
+  if (!context) return null;
+
+  const includeHistory = options?.includeHistory === true;
+  const garantPersonId = options?.garantPersonId?.trim() ?? "";
+  const requestedChildIds = [...new Set((options?.childIds ?? []).map((id) => id.trim()).filter(Boolean))];
+  const accessibleChildren =
+    requestedChildIds.length > 0
+      ? context.children.filter((child) => requestedChildIds.includes(child.id))
+      : context.children;
+  if (accessibleChildren.length === 0) {
+    return {
+      parent: context.parent,
+      children: [],
+      lodickyByChild: {},
+    };
+  }
+
+  const childIds = accessibleChildren.map((child) => child.id);
+  const historySelect = includeHistory
+    ? Prisma.sql`ev.history_json AS history_json`
+    : Prisma.sql`'[]'::json AS history_json`;
+  const historyJoin = includeHistory
+    ? Prisma.sql`
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', e.id,
+            'stavLabel', e.stav_label,
+            'hodnota', e.hodnota,
+            'datumStavu', e.datum_stavu,
+            'poznamka', e.poznamka,
+            'uspech', e.uspech,
+            'changedByPersonId', e.changed_by_person_id,
+            'changedByLabel', e.changed_by_label,
+            'sourceCreatedByLabel', e.source_created_by_label,
+            'sourceModifiedByLabel', e.source_modified_by_label,
+            'sourceCreatedAt', e.source_created_at,
+            'sourceModifiedAt', e.source_modified_at,
+            'createdAt', e.created_at
+          )
+          ORDER BY e.datum_stavu ASC, e.created_at ASC
+        ) AS history_json
+        FROM app_m01_osobni_lodicka_event e
+        WHERE e.osobni_lodicka_id = ol.id
+          AND COALESCE(e.is_invalidated, false) = false
+      ) ev ON true
+    `
+    : Prisma.empty;
+  const garantFilter = garantPersonId
+    ? Prisma.sql`AND l.garant_person_id = ${garantPersonId}`
+    : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<LodickaQueryRow[]>(Prisma.sql`
+    SELECT
+      os.person_id AS child_id,
+      ol.id AS id,
+      l.id AS lodicka_id,
+      l.kod AS kod_lodicky,
+      ol.kod_osobni_lodicky AS kod_osobni_lodicky,
+      pr.nazev AS predmet,
+      pp.nazev AS podpredmet,
+      ob.nazev AS oblast,
+      l.nazev AS nazev_lodicky,
+      l.typ::text AS typ,
+      l.stupen::text AS stupen,
+      l.rocnik_od AS rocnik_od,
+      l.rocnik_do AS rocnik_do,
+      l.garant_person_id AS garant_person_id,
+      gp.display_name AS garant_name,
+      ol.current_stav_label AS stav,
+      ol.current_hodnota AS hodnota,
+      ol.uspech AS uspech,
+      ol.poznamka AS poznamka,
+      ol.datum_stavu AS datum_stavu,
+      ${historySelect}
+    FROM app_m01_osobni_sada_lodicek os
+    JOIN app_m01_osobni_lodicka ol
+      ON ol.osobni_sada_id = os.id
+      AND ol.is_deleted = false
+    JOIN app_m01_lodicka l
+      ON l.id = ol.lodicka_id
+      AND l.is_deleted = false
+    JOIN app_m01_predmet pr
+      ON pr.id = l.predmet_id
+    LEFT JOIN app_m01_podpredmet pp
+      ON pp.id = l.podpredmet_id
+    JOIN app_m01_oblast ob
+      ON ob.id = l.oblast_id
+    LEFT JOIN app_person gp
+      ON gp.id = l.garant_person_id
+    ${historyJoin}
+    WHERE os.person_id IN (${Prisma.join(childIds)})
+      AND os.status = 'ACTIVE'
+      ${garantFilter}
+    ORDER BY os.person_id ASC, pr.nazev ASC, pp.nazev ASC NULLS FIRST, ob.nazev ASC, l.nazev ASC
+  `);
+
+  const lodickyByChild: Record<string, PortalLodickaRow[]> = {};
+  for (const childId of childIds) lodickyByChild[childId] = [];
+
+  for (const row of rows) {
+    const childId = row.child_id ?? "";
+    if (!childId || !lodickyByChild[childId]) continue;
+
+    lodickyByChild[childId].push({
+      id: row.id,
+      lodickaId: row.lodicka_id,
+      kodLodicky: normalizeOptionalText(row.kod_lodicky),
+      kodOsobniLodicky: normalizeOptionalText(row.kod_osobni_lodicky),
+      predmet: normalizeText(row.predmet, "—"),
+      podpredmet: normalizeText(row.podpredmet, "—"),
+      oblast: normalizeText(row.oblast, "—"),
+      nazevLodicky: normalizeText(row.nazev_lodicky, "—"),
+      typ: normalizeOptionalText(row.typ),
+      stupen: normalizeOptionalText(row.stupen),
+      rocnikOd: typeof row.rocnik_od === "number" ? row.rocnik_od : null,
+      rocnikDo: typeof row.rocnik_do === "number" ? row.rocnik_do : null,
+      garantPersonId: normalizeOptionalText(row.garant_person_id),
+      garantName: normalizeOptionalText(row.garant_name),
+      stav: normalizeText(row.stav, "Nezahájeno"),
+      hodnota: typeof row.hodnota === "number" && Number.isFinite(row.hodnota) ? row.hodnota : null,
+      uspech: normalizeText(row.uspech, "—"),
+      poznamka: normalizeText(row.poznamka, "—"),
+      datumStavu: toIso(row.datum_stavu),
+      history: toHistoryRows(row.history_json),
+    });
+  }
+
+  return {
+    parent: context.parent,
+    children: accessibleChildren,
+    lodickyByChild,
+  };
 }
 
 function formatProtoDateTime(value: Date): string {

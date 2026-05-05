@@ -71,6 +71,20 @@ const FALLBACK_DEV_USERS: DevAuthUserOption[] = [
     role: "zak",
     roles: ["zak"],
   },
+  {
+    personId: "cmnix1k9g003d01qeddlfz5eq",
+    displayName: "Kateřina Parvonič (test)",
+    email: "katerina.parvonic@svetoplavci.cz",
+    role: "garant",
+    roles: ["garant", "pruvodce", "rodic"],
+  },
+  {
+    personId: "cmnix8eu500ou01qeff51rxnv",
+    displayName: "Irma Wichtová (test)",
+    email: "irma.wichtova@svetoplavci.cz",
+    role: "garant",
+    roles: ["garant", "pruvodce", "rodic"],
+  },
 ];
 
 const LEGACY_DEV_ROLE_BY_PERSON_ID = new Map<string, AppRole>([
@@ -97,8 +111,11 @@ export function isDevAuthBypassEnabled(): boolean {
   return process.env.NODE_ENV === "development" && process.env.AUTH_BYPASS !== "0";
 }
 
-function shouldLoadDevUsersFromDb(): boolean {
-  return process.env.DEV_AUTH_USERS_SOURCE === "db";
+function getDevAuthUsersSource(): "db" | "representative" | "static" {
+  const source = (process.env.DEV_AUTH_USERS_SOURCE ?? "static").trim().toLowerCase();
+  if (source === "db") return "db";
+  if (source === "representative") return "representative";
+  return "static";
 }
 
 export function getDevAuthRoleLabel(role: AppRole): string {
@@ -126,22 +143,31 @@ async function getApprovedEmailsByPersonId(personIds: string[]): Promise<Map<str
   const uniquePersonIds = [...new Set(personIds.filter(Boolean))];
   if (uniquePersonIds.length === 0) return new Map();
 
-  const links = await prisma.appLoginPersonLink.findMany({
-    where: {
-      personId: { in: uniquePersonIds },
-      status: "approved",
-      identity: {
-        identityType: "email",
-        isActive: true,
+  let links: Awaited<ReturnType<typeof prisma.appLoginPersonLink.findMany>>;
+  try {
+    links = await prisma.appLoginPersonLink.findMany({
+      where: {
+        personId: { in: uniquePersonIds },
+        status: "approved",
+        identity: {
+          identityType: "email",
+          isActive: true,
+        },
       },
-    },
-    include: {
-      identity: true,
-    },
-    orderBy: {
-      approvedAt: "desc",
-    },
-  });
+      include: {
+        identity: true,
+      },
+      orderBy: {
+        approvedAt: "desc",
+      },
+    });
+  } catch (error) {
+    console.warn(
+      "[dev-auth] approved email lookup failed; using synthetic local emails:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return new Map();
+  }
 
   const emails = new Map<string, string>();
   for (const link of links) {
@@ -205,7 +231,7 @@ async function getDbDevAuthUsers(): Promise<DevAuthUserOption[]> {
 
 async function getRepresentativeDevAuthUsers(): Promise<DevAuthUserOption[]> {
   try {
-    const [guide, parentLink, students] = await Promise.all([
+    const [guide, parentLink, students, multiRolePeople] = await Promise.all([
       prisma.appPerson.findFirst({
         where: {
           isActive: true,
@@ -246,15 +272,79 @@ async function getRepresentativeDevAuthUsers(): Promise<DevAuthUserOption[]> {
         select: { id: true, displayName: true },
         orderBy: { displayName: "asc" },
       }),
+      prisma.appPerson.findMany({
+        where: {
+          isActive: true,
+          roles: {
+            some: {
+              role: "rodic",
+              isActive: true,
+            },
+          },
+          AND: [
+            {
+              roles: {
+                some: {
+                  role: { in: ["garant", "pruvodce", "ucitel", "zamestnanec"] },
+                  isActive: true,
+                },
+              },
+            },
+          ],
+        },
+        select: {
+          id: true,
+          displayName: true,
+          roles: {
+            where: {
+              isActive: true,
+            },
+            select: { role: true },
+          },
+        },
+        orderBy: {
+          displayName: "asc",
+        },
+      }),
     ]);
     const emailsByPersonId = await getApprovedEmailsByPersonId([
       guide?.id ?? "",
       parentLink?.parentPersonId ?? "",
       ...students.map((student) => student.id),
+      ...multiRolePeople.map((person) => person.id),
     ]);
 
-    return [
-      FALLBACK_DEV_USERS[0],
+    const multiRoleByPersonId = new Map<string, DevAuthUserOption>();
+    for (const person of multiRolePeople) {
+      const roles = uniqueRoles(person.roles.map((item) => item.role));
+      if (roles.length === 0) continue;
+
+      const option: DevAuthUserOption = {
+        personId: person.id,
+        displayName: `Lokální multi-role - ${person.displayName}`,
+        email: emailsByPersonId.get(person.id) ?? `local-${person.id}@svetoplavci.local`,
+        role: selectPrimaryRole(roles),
+        roles,
+      };
+
+      const existing = multiRoleByPersonId.get(option.personId);
+      if (!existing || compareDevUsers(option, existing) < 0) {
+        multiRoleByPersonId.set(option.personId, option);
+      }
+    }
+
+    const result: DevAuthUserOption[] = [];
+    const seen = new Set<string>();
+    const pushUnique = (user: DevAuthUserOption | undefined) => {
+      if (!user) return;
+      if (seen.has(user.personId)) return;
+      seen.add(user.personId);
+      result.push(user);
+    };
+
+    pushUnique(FALLBACK_DEV_USERS[0]);
+    [...multiRoleByPersonId.values()].sort(compareDevUsers).forEach((user) => pushUnique(user));
+    pushUnique(
       guide
         ? {
             personId: guide.id,
@@ -264,6 +354,8 @@ async function getRepresentativeDevAuthUsers(): Promise<DevAuthUserOption[]> {
             roles: ["pruvodce"],
           }
         : FALLBACK_DEV_USERS.find((user) => user.role === "pruvodce"),
+    );
+    pushUnique(
       parentLink
         ? {
             personId: parentLink.parentPersonId,
@@ -273,16 +365,22 @@ async function getRepresentativeDevAuthUsers(): Promise<DevAuthUserOption[]> {
             roles: ["rodic"],
           }
         : FALLBACK_DEV_USERS.find((user) => user.role === "rodic"),
-      ...(students.length > 0
-        ? students.map((student) => ({
-            personId: student.id,
-            displayName: `Lokální žák - ${student.displayName}`,
-            email: emailsByPersonId.get(student.id) ?? "local-zak@svetoplavci.local",
-            role: "zak" as const,
-            roles: ["zak" as const],
-          }))
-        : [FALLBACK_DEV_USERS.find((user) => user.role === "zak")]),
-    ].filter((user): user is DevAuthUserOption => Boolean(user));
+    );
+    if (students.length > 0) {
+      students.forEach((student) =>
+        pushUnique({
+          personId: student.id,
+          displayName: `Lokální žák - ${student.displayName}`,
+          email: emailsByPersonId.get(student.id) ?? "local-zak@svetoplavci.local",
+          role: "zak",
+          roles: ["zak"],
+        }),
+      );
+    } else {
+      pushUnique(FALLBACK_DEV_USERS.find((user) => user.role === "zak"));
+    }
+
+    return result;
   } catch (error) {
     console.warn(
       "[dev-auth] DB-backed local users unavailable; using static fallbacks:",
@@ -298,12 +396,29 @@ export async function getDevAuthUsers(): Promise<DevAuthUserOption[]> {
     return devAuthUsersCache.users;
   }
 
-  const users = shouldLoadDevUsersFromDb()
-    ? await getDbDevAuthUsers()
-    : await getRepresentativeDevAuthUsers();
+  let users: DevAuthUserOption[] = [];
+  const source = getDevAuthUsersSource();
+  if (source === "db") {
+    try {
+      users = await getDbDevAuthUsers();
+    } catch (error) {
+      console.warn(
+        "[dev-auth] DB-backed local users failed; falling back to static users:",
+        error instanceof Error ? error.message : String(error),
+      );
+      users = FALLBACK_DEV_USERS;
+    }
+  } else if (source === "representative") {
+    users = await getRepresentativeDevAuthUsers();
+  } else {
+    users = FALLBACK_DEV_USERS;
+  }
   const resolved = users.length > 0 ? users : FALLBACK_DEV_USERS;
+  const fallbackOnly =
+    resolved.length === FALLBACK_DEV_USERS.length &&
+    resolved.every((user, index) => user.personId === FALLBACK_DEV_USERS[index]?.personId);
   devAuthUsersCache = {
-    expiresAt: Date.now() + 30_000,
+    expiresAt: Date.now() + (fallbackOnly ? 3_000 : 30_000),
     users: resolved,
   };
   return resolved;
