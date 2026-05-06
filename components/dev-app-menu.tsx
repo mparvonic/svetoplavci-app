@@ -1,12 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { Session } from "next-auth";
-import { LogOut, UserRound } from "lucide-react";
-import { redirect } from "next/navigation";
+import { UserRound } from "lucide-react";
 
-import { auth, signOut } from "@/src/lib/auth";
+import { SignOutButton } from "@/components/sign-out-button";
+import { auth } from "@/src/lib/auth";
 import {
-  clearDevAuthSelection,
   getDevAuthRoleLabel,
   getDevAuthUsers,
   getSelectedDevAuthUser,
@@ -28,7 +27,7 @@ type DevNavItem = {
 
 const DEV_NAV_ITEMS: DevNavItem[] = [
   {
-    href: "/portal/osobni-lodicky",
+    href: "/portal/lodicky",
     label: "Lodičky",
     roles: LODICKY_ROLES,
   },
@@ -86,17 +85,6 @@ function formatHeaderName(rawName: string, email: string): string {
   }
 
   return name;
-}
-
-async function menuSignOutAction() {
-  "use server";
-
-  if (isDevAuthBypassEnabled()) {
-    await clearDevAuthSelection();
-    redirect("/");
-  }
-
-  await signOut({ redirectTo: "/auth/signin" });
 }
 
 export async function DevAppMenu() {
@@ -196,15 +184,7 @@ export async function DevAppMenu() {
               </div>
             )}
 
-            <form action={menuSignOutAction}>
-              <button
-                type="submit"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border-[1.5px] border-[#C8372D] bg-white px-4 text-sm font-semibold text-[#C8372D] transition duration-200 ease-[var(--sv-ease)] hover:-translate-y-px hover:bg-[#FAEAE9]"
-              >
-                <LogOut className="size-4" aria-hidden={true} />
-                <span>Odhlásit</span>
-              </button>
-            </form>
+            <SignOutButton isDevMenu={isDevMenu} />
           </div>
         </div>
       </div>

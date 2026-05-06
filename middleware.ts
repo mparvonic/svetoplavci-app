@@ -45,8 +45,8 @@ export default auth((req) => {
   const session = req.auth;
   const host = normalizeHost(req.headers.get("host"));
   const isTestHost = isStagingHost(host);
-  const testDefaultPath = "/portal/osobni-lodicky";
-  const testAllowedPathPrefixes = ["/vysvedceni", "/portal/osobni-lodicky", "/ostrovy", "/admin"];
+  const testDefaultPath = "/portal/lodicky";
+  const testAllowedPathPrefixes = ["/vysvedceni", "/portal/lodicky", "/portal/osobni-lodicky", "/ostrovy", "/admin"];
 
   if (isAuthBypassForcedOn() && !isBypassAllowedForHost(host)) {
     logSecurityEventOnce("warn", `bypass-attempt:${host}`, {
