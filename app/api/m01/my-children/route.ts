@@ -64,7 +64,6 @@ export async function GET(req: Request) {
         (role === "garant" || role === "spravce") && scope === "moje" && garantId
           ? await filterChildrenByGarant(portalContext.children, garantId)
           : portalContext.children,
-      parentChildren: portalContext.parentChildren,
     });
   } catch (error) {
     console.error("[api/m01/my-children]", error);
