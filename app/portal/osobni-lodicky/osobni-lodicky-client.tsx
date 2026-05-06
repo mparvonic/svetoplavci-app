@@ -163,12 +163,6 @@ type LodickyBulkResponse = {
   lodickyByChild: Record<string, LodickaRow[]>;
 };
 
-type SaveStatusApiResponse = {
-  ok: true;
-  event: ProtoOsobniLodickaEvent;
-  invalidatedEventIds: string[];
-};
-
 class SessionExpiredError extends Error {
   constructor(message = "Přihlášení vypršelo.") {
     super(message);
@@ -223,6 +217,8 @@ const SESSION_ROLE_TO_PROTO_ROLE: Record<string, ProtoRoleId> = {
   proto: "spravce",
 };
 
+const WORK_VIEW_SESSION_ROLES = new Set(["garant", "pruvodce", "ucitel"]);
+
 function getProtoRoleLabel(role: ProtoRoleId): string {
   return PROTO_ROLE_OPTIONS.find((option) => option.id === role)?.label ?? role;
 }
@@ -254,21 +250,33 @@ function OsobniLodickyPrototypePageInner({
   const pathname = usePathname();
   const queryRole = searchParams.get("role");
   const sessionRoleOptions = mapSessionRolesToProto(sessionUser.roles, sessionUser.role);
-  const workRoleOptions = sessionRoleOptions.filter(isWorkProtoRole);
-  const preferredWorkRole: ProtoRoleId | null = workRoleOptions.includes("garant")
-    ? "garant"
-    : (workRoleOptions[0] ?? null);
-  const canToggleParentWorkContext = sessionRoleOptions.includes("rodic") && !!preferredWorkRole;
-  const preferredSessionRole: ProtoRoleId = sessionRoleOptions.includes("rodic")
+  const rawSessionRoles = useMemo(
+    () => new Set([...sessionUser.roles, sessionUser.role]),
+    [sessionUser.role, sessionUser.roles],
+  );
+  const workViewEnabled = useMemo(
+    () => [...WORK_VIEW_SESSION_ROLES].some((role) => rawSessionRoles.has(role)),
+    [rawSessionRoles],
+  );
+  const preferredWorkRole: ProtoRoleId | null = workViewEnabled ? "garant" : null;
+  const canToggleParentWorkContext = rawSessionRoles.has("rodic") && !!preferredWorkRole;
+  const sessionViewRoleOptions = useMemo(() => {
+    const options: ProtoRoleId[] = [];
+    if (rawSessionRoles.has("rodic")) options.push("rodic");
+    if (workViewEnabled) options.push("garant");
+    return options;
+  }, [rawSessionRoles, workViewEnabled]);
+  const effectiveSessionRoleOptions = sessionViewRoleOptions.length > 0 ? sessionViewRoleOptions : sessionRoleOptions;
+  const preferredSessionRole: ProtoRoleId = effectiveSessionRoleOptions.includes("rodic")
     ? "rodic"
-    : (sessionRoleOptions[0] ?? DEFAULT_ROLE);
+    : (effectiveSessionRoleOptions[0] ?? DEFAULT_ROLE);
   const queryRoleCandidate = isProtoRoleId(queryRole) ? queryRole : null;
 
   const todayIso = getTodayIsoForProto();
   const semesterBounds = getActiveSemesterBounds(todayIso);
 
   const initialRole: ProtoRoleId =
-    queryRoleCandidate && (adminToolsEnabled || sessionRoleOptions.includes(queryRoleCandidate))
+    queryRoleCandidate && effectiveSessionRoleOptions.includes(queryRoleCandidate)
       ? queryRoleCandidate
       : preferredSessionRole;
   const [activeRole, setActiveRole] = useState<ProtoRoleId>(initialRole);
@@ -328,7 +336,6 @@ function OsobniLodickyPrototypePageInner({
 
   const [events, setEvents] = useState<ProtoOsobniLodickaEvent[]>(PROTO_OSOBNI_LODICKA_EVENTS);
   const [invalidatedEventIds, setInvalidatedEventIds] = useState<string[]>([]);
-  const [statusSavePendingFor, setStatusSavePendingFor] = useState<string | null>(null);
   const [debugEvents, setDebugEvents] = useState<ProtoDebugEvent[]>([]);
   const [statusUndoActions, setStatusUndoActions] = useState<Record<string, StatusUndoAction>>({});
   const [viewportWidth, setViewportWidth] = useState<number>(0);
@@ -447,15 +454,25 @@ function OsobniLodickyPrototypePageInner({
   ]);
 
   useEffect(() => {
-    if (!activeUserId) return;
     const params = new URLSearchParams(window.location.search);
-    params.set("role", activeRole);
-    params.set("user", activeUserId);
-    const nextUrl = `${pathname}?${params.toString()}`;
+    if (adminToolsEnabled) {
+      if (!activeUserId) return;
+      params.set("role", activeRole);
+      params.set("user", activeUserId);
+    } else {
+      params.delete("user");
+      if (effectiveSessionRoleOptions.length > 1) {
+        params.set("role", activeRole);
+      } else {
+        params.delete("role");
+      }
+    }
+    const query = params.toString();
+    const nextUrl = query ? `${pathname}?${query}` : pathname;
     if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState(window.history.state, "", nextUrl);
     }
-  }, [activeRole, activeUserId, pathname]);
+  }, [activeRole, activeUserId, adminToolsEnabled, effectiveSessionRoleOptions.length, pathname]);
 
   useEffect(() => {
     const updateViewportWidth = () => setViewportWidth(window.innerWidth);
@@ -949,7 +966,7 @@ function OsobniLodickyPrototypePageInner({
   const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
 
   function handleSessionRoleChange(nextRole: ProtoRoleId) {
-    if (!sessionRoleOptions.includes(nextRole)) return;
+    if (!effectiveSessionRoleOptions.includes(nextRole)) return;
     const usersForNextRole = getActorsByRole(nextRole);
     const nextUserId = usersForNextRole.some((item) => item.id === activeUserId)
       ? activeUserId
@@ -1069,8 +1086,8 @@ function OsobniLodickyPrototypePageInner({
     });
   }
 
-  async function updateStatus(personalId: string, nextStatus: LodickaStav) {
-    if (isReadonly || !activeUser || statusSavePendingFor) return;
+  function updateStatus(personalId: string, nextStatus: LodickaStav) {
+    if (isReadonly || !activeUser) return;
 
     const activeEvents = [...(eventsByPersonalActive.get(personalId) ?? [])];
     const previousStatus = statusSnapshotByPersonal.get(personalId)?.stav ?? 0;
@@ -1092,58 +1109,35 @@ function OsobniLodickyPrototypePageInner({
     }
 
     let invalidateNewer = false;
-    let allowHistorical = newerEvents.length === 0;
     if (newerEvents.length > 0) {
       const proceedHistorical = window.confirm(
         `Zapisuješ historický stav (${formatDateCz(effectiveViewDate)}), ale existuje ${newerEvents.length} novější záznam(ů). Pokračovat?`,
       );
       if (!proceedHistorical) return;
-      allowHistorical = true;
 
       invalidateNewer = window.confirm(
         "Chceš novější záznamy zneplatnit?\nOK = zneplatnit novější záznamy\nStorno = ponechat novější záznamy platné",
       );
     }
 
-    setStatusSavePendingFor(personalId);
+    const now = new Date();
+    const hour = String(now.getHours()).padStart(2, "0");
+    const minute = String(now.getMinutes()).padStart(2, "0");
+    const event: ProtoOsobniLodickaEvent = {
+      id: `evt-manual-${personalId}-${now.getTime()}`,
+      osobniLodickaId: personalId,
+      datumStavu: effectiveViewDate,
+      zapsanoAt: `${effectiveViewDate} ${hour}:${minute}`,
+      stav: nextStatus,
+      zapsalId: activeUser.id,
+      poznamka: "Prototyp: ruční změna stavu.",
+    };
 
-    let event: ProtoOsobniLodickaEvent;
-    let newlyInvalidatedIds: string[] = [];
-    try {
-      const response = await fetch(`/api/m01/lodicky/${personalId}/status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          status: nextStatus,
-          effectiveDate: effectiveViewDate,
-          overwriteSameDate: sameDateEvents.length > 0,
-          allowHistorical,
-          invalidateNewer,
-          note: "Ruční změna stavu z portálu osobních lodiček.",
-        }),
-      });
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(response, "Nepodařilo se uložit stav lodičky.");
-        throw new Error(message);
-      }
-
-      const body = (await response.json()) as SaveStatusApiResponse;
-      if (!body.ok || !body.event) {
-        throw new Error("API nevrátilo validní potvrzení změny stavu.");
-      }
-
-      event = body.event;
-      newlyInvalidatedIds = body.invalidatedEventIds.filter((id) => !invalidatedEventIdSet.has(id));
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Nepodařilo se uložit stav lodičky.");
-      return;
-    } finally {
-      setStatusSavePendingFor(null);
-    }
-
+    const toInvalidate = [
+      ...sameDateEvents.map((event) => event.id),
+      ...(invalidateNewer ? newerEvents.map((event) => event.id) : []),
+    ];
+    const newlyInvalidatedIds = toInvalidate.filter((id) => !invalidatedEventIdSet.has(id));
     if (newlyInvalidatedIds.length > 0) {
       setInvalidatedEventIds((prev) => uniqueValues([...prev, ...newlyInvalidatedIds]));
     }
@@ -1290,7 +1284,7 @@ function OsobniLodickyPrototypePageInner({
     selectedPersonalId: selectedPersonalEffective,
     viewMode,
     tableId: rightTableId,
-    readonly: isReadonly || statusSavePendingFor !== null,
+    readonly: isReadonly,
     activeRole,
     peopleGroupBy,
     lodickaGroupKeys,
@@ -1388,7 +1382,7 @@ function OsobniLodickyPrototypePageInner({
 
               {adminToolsEnabled && sessionRoleOptions.length > 1 && (
                 <div className="inline-flex rounded-xl border border-[#D6DFF0] bg-white p-1">
-                  {sessionRoleOptions.map((roleId) => (
+                  {effectiveSessionRoleOptions.map((roleId) => (
                     <button
                       key={roleId}
                       type="button"
