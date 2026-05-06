@@ -35,14 +35,14 @@ export default async function OsobniLodickyPage({
     nextParams.delete("user");
 
     const hasParentView = normalizedRoles.has("rodic");
-    const hasWorkView = normalizedRoles.has("garant") || normalizedRoles.has("pruvodce") || normalizedRoles.has("ucitel");
+    const hasWorkView = normalizedRoles.has("garant") || normalizedRoles.has("pruvodce");
     const canToggleContext = hasParentView && hasWorkView;
     const requestedRole = nextParams.get("role");
 
     if (!canToggleContext) {
       nextParams.delete("role");
     } else if (requestedRole !== "rodic" && requestedRole !== "garant") {
-      nextParams.set("role", hasParentView ? "rodic" : "garant");
+      nextParams.set("role", hasWorkView ? "garant" : "rodic");
     }
 
     const currentQuery = currentParams.toString();

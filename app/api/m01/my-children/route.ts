@@ -5,7 +5,7 @@ import { filterChildrenByGarant, getPortalParentAndChildrenForActor } from "@/sr
 const PROTO_ROLE_TO_SESSION_ROLES: Record<string, Set<string>> = {
   rodic: new Set(["rodic"]),
   zak: new Set(["zak"]),
-  garant: new Set(["garant", "pruvodce", "ucitel", "zamestnanec", "admin", "proto"]),
+  garant: new Set(["garant", "pruvodce", "zamestnanec", "admin", "proto"]),
   spravce: new Set(["admin", "zamestnanec", "proto"]),
 };
 
