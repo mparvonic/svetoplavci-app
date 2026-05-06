@@ -132,6 +132,7 @@ export default auth((req) => {
   if (
     isTestHost &&
     pathname !== "/" &&
+    !pathname.startsWith("/api/") &&
     !pathname.startsWith("/auth/") &&
     !testAllowedPathPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
   ) {
