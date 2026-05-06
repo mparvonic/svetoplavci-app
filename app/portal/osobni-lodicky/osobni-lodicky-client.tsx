@@ -217,6 +217,8 @@ const SESSION_ROLE_TO_PROTO_ROLE: Record<string, ProtoRoleId> = {
   proto: "spravce",
 };
 
+const WORK_VIEW_SESSION_ROLES = new Set(["garant", "pruvodce", "ucitel"]);
+
 function getProtoRoleLabel(role: ProtoRoleId): string {
   return PROTO_ROLE_OPTIONS.find((option) => option.id === role)?.label ?? role;
 }
@@ -248,21 +250,33 @@ function OsobniLodickyPrototypePageInner({
   const pathname = usePathname();
   const queryRole = searchParams.get("role");
   const sessionRoleOptions = mapSessionRolesToProto(sessionUser.roles, sessionUser.role);
-  const workRoleOptions = sessionRoleOptions.filter(isWorkProtoRole);
-  const preferredWorkRole: ProtoRoleId | null = workRoleOptions.includes("garant")
-    ? "garant"
-    : (workRoleOptions[0] ?? null);
-  const canToggleParentWorkContext = sessionRoleOptions.includes("rodic") && !!preferredWorkRole;
-  const preferredSessionRole: ProtoRoleId = sessionRoleOptions.includes("rodic")
+  const rawSessionRoles = useMemo(
+    () => new Set([...sessionUser.roles, sessionUser.role]),
+    [sessionUser.role, sessionUser.roles],
+  );
+  const workViewEnabled = useMemo(
+    () => [...WORK_VIEW_SESSION_ROLES].some((role) => rawSessionRoles.has(role)),
+    [rawSessionRoles],
+  );
+  const preferredWorkRole: ProtoRoleId | null = workViewEnabled ? "garant" : null;
+  const canToggleParentWorkContext = rawSessionRoles.has("rodic") && !!preferredWorkRole;
+  const sessionViewRoleOptions = useMemo(() => {
+    const options: ProtoRoleId[] = [];
+    if (rawSessionRoles.has("rodic")) options.push("rodic");
+    if (workViewEnabled) options.push("garant");
+    return options;
+  }, [rawSessionRoles, workViewEnabled]);
+  const effectiveSessionRoleOptions = sessionViewRoleOptions.length > 0 ? sessionViewRoleOptions : sessionRoleOptions;
+  const preferredSessionRole: ProtoRoleId = effectiveSessionRoleOptions.includes("rodic")
     ? "rodic"
-    : (sessionRoleOptions[0] ?? DEFAULT_ROLE);
+    : (effectiveSessionRoleOptions[0] ?? DEFAULT_ROLE);
   const queryRoleCandidate = isProtoRoleId(queryRole) ? queryRole : null;
 
   const todayIso = getTodayIsoForProto();
   const semesterBounds = getActiveSemesterBounds(todayIso);
 
   const initialRole: ProtoRoleId =
-    queryRoleCandidate && (adminToolsEnabled || sessionRoleOptions.includes(queryRoleCandidate))
+    queryRoleCandidate && effectiveSessionRoleOptions.includes(queryRoleCandidate)
       ? queryRoleCandidate
       : preferredSessionRole;
   const [activeRole, setActiveRole] = useState<ProtoRoleId>(initialRole);
@@ -440,15 +454,25 @@ function OsobniLodickyPrototypePageInner({
   ]);
 
   useEffect(() => {
-    if (!activeUserId) return;
     const params = new URLSearchParams(window.location.search);
-    params.set("role", activeRole);
-    params.set("user", activeUserId);
-    const nextUrl = `${pathname}?${params.toString()}`;
+    if (adminToolsEnabled) {
+      if (!activeUserId) return;
+      params.set("role", activeRole);
+      params.set("user", activeUserId);
+    } else {
+      params.delete("user");
+      if (effectiveSessionRoleOptions.length > 1) {
+        params.set("role", activeRole);
+      } else {
+        params.delete("role");
+      }
+    }
+    const query = params.toString();
+    const nextUrl = query ? `${pathname}?${query}` : pathname;
     if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState(window.history.state, "", nextUrl);
     }
-  }, [activeRole, activeUserId, pathname]);
+  }, [activeRole, activeUserId, adminToolsEnabled, effectiveSessionRoleOptions.length, pathname]);
 
   useEffect(() => {
     const updateViewportWidth = () => setViewportWidth(window.innerWidth);
@@ -942,7 +966,7 @@ function OsobniLodickyPrototypePageInner({
   const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
 
   function handleSessionRoleChange(nextRole: ProtoRoleId) {
-    if (!sessionRoleOptions.includes(nextRole)) return;
+    if (!effectiveSessionRoleOptions.includes(nextRole)) return;
     const usersForNextRole = getActorsByRole(nextRole);
     const nextUserId = usersForNextRole.some((item) => item.id === activeUserId)
       ? activeUserId
@@ -1358,7 +1382,7 @@ function OsobniLodickyPrototypePageInner({
 
               {adminToolsEnabled && sessionRoleOptions.length > 1 && (
                 <div className="inline-flex rounded-xl border border-[#D6DFF0] bg-white p-1">
-                  {sessionRoleOptions.map((roleId) => (
+                  {effectiveSessionRoleOptions.map((roleId) => (
                     <button
                       key={roleId}
                       type="button"
