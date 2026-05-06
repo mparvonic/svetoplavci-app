@@ -7,6 +7,16 @@ export const GUIDE_ACCESS_ROLES = new Set([
 ]);
 
 export const CHILD_ACCESS_ROLES = new Set(["tester", "rodic", "zak"]);
+export const M01_ACCESS_ROLES = new Set([
+  "rodic",
+  "zak",
+  "garant",
+  "pruvodce",
+  "ucitel",
+  "zamestnanec",
+  "admin",
+  "proto",
+]);
 // Keep this list local to avoid importing Prisma/Node-only modules into middleware (Edge runtime).
 export const AUTHENTICATED_APP_ROLES = new Set([
   "admin",
@@ -36,7 +46,7 @@ const ROUTE_ROLE_RULES: RouteRoleRule[] = [
   { prefix: "/api/ostrovy/guide", roles: GUIDE_ACCESS_ROLES },
   { prefix: "/api/ostrovy/my-children", roles: CHILD_ACCESS_ROLES },
   { prefix: "/api/reports", roles: CHILD_ACCESS_ROLES },
-  { prefix: "/api/m01", roles: CHILD_ACCESS_ROLES },
+  { prefix: "/api/m01", roles: M01_ACCESS_ROLES },
   { prefix: "/api/coda", roles: CHILD_ACCESS_ROLES },
   { prefix: "/api/support", roles: AUTHENTICATED_APP_ROLES },
 ];
