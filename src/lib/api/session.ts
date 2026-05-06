@@ -10,6 +10,7 @@ import {
   getStagingAllowedEmailsFromEnv,
   isBypassAllowedForHost,
   isStagingHost,
+  sanitizeRolesForHost,
   isUnsafeBypassConfigurationForHost,
   warnUnsafeBypassConfiguration,
 } from "@/src/lib/environment-access";
@@ -159,7 +160,7 @@ export async function getApiSessionContext(request?: Request): Promise<ApiSessio
       console.error("[api/session] failed to load login profile in local dev; continuing without actor person", error);
     }
   }
-  const roles = collectSessionRoles(session);
+  const roles = sanitizeRolesForHost(collectSessionRoles(session), requestHost);
   if (isStagingHost(requestHost)) {
     const normalizedEmail = email.trim().toLowerCase();
     const stagingAllowlist = getStagingAllowedEmailsFromEnv();
