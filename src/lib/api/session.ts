@@ -128,7 +128,13 @@ export async function getApiSessionContext(request?: Request): Promise<ApiSessio
     return null;
   }
 
-  const session = await auth();
+  let session: Session | null = null;
+  try {
+    session = await auth();
+  } catch (error) {
+    console.error("[api/session] auth() failed", error);
+    return null;
+  }
   const email = session?.user?.email;
   if (!session || !email) {
     if (!isLocalDevAuthBypass(requestHost)) return null;
@@ -152,8 +158,11 @@ export async function getApiSessionContext(request?: Request): Promise<ApiSessio
   try {
     profile = await getApprovedLoginProfileByEmail(email);
   } catch (error) {
-    if (!isLocalDevAuthBypass(requestHost)) throw error;
-    console.error("[api/session] failed to load login profile in local dev; continuing without actor person", error);
+    if (!isLocalDevAuthBypass(requestHost)) {
+      console.error("[api/session] failed to load login profile; continuing without actor person", error);
+    } else {
+      console.error("[api/session] failed to load login profile in local dev; continuing without actor person", error);
+    }
   }
   const rawRoles = collectSessionRoles(session);
   const roles = scopeTesterRoleByHost(rawRoles, requestHost);
@@ -178,11 +187,17 @@ export async function getApiSessionContext(request?: Request): Promise<ApiSessio
     try {
       personIds = await resolveLocalDevPersonIds(email, roles);
     } catch (error) {
-      if (!isLocalDevAuthBypass(requestHost)) throw error;
-      console.warn(
-        "[api/session] local dev person fallback failed:",
-        error instanceof Error ? error.message : String(error),
-      );
+      if (!isLocalDevAuthBypass(requestHost)) {
+        console.warn(
+          "[api/session] personId fallback failed outside local dev:",
+          error instanceof Error ? error.message : String(error),
+        );
+      } else {
+        console.warn(
+          "[api/session] local dev person fallback failed:",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
     }
   }
   return {
