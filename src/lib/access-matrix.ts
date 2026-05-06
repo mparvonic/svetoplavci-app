@@ -7,13 +7,14 @@ export const GUIDE_ACCESS_ROLES = new Set([
 
 export const CHILD_ACCESS_ROLES = new Set(["rodic", "zak"]);
 export const M01_ACCESS_ROLES = new Set([
-  "admin",
   "rodic",
   "zak",
+  "garant",
+  "pruvodce",
   "ucitel",
   "zamestnanec",
-  "pruvodce",
-  "garant",
+  "admin",
+  "proto",
 ]);
 // Keep this list local to avoid importing Prisma/Node-only modules into middleware (Edge runtime).
 export const AUTHENTICATED_APP_ROLES = new Set([
