@@ -19,6 +19,13 @@ export default async function LegacyOsobniLodickyPage({
     if (typeof value === "string") query.set(key, value);
   });
 
+  // Never propagate internal debug identity through the legacy alias route.
+  query.delete("user");
+  const role = query.get("role");
+  if (role !== "rodic" && role !== "garant") {
+    query.delete("role");
+  }
+
   const nextQuery = query.toString();
   redirect(nextQuery ? `/portal/lodicky?${nextQuery}` : "/portal/lodicky");
 }
