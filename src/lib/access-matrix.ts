@@ -16,6 +16,7 @@ export const M01_ACCESS_ROLES = new Set([
   "admin",
   "proto",
 ]);
+const M01_ACCESS_ROLES_WITH_TESTER = new Set([...M01_ACCESS_ROLES, "tester"]);
 // Keep this list local to avoid importing Prisma/Node-only modules into middleware (Edge runtime).
 export const AUTHENTICATED_APP_ROLES = new Set([
   "admin",
@@ -49,9 +50,15 @@ const ROUTE_ROLE_RULES: RouteRoleRule[] = [
   { prefix: "/api/support", roles: AUTHENTICATED_APP_ROLES },
 ];
 
-export function getRequiredRolesForPath(pathname: string): Set<string> | null {
+export function getRequiredRolesForPath(
+  pathname: string,
+  options?: { allowTesterForM01?: boolean },
+): Set<string> | null {
   for (const rule of ROUTE_ROLE_RULES) {
     if (pathname === rule.prefix || pathname.startsWith(`${rule.prefix}/`)) {
+      if (rule.prefix === "/api/m01") {
+        return options?.allowTesterForM01 ? M01_ACCESS_ROLES_WITH_TESTER : M01_ACCESS_ROLES;
+      }
       return rule.roles;
     }
   }
