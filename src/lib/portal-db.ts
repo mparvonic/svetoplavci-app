@@ -357,6 +357,27 @@ function normalizeRoles(roles: string[]): string[] {
   return roles.map((role) => role.trim().toLowerCase()).filter(Boolean);
 }
 
+async function getParentLinkedChildIds(personIds: string[]): Promise<string[]> {
+  if (personIds.length === 0) return [];
+
+  const parentChildren = await prisma.appPersonRelation.findMany({
+    where: {
+      parentPersonId: { in: personIds },
+      relationType: "parent_of",
+      isActive: true,
+      childPerson: {
+        is: {
+          isActive: true,
+          roles: { some: { role: "zak", isActive: true } },
+        },
+      },
+    },
+    select: { childPersonId: true },
+  });
+
+  return [...new Set(parentChildren.map((link) => link.childPersonId))];
+}
+
 async function getPortalActor(personIds: string[], email: string): Promise<PortalParent> {
   const actor = personIds.length > 0
     ? await prisma.appPerson.findFirst({
@@ -393,21 +414,8 @@ async function getAccessibleChildrenByActor(personIds: string[], roles: string[]
   const preferFirstNameIds = new Set<string>();
 
   if (normalizedRoles.includes("rodic") && personIds.length > 0) {
-    const parentChildren = await prisma.appPersonRelation.findMany({
-      where: {
-        parentPersonId: { in: personIds },
-        relationType: "parent_of",
-        isActive: true,
-        childPerson: {
-          is: {
-            isActive: true,
-            roles: { some: { role: "zak", isActive: true } },
-          },
-        },
-      },
-      select: { childPersonId: true },
-    });
-    for (const link of parentChildren) preferFirstNameIds.add(link.childPersonId);
+    const parentChildIds = await getParentLinkedChildIds(personIds);
+    for (const childId of parentChildIds) preferFirstNameIds.add(childId);
   }
 
   if (normalizedRoles.some((role) => GLOBAL_CHILD_ACCESS_ROLES.has(role))) {
@@ -431,21 +439,8 @@ async function getAccessibleChildrenByActor(personIds: string[], roles: string[]
   }
 
   if (normalizedRoles.includes("rodic")) {
-    const parentChildren = await prisma.appPersonRelation.findMany({
-      where: {
-        parentPersonId: { in: personIds },
-        relationType: "parent_of",
-        isActive: true,
-        childPerson: {
-          is: {
-            isActive: true,
-            roles: { some: { role: "zak", isActive: true } },
-          },
-        },
-      },
-      select: { childPersonId: true },
-    });
-    for (const link of parentChildren) childIds.add(link.childPersonId);
+    const parentChildIds = await getParentLinkedChildIds(personIds);
+    for (const childId of parentChildIds) childIds.add(childId);
   }
 
   if (childIds.size === 0) return [];
@@ -455,14 +450,23 @@ async function getAccessibleChildrenByActor(personIds: string[], roles: string[]
 export async function getPortalParentAndChildrenForActor(input: PortalActorAccessInput): Promise<{
   parent: PortalParent;
   children: PortalChild[];
+  parentChildren: PortalChild[];
 } | null> {
   const personIds = [...new Set(input.personIds.filter(Boolean))];
+  const normalizedRoles = normalizeRoles(input.roles);
   const children = await getAccessibleChildrenByActor(personIds, input.roles);
   if (children.length === 0) return null;
+
+  const parentChildIds = normalizedRoles.includes("rodic")
+    ? await getParentLinkedChildIds(personIds)
+    : [];
 
   return {
     parent: await getPortalActor(personIds, input.email),
     children,
+    parentChildren: parentChildIds.length > 0
+      ? await getActiveChildren(parentChildIds, new Set(parentChildIds))
+      : [],
   };
 }
 
