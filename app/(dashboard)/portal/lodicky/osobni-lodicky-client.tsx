@@ -164,10 +164,8 @@ type ChildrenResponse = {
   parentChildren?: Child[];
 };
 
-type LodickyResponse = {
-  parent: Parent;
-  child: Child;
-  lodicky: LodickaRow[];
+type LodickyBulkResponse = ChildrenResponse & {
+  lodickyByChild: Record<string, LodickaRow[]>;
 };
 
 class SessionExpiredError extends Error {
@@ -295,6 +293,7 @@ function OsobniLodickyPrototypePageInner({
   } | null>(null);
   const initialRoleRef = useRef<ProtoRoleId>(initialRole);
   const initialQueryUserIdRef = useRef(queryUserId);
+  const hasHydratedFromDbRef = useRef(false);
   const usersForRoleRaw = useMemo(() => getActorsByRole(activeRole), [activeRole, datasetVersion]);
 
   const [selectedUserId, setSelectedUserId] = useState<string>(queryUserId);
@@ -354,6 +353,44 @@ function OsobniLodickyPrototypePageInner({
 
   const isWideLayout = viewportWidth >= DESKTOP_BASE_WIDTH;
   const paneCardStyle = isWideLayout ? { maxHeight: `${panesHeight}px` } : undefined;
+  const activeUser = usersForRoleRaw.find((item) => item.id === activeUserId) ?? usersForRoleRaw[0] ?? null;
+  const effectiveViewDate = clampDate(viewDate, semesterBounds.minDate, semesterBounds.maxDate);
+  const hasHistoricalViewDate = effectiveViewDate !== todayIso;
+  const canUseOwnLodickyScope = activeRole === "garant" && (hasGarantWorkRole || adminToolsEnabled);
+  const forceAllLodickyScope =
+    activeRole === "garant" && hasGuideWorkRole && !hasGarantWorkRole && !adminToolsEnabled;
+  const showScopeSwitcher =
+    activeRole === "spravce" ||
+    (activeRole === "garant" && ((hasGarantWorkRole && hasGuideWorkRole) || adminToolsEnabled));
+  const effectiveScope: ScopeMode =
+    activeRole === "spravce"
+      ? scopeMode
+      : activeRole === "garant"
+        ? forceAllLodickyScope
+          ? "vsechny"
+          : canUseOwnLodickyScope
+            ? showScopeSwitcher
+              ? scopeMode
+              : "moje"
+            : "vsechny"
+        : "moje";
+  const canEditStatuses =
+    activeRole === "spravce" ||
+    (activeRole === "garant" && canUseOwnLodickyScope && effectiveScope === "moje");
+  const isReadonly = !canEditStatuses;
+  const showGarantControls = effectiveScope !== "moje";
+  const pageTitle = activeRole === "zak"
+    ? "Moje osobní lodičky"
+    : activeRole === "rodic"
+      ? "Osobní lodičky dítěte"
+      : activeRole === "garant"
+        ? hasGuideWorkRole && !hasGarantWorkRole && !adminToolsEnabled
+          ? "Přehled osobních lodiček pro průvodce"
+          : "Kompaktní pohled pro práci garanta"
+        : "Správa osobních lodiček";
+  const pageDescription = canEditStatuses
+    ? "Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal."
+    : "Přehled aktuálních lodiček, stavu a posledních záznamů.";
 
   useEffect(() => {
     let cancelled = false;
@@ -367,17 +404,6 @@ function OsobniLodickyPrototypePageInner({
       try {
         setDbLoading(true);
         setDbError(null);
-
-        const childrenRes = await fetch("/api/m01/my-children", { cache: "no-store", signal: controller.signal });
-        if (!childrenRes.ok) {
-          const message = await readApiErrorMessage(childrenRes, "Nepodařilo se načíst děti.");
-          if (childrenRes.status === 401) throw new SessionExpiredError(message);
-          throw new Error(message);
-        }
-
-        const childrenBody = (await childrenRes.json()) as ChildrenResponse;
-        const rowsByChild: Record<string, LodickaRow[]> = {};
-        let failedCount = 0;
 
         const commitDataset = (dataset: ProtoDatasetFromDb, resetUserSelection: boolean) => {
           if (cancelled) return;
@@ -406,68 +432,38 @@ function OsobniLodickyPrototypePageInner({
           setDatasetVersion((prev) => prev + 1);
         };
 
-        commitDataset(buildProtoDatasetFromDb(childrenBody, rowsByChild, sessionUser), true);
-        setDbLoading(false);
-        setDbLoadProgress({
-          loaded: 0,
-          total: childrenBody.children.length,
-          failed: 0,
+        const requestParams = new URLSearchParams();
+        requestParams.set("role", activeRole);
+        requestParams.set("scope", effectiveScope);
+        requestParams.set("includeHistory", hasHistoricalViewDate ? "1" : "0");
+        if (adminToolsEnabled && (activeRole === "garant" || activeRole === "spravce") && effectiveScope === "moje" && activeUserId) {
+          requestParams.set("garantId", activeUserId);
+        }
+
+        const lodickyRes = await fetch(`/api/m01/lodicky?${requestParams.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
         });
-
-        const batchSize = 8;
-        for (let index = 0; index < childrenBody.children.length; index += batchSize) {
-          const batch = childrenBody.children.slice(index, index + batchSize);
-          const childResults = await Promise.allSettled(
-            batch.map(async (child) => {
-              const lodickyRes = await fetch(`/api/m01/child/${child.id}/lodicky`, {
-                cache: "no-store",
-                signal: controller.signal,
-              });
-              if (!lodickyRes.ok) {
-                const message = await readApiErrorMessage(lodickyRes, `Nepodařilo se načíst lodičky pro ${child.name}.`);
-                if (lodickyRes.status === 401) throw new SessionExpiredError(message);
-                throw new Error(message);
-              }
-              const lodickyBody = (await lodickyRes.json()) as LodickyResponse;
-              rowsByChild[child.id] = lodickyBody.lodicky;
-            }),
-          );
-
-          const authFailure = childResults.find(
-            (item): item is PromiseRejectedResult => item.status === "rejected" && item.reason instanceof SessionExpiredError,
-          );
-          if (authFailure) {
-            throw authFailure.reason;
-          }
-
-          const failed = childResults.filter((item) => item.status === "rejected");
-          failedCount += failed.length;
-          if (failed.length > 0) {
-            console.error("[portal/lodicky] partial load failure", failed);
-          }
-
-          const nextDataset = buildProtoDatasetFromDb(childrenBody, rowsByChild, sessionUser);
-          commitDataset(nextDataset, false);
-
-          const loaded = Math.min(index + batch.length, childrenBody.children.length);
-          setDbLoadProgress({
-            loaded,
-            total: childrenBody.children.length,
-            failed: failedCount,
-          });
-
-          pushDebug({
-            elementId: "API-M01-HYDRATE",
-            label: "Hydratace proto UI z DB",
-            action: "load",
-            hierarchy: "OSOBNI_LODICKY > INIT",
-            payload: `children=${childrenBody.children.length}; loaded=${loaded}; rows=${nextDataset.lodickyRowsCount}; failed=${failedCount}`,
-          });
+        if (!lodickyRes.ok) {
+          const message = await readApiErrorMessage(lodickyRes, "Nepodařilo se načíst osobní lodičky.");
+          if (lodickyRes.status === 401) throw new SessionExpiredError(message);
+          throw new Error(message);
         }
 
-        if (!cancelled) {
-          setDbLoadProgress(null);
-        }
+        const lodickyBody = (await lodickyRes.json()) as LodickyBulkResponse;
+        const nextDataset = buildProtoDatasetFromDb(lodickyBody, lodickyBody.lodickyByChild, sessionUser);
+        const shouldResetUserSelection = !hasHydratedFromDbRef.current;
+        commitDataset(nextDataset, shouldResetUserSelection);
+        hasHydratedFromDbRef.current = true;
+        setDbLoadProgress(null);
+
+        pushDebug({
+          elementId: "API-M01-HYDRATE",
+          label: "Hydratace proto UI z DB",
+          action: "load",
+          hierarchy: "OSOBNI_LODICKY > INIT",
+          payload: `children=${lodickyBody.children.length}; rows=${nextDataset.lodickyRowsCount}; scope=${effectiveScope}`,
+        });
       } catch (error) {
         if (cancelled) return;
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -493,7 +489,7 @@ function OsobniLodickyPrototypePageInner({
       abortHydration();
       window.removeEventListener("sv:signout-start", abortHydration);
     };
-  }, [pushDebug, sessionUser]);
+  }, [activeRole, activeUserId, adminToolsEnabled, effectiveScope, hasHistoricalViewDate, pushDebug, sessionUser]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -539,45 +535,6 @@ function OsobniLodickyPrototypePageInner({
       window.removeEventListener("resize", recomputePanesHeight);
     };
   }, [filtersCollapsed, dbLoading, recomputePanesHeight]);
-
-  const activeUser = usersForRoleRaw.find((item) => item.id === activeUserId) ?? usersForRoleRaw[0] ?? null;
-  const effectiveViewDate = clampDate(viewDate, semesterBounds.minDate, semesterBounds.maxDate);
-  const hasHistoricalViewDate = effectiveViewDate !== todayIso;
-  const canUseOwnLodickyScope = activeRole === "garant" && (hasGarantWorkRole || adminToolsEnabled);
-  const forceAllLodickyScope =
-    activeRole === "garant" && hasGuideWorkRole && !hasGarantWorkRole && !adminToolsEnabled;
-  const showScopeSwitcher =
-    activeRole === "spravce" ||
-    (activeRole === "garant" && ((hasGarantWorkRole && hasGuideWorkRole) || adminToolsEnabled));
-  const effectiveScope: ScopeMode =
-    activeRole === "spravce"
-      ? scopeMode
-      : activeRole === "garant"
-        ? forceAllLodickyScope
-          ? "vsechny"
-          : canUseOwnLodickyScope
-            ? showScopeSwitcher
-              ? scopeMode
-              : "moje"
-            : "vsechny"
-        : "moje";
-  const canEditStatuses =
-    activeRole === "spravce" ||
-    (activeRole === "garant" && canUseOwnLodickyScope && effectiveScope === "moje");
-  const isReadonly = !canEditStatuses;
-  const showGarantControls = effectiveScope !== "moje";
-  const pageTitle = activeRole === "zak"
-    ? "Moje osobní lodičky"
-    : activeRole === "rodic"
-      ? "Osobní lodičky dítěte"
-      : activeRole === "garant"
-        ? hasGuideWorkRole && !hasGarantWorkRole && !adminToolsEnabled
-          ? "Přehled osobních lodiček pro průvodce"
-          : "Kompaktní pohled pro práci garanta"
-        : "Správa osobních lodiček";
-  const pageDescription = canEditStatuses
-    ? "Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal."
-    : "Přehled aktuálních lodiček, stavu a posledních záznamů.";
 
   const filterOptions = useMemo(() => {
     const rocniky = [...new Set(PROTO_STUDENTS.map((student) => String(student.rocnik)))].sort(
@@ -678,64 +635,43 @@ function OsobniLodickyPrototypePageInner({
     return PROTO_STUDENTS;
   }, [activeRole, activeUser, datasetVersion]);
 
-  const searchPlan = useMemo(
-    () =>
-      buildSmartSearchPlan(searchInput, {
-        stupne: filterOptions.stupne,
-        rocniky: filterOptions.rocniky,
-        smecky: filterOptions.smecky,
-        predmety: filterOptions.predmety,
-        podpredmety: filterOptions.podpredmety,
-        oblasti: filterOptions.oblasti,
-        stavy: filterOptions.stavy,
-        garanti: showGarantControls ? filterOptions.garanti : [],
-        studentHaystacks: accessibleStudents.map((student) => buildStudentSearchHaystack(student)),
-      }),
-    [accessibleStudents, filterOptions, searchInput, showGarantControls],
-  );
+  const searchTokens = useMemo(() => tokenizeSearch(searchInput), [searchInput]);
 
   const effectivePeopleStupenFilter = useMemo(
-    () => uniqueValues([...peopleStupenFilter, ...searchPlan.people.stupen]),
-    [peopleStupenFilter, searchPlan.people.stupen],
+    () => uniqueValues(peopleStupenFilter),
+    [peopleStupenFilter],
   );
   const effectivePeopleRocnikFilter = useMemo(
-    () => uniqueValues([...peopleRocnikFilter, ...searchPlan.people.rocnik]),
-    [peopleRocnikFilter, searchPlan.people.rocnik],
+    () => uniqueValues(peopleRocnikFilter),
+    [peopleRocnikFilter],
   );
   const effectivePeopleSmeckaFilter = useMemo(
-    () => uniqueValues([...peopleSmeckaFilter, ...searchPlan.people.smecka]),
-    [peopleSmeckaFilter, searchPlan.people.smecka],
+    () => uniqueValues(peopleSmeckaFilter),
+    [peopleSmeckaFilter],
   );
 
   const effectiveLodickyPredmetFilter = useMemo(
-    () => uniqueValues([...lodickyPredmetFilter, ...searchPlan.lodicky.predmet]),
-    [lodickyPredmetFilter, searchPlan.lodicky.predmet],
+    () => uniqueValues(lodickyPredmetFilter),
+    [lodickyPredmetFilter],
   );
   const effectiveLodickyPodpredmetFilter = useMemo(
-    () => uniqueValues([...lodickyPodpredmetFilter, ...searchPlan.lodicky.podpredmet]),
-    [lodickyPodpredmetFilter, searchPlan.lodicky.podpredmet],
+    () => uniqueValues(lodickyPodpredmetFilter),
+    [lodickyPodpredmetFilter],
   );
   const effectiveLodickyOblastFilter = useMemo(
-    () => uniqueValues([...lodickyOblastFilter, ...searchPlan.lodicky.oblast]),
-    [lodickyOblastFilter, searchPlan.lodicky.oblast],
+    () => uniqueValues(lodickyOblastFilter),
+    [lodickyOblastFilter],
   );
   const effectiveLodickyStavFilter = useMemo(
-    () => uniqueValues([...lodickyStavFilter, ...searchPlan.lodicky.stav]),
-    [lodickyStavFilter, searchPlan.lodicky.stav],
+    () => uniqueValues(lodickyStavFilter),
+    [lodickyStavFilter],
   );
   const effectiveLodickyGarantFilter = useMemo(
-    () => uniqueValues([...lodickyGarantFilter, ...searchPlan.lodicky.garant]),
-    [lodickyGarantFilter, searchPlan.lodicky.garant],
+    () => uniqueValues(lodickyGarantFilter),
+    [lodickyGarantFilter],
   );
 
   const filteredStudents = useMemo(() => {
-    const tokens = searchPlan.freeTokens;
-    const tokenHasStudentMatch = new Map<string, boolean>();
-    tokens.forEach((token) => {
-      const hasMatch = accessibleStudents.some((student) => buildStudentSearchHaystack(student).includes(token));
-      tokenHasStudentMatch.set(token, hasMatch);
-    });
-
     return accessibleStudents.filter((student) => {
       if (
         effectivePeopleStupenFilter.length > 0 &&
@@ -755,13 +691,6 @@ function OsobniLodickyPrototypePageInner({
       ) {
         return false;
       }
-      if (tokens.length > 0) {
-        const haystack = buildStudentSearchHaystack(student);
-        const relevantTokens = tokens.filter((token) => tokenHasStudentMatch.get(token));
-        if (relevantTokens.length > 0 && !relevantTokens.every((token) => haystack.includes(token))) {
-          return false;
-        }
-      }
       return true;
     });
   }, [
@@ -769,17 +698,9 @@ function OsobniLodickyPrototypePageInner({
     effectivePeopleRocnikFilter,
     effectivePeopleSmeckaFilter,
     effectivePeopleStupenFilter,
-    searchPlan.freeTokens,
   ]);
 
   const filteredLodicky = useMemo(() => {
-    const tokens = searchPlan.freeTokens;
-    const tokenHasLodickaMatch = new Map<string, boolean>();
-    tokens.forEach((token) => {
-      const hasMatch = PROTO_LODICKY_CATALOG.some((lodicka) => buildLodickaSearchHaystack(lodicka).includes(token));
-      tokenHasLodickaMatch.set(token, hasMatch);
-    });
-
     return PROTO_LODICKY_CATALOG.filter((lodicka) => {
       if (effectiveScope === "moje" && activeRole === "garant" && activeUserId) {
         if (lodicka.garantId !== activeUserId) return false;
@@ -809,13 +730,6 @@ function OsobniLodickyPrototypePageInner({
       ) {
         return false;
       }
-      if (tokens.length > 0) {
-        const haystack = buildLodickaSearchHaystack(lodicka);
-        const relevantTokens = tokens.filter((token) => tokenHasLodickaMatch.get(token));
-        if (relevantTokens.length > 0 && !relevantTokens.every((token) => haystack.includes(token))) {
-          return false;
-        }
-      }
       return true;
     });
   }, [
@@ -826,7 +740,6 @@ function OsobniLodickyPrototypePageInner({
     effectiveLodickyPodpredmetFilter,
     effectiveLodickyPredmetFilter,
     effectiveScope,
-    searchPlan.freeTokens,
     showGarantControls,
   ]);
 
@@ -843,6 +756,7 @@ function OsobniLodickyPrototypePageInner({
       const student = studentsById.get(personal.studentId);
       const lodicka = lodickyById.get(personal.lodickaId);
       if (!student || !lodicka) return;
+      if (!matchesFulltextSearch(student, lodicka, searchTokens)) return;
 
       const snapshot = statusSnapshotByPersonal.get(personal.id);
       const stav = snapshot?.stav ?? 0;
@@ -864,6 +778,7 @@ function OsobniLodickyPrototypePageInner({
     filteredLodickaIds,
     filteredStudentIds,
     lodickyById,
+    searchTokens,
     statusSnapshotByPersonal,
     studentsById,
   ]);
@@ -956,73 +871,29 @@ function OsobniLodickyPrototypePageInner({
     const seen = new Set<string>();
     const tokens = tokenizeSearch(searchInput);
 
-    const filterMatchers: Array<{
-      type: SearchSuggestion["type"];
-      label: string;
-      options: string[];
-    }> = [
-      { type: "smecka", label: "Smečka", options: filterOptions.smecky },
-      { type: "rocnik", label: "Ročník", options: filterOptions.rocniky },
-      { type: "stupen", label: "Stupeň", options: filterOptions.stupne },
-      { type: "predmet", label: "Předmět", options: filterOptions.predmety },
-      { type: "podpredmet", label: "Podpředmět", options: filterOptions.podpredmety },
-      { type: "oblast", label: "Oblast", options: filterOptions.oblasti },
-      { type: "stav", label: "Stav lodičky", options: filterOptions.stavy },
-      ...(showGarantControls
-        ? [{ type: "garant" as const, label: "Garant", options: filterOptions.garanti }]
-        : []),
-    ];
-
-    tokens.forEach((token) => {
-      filterMatchers.forEach((matcher) => {
-        matcher.options
-          .filter((option) => normalizeSearch(option).includes(token))
-          .slice(0, 2)
-          .forEach((option) => {
-            const id = `${matcher.type}-${option}-${token}`;
-            if (seen.has(id)) return;
-            seen.add(id);
-            output.push({
-              id,
-              label: `${matcher.label}: ${matcher.type === "rocnik" ? formatRocnikLabel(Number(option)) : matcher.type === "stupen" ? `${option}. stupeň` : option}`,
-              type: matcher.type,
-              value: option,
-              token,
-            });
-          });
+    filteredStudents
+      .filter((student) => matchesAllSearchTokens(buildStudentSearchHaystack(student), tokens))
+      .slice(0, 4)
+      .forEach((student) => {
+        const display = getStudentDisplayName(student, activeRole);
+        const id = `student-${student.id}`;
+        if (seen.has(id)) return;
+        seen.add(id);
+        output.push({ id, label: `Dítě: ${display}`, type: "student", value: display });
       });
-    });
 
-    const queryNeedle = normalizeSearch(searchInput);
-    if (viewMode === "po_lidech") {
-      filteredStudents
-        .filter((student) =>
-          normalizeSearch(`${student.jmeno} ${student.prezdivka} ${getFirstName(student.jmeno)}`).includes(queryNeedle),
-        )
-        .slice(0, 3)
-        .forEach((student) => {
-          const display = getStudentDisplayName(student, activeRole);
-          const id = `student-${student.id}`;
-          if (seen.has(id)) return;
-          seen.add(id);
-          output.push({ id, label: `Dítě: ${display}`, type: "student", value: display });
-        });
-    } else {
-      filteredLodicky
-        .filter((lodicka) =>
-          normalizeSearch(`${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast}`).includes(queryNeedle),
-        )
-        .slice(0, 3)
-        .forEach((lodicka) => {
-          const id = `lodicka-${lodicka.id}`;
-          if (seen.has(id)) return;
-          seen.add(id);
-          output.push({ id, label: `Lodička: ${lodicka.nazev}`, type: "lodicka", value: lodicka.nazev });
-        });
-    }
+    filteredLodicky
+      .filter((lodicka) => matchesAllSearchTokens(buildLodickaSearchHaystack(lodicka), tokens))
+      .slice(0, 4)
+      .forEach((lodicka) => {
+        const id = `lodicka-${lodicka.id}`;
+        if (seen.has(id)) return;
+        seen.add(id);
+        output.push({ id, label: `Lodička: ${lodicka.nazev}`, type: "lodicka", value: lodicka.nazev });
+      });
 
     return output.slice(0, 10);
-  }, [activeRole, filterOptions, filteredLodicky, filteredStudents, searchInput, showGarantControls, viewMode]);
+  }, [activeRole, filteredLodicky, filteredStudents, searchInput]);
 
   const options = filterOptions;
 
@@ -1634,11 +1505,7 @@ function OsobniLodickyPrototypePageInner({
                       }
                       if (e.key === "Escape") setSuggestionsOpen(false);
                     }}
-                    placeholder={
-                      viewMode === "po_lidech"
-                        ? "Vyhledat dítě nebo smečku (např. Fénix)"
-                        : "Vyhledat lodičku, oblast nebo předmět"
-                    }
+                    placeholder="Vyhledat lodičku, oblast, předmět nebo dítě"
                     className="w-full text-sm text-slate-700 outline-none"
                   />
                   {searchInput.trim().length > 0 && (
@@ -3021,15 +2888,11 @@ function normalizeSearch(value: string): string {
 function buildStudentSearchHaystack(student: ProtoStudent): string {
   const firstName = getFirstName(student.jmeno);
   const lastName = getLastName(student.jmeno);
-  return normalizeSearch(
-    `${student.jmeno} ${firstName} ${lastName} ${student.prezdivka} ${student.smecka} ${student.rocnik}`,
-  );
+  return normalizeSearch(`${student.jmeno} ${firstName} ${lastName} ${student.prezdivka}`);
 }
 
 function buildLodickaSearchHaystack(lodicka: ProtoLodickaCatalogItem): string {
-  return normalizeSearch(
-    `${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast} ${lodicka.predmet} ${lodicka.podpředmět ?? ""} ${getGuideDisplayName(lodicka.garantId)}`,
-  );
+  return normalizeSearch(`${lodicka.nazev} ${lodicka.oblast} ${lodicka.predmet}`);
 }
 
 function tokenizeSearch(value: string): string[] {
@@ -3043,100 +2906,20 @@ function uniqueValues(values: string[]): string[] {
   return [...new Set(values)];
 }
 
-function findUniqueFilterMatch(token: string, options: string[]) {
-  const matches = options.filter((option) => normalizeSearch(option).includes(token));
-  if (matches.length !== 1) return null;
-  const value = matches[0];
-  if (!value) return null;
-  const normalized = normalizeSearch(value);
-  const score = normalized === token ? 3 : normalized.startsWith(token) ? 2 : 1;
-  return { value, score };
+function matchesAllSearchTokens(haystack: string, tokens: string[]): boolean {
+  if (tokens.length === 0) return true;
+  return tokens.every((token) => haystack.includes(token));
 }
 
-function buildSmartSearchPlan(
-  input: string,
-  options: {
-    stupne: string[];
-    rocniky: string[];
-    smecky: string[];
-    predmety: string[];
-    podpredmety: string[];
-    oblasti: string[];
-    stavy: string[];
-    garanti: string[];
-    studentHaystacks: string[];
-  },
-) {
-  const tokens = tokenizeSearch(input);
-  const plan = {
-    people: { stupen: [] as string[], rocnik: [] as string[], smecka: [] as string[] },
-    lodicky: {
-      predmet: [] as string[],
-      podpredmet: [] as string[],
-      oblast: [] as string[],
-      stav: [] as string[],
-      garant: [] as string[],
-    },
-    freeTokens: [] as string[],
-  };
-
-  tokens.forEach((token) => {
-    const candidates: Array<{ score: number; apply: () => void }> = [];
-
-    const smecka = findUniqueFilterMatch(token, options.smecky);
-    if (smecka) candidates.push({ score: smecka.score, apply: () => plan.people.smecka.push(smecka.value) });
-
-    const rocnik = findUniqueFilterMatch(token, options.rocniky);
-    if (rocnik) candidates.push({ score: rocnik.score, apply: () => plan.people.rocnik.push(rocnik.value) });
-
-    const stupen = findUniqueFilterMatch(token, options.stupne);
-    if (stupen) candidates.push({ score: stupen.score, apply: () => plan.people.stupen.push(stupen.value) });
-
-    const predmet = findUniqueFilterMatch(token, options.predmety);
-    if (predmet) candidates.push({ score: predmet.score, apply: () => plan.lodicky.predmet.push(predmet.value) });
-
-    const podpredmet = findUniqueFilterMatch(token, options.podpredmety);
-    if (podpredmet) {
-      candidates.push({ score: podpredmet.score + 1, apply: () => plan.lodicky.podpredmet.push(podpredmet.value) });
-    }
-
-    const oblast = findUniqueFilterMatch(token, options.oblasti);
-    if (oblast) candidates.push({ score: oblast.score, apply: () => plan.lodicky.oblast.push(oblast.value) });
-
-    const stav = findUniqueFilterMatch(token, options.stavy);
-    if (stav) candidates.push({ score: stav.score, apply: () => plan.lodicky.stav.push(stav.value) });
-
-    const hasStudentNameMatch = options.studentHaystacks.some((haystack) => haystack.includes(token));
-    const garant = findUniqueFilterMatch(token, options.garanti);
-    if (garant && !hasStudentNameMatch) {
-      candidates.push({ score: garant.score, apply: () => plan.lodicky.garant.push(garant.value) });
-    }
-
-    if (candidates.length === 0) {
-      plan.freeTokens.push(token);
-      return;
-    }
-
-    candidates.sort((a, b) => b.score - a.score);
-    const best = candidates[0];
-    const second = candidates[1];
-    if (best && (!second || best.score > second.score)) {
-      best.apply();
-    } else {
-      plan.freeTokens.push(token);
-    }
-  });
-
-  plan.people.stupen = uniqueValues(plan.people.stupen);
-  plan.people.rocnik = uniqueValues(plan.people.rocnik);
-  plan.people.smecka = uniqueValues(plan.people.smecka);
-  plan.lodicky.predmet = uniqueValues(plan.lodicky.predmet);
-  plan.lodicky.podpredmet = uniqueValues(plan.lodicky.podpredmet);
-  plan.lodicky.oblast = uniqueValues(plan.lodicky.oblast);
-  plan.lodicky.stav = uniqueValues(plan.lodicky.stav);
-  plan.lodicky.garant = uniqueValues(plan.lodicky.garant);
-
-  return plan;
+function matchesFulltextSearch(
+  student: ProtoStudent,
+  lodicka: ProtoLodickaCatalogItem,
+  tokens: string[],
+): boolean {
+  if (tokens.length === 0) return true;
+  const studentHaystack = buildStudentSearchHaystack(student);
+  const lodickaHaystack = buildLodickaSearchHaystack(lodicka);
+  return tokens.every((token) => studentHaystack.includes(token) || lodickaHaystack.includes(token));
 }
 
 function removeTokenFromSearch(searchInput: string, token: string): string {

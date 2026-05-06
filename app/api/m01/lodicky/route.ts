@@ -33,7 +33,8 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const role = (url.searchParams.get("role") ?? "").trim().toLowerCase();
     const scope = (url.searchParams.get("scope") ?? "").trim().toLowerCase();
-    const garantId = (url.searchParams.get("garantId") ?? "").trim();
+    const requestedGarantId = (url.searchParams.get("garantId") ?? "").trim();
+    const effectiveGarantId = requestedGarantId || context.actorPersonId || context.personIds[0] || "";
     const includeHistory = url.searchParams.get("includeHistory") === "1";
     const effectiveRoles = getEffectiveRoles(context.roles, role);
     if (!effectiveRoles) {
@@ -66,10 +67,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Přístup zamítnut." }, { status: 403 });
     }
 
-    const scopedChildren =
-      (role === "garant" || role === "spravce") && scope === "moje" && garantId
-        ? await filterChildrenByGarant(base.children, garantId)
-        : base.children;
+    const shouldFilterByGarant =
+      (role === "garant" || role === "spravce") && scope === "moje" && effectiveGarantId;
+    const scopedChildren = shouldFilterByGarant
+      ? await filterChildrenByGarant(base.children, effectiveGarantId)
+      : base.children;
 
     const scoped = await getPortalLodickyByActor(
       {
@@ -79,10 +81,7 @@ export async function GET(req: Request) {
       },
       {
         includeHistory,
-        garantPersonId:
-          (role === "garant" || role === "spravce") && scope === "moje" && garantId
-            ? garantId
-            : null,
+        garantPersonId: shouldFilterByGarant ? effectiveGarantId : null,
         childIds: scopedChildren.map((child) => child.id),
       },
     );
