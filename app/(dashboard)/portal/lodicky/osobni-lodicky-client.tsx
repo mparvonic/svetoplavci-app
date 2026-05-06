@@ -161,7 +161,6 @@ type ChildrenResponse = {
   parent: Parent;
   userEmail: string | null;
   children: Child[];
-  parentChildren?: Child[];
 };
 
 type LodickyResponse = {
@@ -254,16 +253,9 @@ function OsobniLodickyPrototypePageInner({
   const queryRole = searchParams.get("role");
   const sessionRoleOptions = mapSessionRolesToProto(sessionUser.roles, sessionUser.role);
   const rawSessionRoles = useMemo(
-    () =>
-      new Set(
-        [...sessionUser.roles, sessionUser.role]
-          .map((role) => String(role).trim().toLowerCase())
-          .filter(Boolean),
-      ),
+    () => new Set([...sessionUser.roles, sessionUser.role]),
     [sessionUser.role, sessionUser.roles],
   );
-  const hasGarantWorkRole = rawSessionRoles.has("garant");
-  const hasGuideWorkRole = rawSessionRoles.has("pruvodce") || rawSessionRoles.has("ucitel");
   const sessionViewRoleOptions = useMemo(() => {
     const options: ProtoRoleId[] = [];
     if (rawSessionRoles.has("rodic")) options.push("rodic");
@@ -406,7 +398,7 @@ function OsobniLodickyPrototypePageInner({
           setDatasetVersion((prev) => prev + 1);
         };
 
-        commitDataset(buildProtoDatasetFromDb(childrenBody, rowsByChild, sessionUser), true);
+        commitDataset(buildProtoDatasetFromDb(childrenBody, rowsByChild), true);
         setDbLoading(false);
         setDbLoadProgress({
           loaded: 0,
@@ -446,7 +438,7 @@ function OsobniLodickyPrototypePageInner({
             console.error("[portal/lodicky] partial load failure", failed);
           }
 
-          const nextDataset = buildProtoDatasetFromDb(childrenBody, rowsByChild, sessionUser);
+          const nextDataset = buildProtoDatasetFromDb(childrenBody, rowsByChild);
           commitDataset(nextDataset, false);
 
           const loaded = Math.min(index + batch.length, childrenBody.children.length);
@@ -493,7 +485,7 @@ function OsobniLodickyPrototypePageInner({
       abortHydration();
       window.removeEventListener("sv:signout-start", abortHydration);
     };
-  }, [pushDebug, sessionUser]);
+  }, [pushDebug]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -543,41 +535,19 @@ function OsobniLodickyPrototypePageInner({
   const activeUser = usersForRoleRaw.find((item) => item.id === activeUserId) ?? usersForRoleRaw[0] ?? null;
   const effectiveViewDate = clampDate(viewDate, semesterBounds.minDate, semesterBounds.maxDate);
   const hasHistoricalViewDate = effectiveViewDate !== todayIso;
-  const canUseOwnLodickyScope = activeRole === "garant" && (hasGarantWorkRole || adminToolsEnabled);
-  const forceAllLodickyScope =
-    activeRole === "garant" && hasGuideWorkRole && !hasGarantWorkRole && !adminToolsEnabled;
-  const showScopeSwitcher =
-    activeRole === "spravce" ||
-    (activeRole === "garant" && ((hasGarantWorkRole && hasGuideWorkRole) || adminToolsEnabled));
-  const effectiveScope: ScopeMode =
-    activeRole === "spravce"
-      ? scopeMode
-      : activeRole === "garant"
-        ? forceAllLodickyScope
-          ? "vsechny"
-          : canUseOwnLodickyScope
-            ? showScopeSwitcher
-              ? scopeMode
-              : "moje"
-            : "vsechny"
-        : "moje";
-  const canEditStatuses =
-    activeRole === "spravce" ||
-    (activeRole === "garant" && canUseOwnLodickyScope && effectiveScope === "moje");
-  const isReadonly = !canEditStatuses;
+  const effectiveScope: ScopeMode = activeRole === "garant" || activeRole === "spravce" ? scopeMode : "moje";
+  const isReadonly = activeRole === "rodic" || activeRole === "zak";
   const showGarantControls = effectiveScope !== "moje";
   const pageTitle = activeRole === "zak"
     ? "Moje osobní lodičky"
     : activeRole === "rodic"
       ? "Osobní lodičky dítěte"
       : activeRole === "garant"
-        ? hasGuideWorkRole && !hasGarantWorkRole && !adminToolsEnabled
-          ? "Přehled osobních lodiček pro průvodce"
-          : "Kompaktní pohled pro práci garanta"
+        ? "Kompaktní pohled pro práci garanta"
         : "Správa osobních lodiček";
-  const pageDescription = canEditStatuses
-    ? "Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal."
-    : "Přehled aktuálních lodiček, stavu a posledních záznamů.";
+  const pageDescription = isReadonly
+    ? "Přehled aktuálních lodiček, stavu a posledních záznamů."
+    : "Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal.";
 
   const filterOptions = useMemo(() => {
     const rocniky = [...new Set(PROTO_STUDENTS.map((student) => String(student.rocnik)))].sort(
@@ -1029,19 +999,6 @@ function OsobniLodickyPrototypePageInner({
   const leftTableId = viewMode === "po_lodickach" ? "T221" : "T222";
   const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
 
-  function resetViewForRole(nextRole: ProtoRoleId) {
-    const nextViewMode: ViewMode = nextRole === "rodic" || nextRole === "zak" ? "po_lidech" : "po_lodickach";
-    setViewMode(nextViewMode);
-    setSelectedLeftId(null);
-    setSelectedPersonalId(null);
-    setDetailSheet({ type: "none" });
-    setLeftSort(nextViewMode === "po_lidech" ? "jmeno" : "nazev");
-    setRightSort(nextViewMode === "po_lidech" ? "nazev" : "jmeno");
-    if (nextRole === "rodic" || nextRole === "zak") {
-      setScopeMode("moje");
-    }
-  }
-
   function handleSessionRoleChange(nextRole: ProtoRoleId) {
     if (!effectiveSessionRoleOptions.includes(nextRole)) return;
     const usersForNextRole = getActorsByRole(nextRole);
@@ -1050,7 +1007,6 @@ function OsobniLodickyPrototypePageInner({
       : (usersForNextRole[0]?.id ?? "");
     setActiveRole(nextRole);
     setSelectedUserId(nextUserId);
-    resetViewForRole(nextRole);
 
     pushDebug({
       elementId: "HDR-ROLE",
@@ -1067,7 +1023,6 @@ function OsobniLodickyPrototypePageInner({
     const nextUserId = usersForNextRole[0]?.id ?? "";
     setActiveRole(nextRole);
     setSelectedUserId(nextUserId);
-    resetViewForRole(nextRole);
 
     pushDebug({
       elementId: "TOOLS-ROLE",
@@ -1417,9 +1372,7 @@ function OsobniLodickyPrototypePageInner({
                         activeRole === roleId ? "bg-[#0E2A5C] text-white" : "text-slate-600 hover:bg-[#EEF2F7]"
                       }`}
                     >
-                      {roleId === "garant" && hasGuideWorkRole && !hasGarantWorkRole
-                        ? "Průvodce"
-                        : getProtoRoleLabel(roleId)}
+                      {getProtoRoleLabel(roleId)}
                     </button>
                   ))}
                 </div>
@@ -1529,27 +1482,27 @@ function OsobniLodickyPrototypePageInner({
 
           {!filtersCollapsed && (
             <CardContent className="space-y-4">
-              <div className={`grid gap-4 ${showScopeSwitcher ? "lg:grid-cols-[1fr_1fr_auto]" : "lg:grid-cols-[1fr_auto]"}`}>
-                {showScopeSwitcher && (
-                  <SegmentControl
-                    label="Základní volba"
-                    options={[
-                      { id: "moje", label: "Moje lodičky" },
-                      { id: "vsechny", label: "Všechny lodičky" },
-                    ]}
-                    value={effectiveScope}
-                    onChange={(value) => {
-                      setScopeMode(value as ScopeMode);
-                      pushDebug({
-                        elementId: "SEG-SCOPE",
-                        label: "Přepnutí rozsahu",
-                        action: "change-scope",
-                        hierarchy: "PERSONAL_LODICKY > TOP_BAR",
-                        payload: `scope=${value}`,
-                      });
-                    }}
-                  />
-                )}
+              <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+                <SegmentControl
+                  label="Základní volba"
+                  options={[
+                    { id: "moje", label: "Moje lodičky" },
+                    { id: "vsechny", label: "Všechny lodičky" },
+                  ]}
+                  value={effectiveScope}
+                  onChange={(value) => {
+                    if (activeRole === "rodic" || activeRole === "zak") return;
+                    setScopeMode(value as ScopeMode);
+                    pushDebug({
+                      elementId: "SEG-SCOPE",
+                      label: "Přepnutí rozsahu",
+                      action: "change-scope",
+                      hierarchy: "PERSONAL_LODICKY > TOP_BAR",
+                      payload: `scope=${value}`,
+                    });
+                  }}
+                  disabled={activeRole === "rodic" || activeRole === "zak"}
+                />
 
                 <SegmentControl
                   label="Pohled"
@@ -2190,37 +2143,13 @@ function replaceArray<T>(target: T[], next: T[]) {
   target.push(...next);
 }
 
-function mapSessionUserToProtoActorRoles(sessionUser: SessionUserContext): ProtoRoleId[] {
-  const rawRoles = [...sessionUser.roles, sessionUser.role]
-    .map((role) => String(role).trim().toLowerCase())
-    .filter(Boolean);
-  const roles = new Set<ProtoRoleId>();
-
-  if (rawRoles.includes("rodic")) roles.add("rodic");
-  if (rawRoles.includes("zak")) roles.add("zak");
-  if (rawRoles.some((role) => role === "garant" || role === "pruvodce" || role === "ucitel")) {
-    roles.add("garant");
-  }
-  if (rawRoles.some((role) => role === "admin" || role === "tester" || role === "zamestnanec" || role === "proto")) {
-    roles.add("spravce");
-  }
-
-  if (roles.size === 0) roles.add("rodic");
-  return [...roles];
-}
-
 function buildProtoDatasetFromDb(
   childrenData: ChildrenResponse,
   rowsByChild: Record<string, LodickaRow[]>,
-  sessionUser: SessionUserContext,
 ): ProtoDatasetFromDb {
-  const parentActorId =
-    childrenData.parent.id?.trim() ||
-    (childrenData.userEmail ?? "").trim().toLowerCase() ||
-    `u-user-${slugify(childrenData.parent.name || "db")}`;
-  const parentName = childrenData.parent.name?.trim() || sessionUser.displayName.trim() || "Uživatel";
+  const parentActorId = `u-rodic-${slugify(childrenData.parent.id || childrenData.parent.name || "db")}`;
+  const parentName = childrenData.parent.name?.trim() || "Rodič";
   const parentEmail = (childrenData.userEmail ?? "").trim().toLowerCase();
-  const parentChildren = childrenData.parentChildren ?? childrenData.children;
 
   const students: ProtoStudent[] = childrenData.children.map((child) => {
     const rocnik = normalizeChildRocnik(child.rocnik);
@@ -2240,7 +2169,7 @@ function buildProtoDatasetFromDb(
     id: parentActorId,
     jmeno: parentName,
     email: parentEmail,
-    roles: mapSessionUserToProtoActorRoles(sessionUser),
+    roles: ["rodic", "spravce"],
   };
   actorsMap.set(parentActor.id, parentActor);
   for (const student of students) {
@@ -2275,7 +2204,7 @@ function buildProtoDatasetFromDb(
     });
   }
 
-  const parentLinks: ProtoParentChildLink[] = parentChildren.map((student) => ({
+  const parentLinks: ProtoParentChildLink[] = students.map((student) => ({
     parentId: parentActorId,
     studentId: student.id,
   }));
