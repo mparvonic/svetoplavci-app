@@ -93,6 +93,13 @@ const FALLBACK_DEV_USERS: DevAuthUserOption[] = [
     role: "garant",
     roles: ["garant", "pruvodce", "rodic"],
   },
+  {
+    personId: "cmnixcwy801lc01qez4ac1l25",
+    displayName: "Jiří Kotaška (test rodič/průvodce)",
+    email: "kotasky@email.cz",
+    role: "pruvodce",
+    roles: ["pruvodce", "rodic"],
+  },
 ];
 
 const LEGACY_DEV_ROLE_BY_PERSON_ID = new Map<string, AppRole>([

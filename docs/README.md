@@ -17,6 +17,7 @@ Primární účel je **referenční bod pro AI asistenta** (a vývojáře) – a
 - `api-endpoints.md` – hlavní API routy Next.js používané frontendem.
 - `ui-ux.md` – hlavní obrazovky, metro design, mobilní vs. desktop layout.
 - `security.md` – shrnutí bezpečnostního modelu a odkaz na `GDPR.md`.
+- `admin-roadmap.md` – plán admin sekce, synchronizací, kontrol dat a správy školního roku.
 - `school-year-groups.md` – datový model školního roku, skupin, členství a změnové historie stavu dítěte.
 - `dev-database-refresh.md` – standardní refresh TEST/DEV databází z produkce (v DEV s anonymizací).
 - `schema-rollout.md` – mini-playbook pro pořadí schema rolloutu a data refresh (prevence DB driftu).

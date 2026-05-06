@@ -56,12 +56,14 @@ function isLocalDevEmail(email: string): boolean {
 }
 
 async function resolveLocalDevPersonIds(email: string, roles: string[]): Promise<string[]> {
-  if (!isLocalDevAuthBypass() || !isLocalDevEmail(email)) return [];
+  if (!isLocalDevAuthBypass()) return [];
 
   const selectedDevUser = await getSelectedDevAuthUser();
   if (selectedDevUser?.email === email && !selectedDevUser.personId.startsWith("local-dev-")) {
     return [selectedDevUser.personId];
   }
+
+  if (!isLocalDevEmail(email)) return [];
 
   const normalizedRoles = roles.map((role) => role.toLowerCase());
   if (normalizedRoles.some((role) => role === "admin" || role === "tester")) return [];
