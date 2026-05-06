@@ -21,6 +21,13 @@ export function isLocalHost(host: string): boolean {
   return LOCAL_HOSTS.has(normalizeHost(host));
 }
 
+export function sanitizeRolesForHost(roles: string[], host: string): string[] {
+  const normalizedRoles = roles.map((role) => role.trim().toLowerCase()).filter(Boolean);
+  if (!isProductionHost(host)) return normalizedRoles;
+  // Production policy: tester role must not grant access on app.svetoplavci.cz.
+  return normalizedRoles.filter((role) => role !== "tester");
+}
+
 export function isBypassAllowedForHost(host: string): boolean {
   const normalized = normalizeHost(host);
   if (!normalized) return false;

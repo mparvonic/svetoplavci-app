@@ -6,6 +6,7 @@ import {
   getStagingAllowedEmailsFromEnv,
   isUnsafeBypassConfigurationForHost,
   isBypassAllowedForHost,
+  sanitizeRolesForHost,
   isStagingHost,
   normalizeHost,
   warnUnsafeBypassConfiguration,
@@ -90,7 +91,7 @@ export default auth((req) => {
     return Response.redirect(signInUrl);
   }
 
-  const roles = collectUserRoles(session);
+  const roles = sanitizeRolesForHost(collectUserRoles(session), host);
   const normalizedEmail = (session.user.email ?? "").trim().toLowerCase();
   const stagingAllowedEmails = getStagingAllowedEmailsFromEnv();
   const allowByStagingEmail = normalizedEmail && stagingAllowedEmails.has(normalizedEmail);
@@ -114,7 +115,7 @@ export default auth((req) => {
   }
 
   // /admin/* – pouze role admin
-  const requiredRoles = getRequiredRolesForPath(pathname);
+  const requiredRoles = getRequiredRolesForPath(pathname, { allowTesterForM01: isTestHost });
   if (requiredRoles && !hasAnyRole(roles, requiredRoles)) {
     if (pathname.startsWith("/api/")) {
       return Response.json({ error: "Forbidden" }, { status: 403 });
