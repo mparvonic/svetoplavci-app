@@ -12,6 +12,9 @@ export interface PortalParent {
 export interface PortalChild {
   id: string;
   name: string;
+  displayName: string | null;
+  firstName: string | null;
+  nickname: string | null;
   rocnik: number | null;
   stupen: 1 | 2 | null;
   smecka: string | null;
@@ -276,6 +279,9 @@ function dedupeChildren(children: PortalChild[]): PortalChild[] {
     unique.set(child.id, {
       id: existing.id,
       name: existing.name,
+      displayName: existing.displayName ?? child.displayName,
+      firstName: existing.firstName ?? child.firstName,
+      nickname: existing.nickname ?? child.nickname,
       rocnik: existing.rocnik ?? child.rocnik,
       stupen: existing.stupen ?? child.stupen,
       smecka: existing.smecka ?? child.smecka,
@@ -412,6 +418,9 @@ async function getActiveChildren(
           },
           { preferFirstName: preferFirstNameIds.has(row.child_id) },
         ),
+        displayName: row.child_name,
+        firstName: row.child_first_name,
+        nickname: row.child_nickname,
         rocnik,
         stupen: parseStupen(row.child_stupen_code, rocnik),
         smecka: normalizeOptionalText(row.child_smecka_name),
@@ -694,6 +703,9 @@ export async function getPortalParentAndChildrenByEmail(email: string): Promise<
           },
           { preferFirstName: true },
         ),
+        displayName: row.child_name,
+        firstName: row.child_first_name,
+        nickname: row.child_nickname,
         rocnik,
         stupen: parseStupen(row.child_stupen_code, rocnik),
         smecka: normalizeOptionalText(row.child_smecka_name),
