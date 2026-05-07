@@ -1772,123 +1772,88 @@ function OsobniLodickyPrototypePageInner({
                     : "grid gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"
                 }
               >
-                <div className="grid content-start gap-4">
-                  {(!isParentLayout || accessibleStudents.length > 1) && (
+                {!isParentLayout && (
+                  <div className="grid content-start gap-4">
                     <Card className="border-[#E3ECF9]">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base text-[#0E2A5C]">Zobrazení</CardTitle>
                       </CardHeader>
                       <CardContent className="grid gap-3">
-                        {!isParentLayout && (
-                          <SegmentControl
-                            label="Základní volba"
-                            options={[
-                              { id: "moje", label: "Moje lodičky" },
-                              { id: "vsechny", label: "Všechny lodičky" },
-                            ]}
-                            value={effectiveScope}
-                            onChange={(value) => {
-                              if (activeRole === "zak") return;
-                              setScopeMode(value as ScopeMode);
-                              pushDebug({
-                                elementId: "SEG-SCOPE",
-                                label: "Přepnutí rozsahu",
-                                action: "change-scope",
-                                hierarchy: "PERSONAL_LODICKY > TOP_BAR",
-                                payload: `scope=${value}`,
-                              });
-                            }}
-                            disabled={activeRole === "zak"}
-                          />
-                        )}
-
-                        {!isParentLayout && (
-                          <SegmentControl
-                            label="Pohled"
-                            options={[
-                              { id: "po_lidech", label: "Po dětech" },
-                              { id: "po_lodickach", label: "Po lodičkách" },
-                            ]}
-                            value={viewMode}
-                            onChange={(value) => {
-                              setViewMode(value as ViewMode);
-                              setSelectedLeftId(null);
-                              setSelectedPersonalId(null);
+                        <SegmentControl
+                          label="Základní volba"
+                          options={[
+                            { id: "moje", label: "Moje lodičky" },
+                            { id: "vsechny", label: "Všechny lodičky" },
+                          ]}
+                          value={effectiveScope}
+                          onChange={(value) => {
+                            if (activeRole === "zak") return;
+                            setScopeMode(value as ScopeMode);
                             pushDebug({
-                                elementId: "SEG-VIEW",
-                                label: "Přepnutí režimu zobrazení",
-                                action: "change-view",
-                                hierarchy: "PERSONAL_LODICKY > TOP_BAR",
-                                payload: `view=${value}`,
-                              });
-                            }}
-                          />
-                        )}
+                              elementId: "SEG-SCOPE",
+                              label: "Přepnutí rozsahu",
+                              action: "change-scope",
+                              hierarchy: "PERSONAL_LODICKY > TOP_BAR",
+                              payload: `scope=${value}`,
+                            });
+                          }}
+                          disabled={activeRole === "zak"}
+                        />
 
-                        {isParentLayout && accessibleStudents.length > 1 && (
-                          <label className="block">
-                            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-normal text-slate-500">
-                              Dítě
-                            </span>
-                            <select
-                              value={selectedLeftIdEffective ?? ""}
-                              onChange={(event) => {
-                                setSelectedLeftId(event.target.value);
-                                setSelectedPersonalId(null);
-                                pushDebug({
-                                  elementId: "SELECT-PARENT-CHILD",
-                                  label: "Přepnutí dítěte rodiče",
-                                  action: "change-parent-child",
-                                  hierarchy: "PERSONAL_LODICKY > TOP_BAR",
-                                  payload: `student=${event.target.value}`,
-                                });
-                              }}
-                              className="h-10 w-full rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] px-3 text-sm font-semibold text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20"
-                            >
-                              {accessibleStudents.map((student) => (
-                                <option key={student.id} value={student.id}>
-                                  {getStudentDisplayName(student, activeRole)}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        )}
+                        <SegmentControl
+                          label="Pohled"
+                          options={[
+                            { id: "po_lidech", label: "Po dětech" },
+                            { id: "po_lodickach", label: "Po lodičkách" },
+                          ]}
+                          value={viewMode}
+                          onChange={(value) => {
+                            setViewMode(value as ViewMode);
+                            setSelectedLeftId(null);
+                            setSelectedPersonalId(null);
+                            pushDebug({
+                              elementId: "SEG-VIEW",
+                              label: "Přepnutí režimu zobrazení",
+                              action: "change-view",
+                              hierarchy: "PERSONAL_LODICKY > TOP_BAR",
+                              payload: `view=${value}`,
+                            });
+                          }}
+                        />
                       </CardContent>
                     </Card>
-                  )}
 
-                {!isParentLayout && (
-                  <Card className="border-[#E3ECF9]">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base text-[#0E2A5C]">Filtry po dětech</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-3">
-                      <MultiToggleSelect
-                        label="Stupeň"
-                        options={options.stupne}
-                        value={effectivePeopleStupenFilter}
-                        onChange={handlePeopleStupenFilterChange}
-                        renderOptionLabel={(option) => `${option}. stupeň`}
-                      />
-                      <MultiToggleSelect
-                        label="Ročník"
-                        options={uniqueValues([...options.rocniky, ...effectivePeopleRocnikFilter]).sort(
-                          (a, b) => Number(a) - Number(b),
-                        )}
-                        value={effectivePeopleRocnikFilter}
-                        onChange={setPeopleRocnikFilter}
-                        renderOptionLabel={(option) => `${option}. ročník`}
-                      />
-                      <MultiToggleSelect
-                        label="Smečka"
-                        options={options.smecky}
-                        value={effectivePeopleSmeckaFilter}
-                        onChange={setPeopleSmeckaFilter}
-                      />
-                    </CardContent>
-                  </Card>
+                    <Card className="border-[#E3ECF9]">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base text-[#0E2A5C]">Filtry po dětech</CardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-3">
+                        <MultiToggleSelect
+                          label="Stupeň"
+                          options={options.stupne}
+                          value={effectivePeopleStupenFilter}
+                          onChange={handlePeopleStupenFilterChange}
+                          renderOptionLabel={(option) => `${option}. stupeň`}
+                        />
+                        <MultiToggleSelect
+                          label="Ročník"
+                          options={uniqueValues([...options.rocniky, ...effectivePeopleRocnikFilter]).sort(
+                            (a, b) => Number(a) - Number(b),
+                          )}
+                          value={effectivePeopleRocnikFilter}
+                          onChange={setPeopleRocnikFilter}
+                          renderOptionLabel={(option) => `${option}. ročník`}
+                        />
+                        <MultiToggleSelect
+                          label="Smečka"
+                          options={options.smecky}
+                          value={effectivePeopleSmeckaFilter}
+                          onChange={setPeopleSmeckaFilter}
+                        />
+                      </CardContent>
+                    </Card>
+                  </div>
                 )}
-                </div>
 
                 <Card className="border-[#E3ECF9]">
                   <CardHeader className="pb-2">
@@ -2049,6 +2014,27 @@ function OsobniLodickyPrototypePageInner({
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  {isParentLayout && accessibleStudents.length > 1 && (
+                    <InlineSelect
+                      label="Dítě"
+                      value={selectedLeftIdEffective ?? ""}
+                      onChange={(value) => {
+                        setSelectedLeftId(value);
+                        setSelectedPersonalId(null);
+                        pushDebug({
+                          elementId: "SELECT-PARENT-CHILD",
+                          label: "Přepnutí dítěte rodiče",
+                          action: "change-parent-child",
+                          hierarchy: "PERSONAL_LODICKY > RIGHT_PANEL",
+                          payload: `student=${value}`,
+                        });
+                      }}
+                      options={accessibleStudents.map((student) => ({
+                        id: student.id,
+                        label: getStudentDisplayName(student, activeRole),
+                      }))}
+                    />
+                  )}
                   <div className="flex min-w-[220px] max-w-full items-center gap-2 rounded-xl border border-[#D6DFF0] bg-white px-3 py-2 min-[1180px]:w-[360px]">
                     <Search className="size-4 shrink-0 text-[#1E3F7A]" />
                     <input
