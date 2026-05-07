@@ -75,6 +75,7 @@ export default auth((req) => {
     pathname.startsWith("/kiosk") ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/kiosk/") ||
+    pathname.startsWith("/api/ostrovy/images/") ||
     pathname === "/api/sync/users" ||
     pathname === "/api/internal/security-health"
   ) {
