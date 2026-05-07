@@ -1330,6 +1330,52 @@ function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function getTodayIsoForPrague(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Prague",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const valueByType = new Map(parts.map((part) => [part.type, part.value]));
+  return `${valueByType.get("year")}-${valueByType.get("month")}-${valueByType.get("day")}`;
+}
+
+function parseIsoYearMonth(value: string): [number, number] {
+  const [yearRaw, monthRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  if (!year || !month) {
+    const now = new Date();
+    return [now.getFullYear(), now.getMonth() + 1];
+  }
+  return [year, month];
+}
+
+function getSemesterBoundsForDate(value: string): { minDate: string; maxDate: string } {
+  const [year, month] = parseIsoYearMonth(value);
+  if (month >= 9) {
+    return {
+      minDate: `${year}-09-01`,
+      maxDate: `${year + 1}-01-31`,
+    };
+  }
+  if (month === 1) {
+    return {
+      minDate: `${year - 1}-09-01`,
+      maxDate: `${year}-01-31`,
+    };
+  }
+  return {
+    minDate: `${year}-02-01`,
+    maxDate: `${year}-08-31`,
+  };
+}
+
+function isDateInRange(value: string, min: string, max: string): boolean {
+  return value >= min && value <= max;
+}
+
 export async function savePortalLodickaStatusForActor(
   actor: PortalActorAccessInput,
   input: PortalSaveLodickaStatusInput,
@@ -1341,18 +1387,40 @@ export async function savePortalLodickaStatusForActor(
     return { ok: false, code: "INVALID_INPUT", message: "Neplatná hodnota stavu lodičky." };
   }
 
+  const actorRoles = normalizeRoles(actor.roles);
+  if (!actorRoles.some((role) => role === "garant" || role === "pruvodce")) {
+    return { ok: false, code: "FORBIDDEN", message: "Stav lodičky smí měnit pouze garant." };
+  }
+
+  const writableSemester = getSemesterBoundsForDate(getTodayIsoForPrague());
+  if (!isDateInRange(input.effectiveDate, writableSemester.minDate, writableSemester.maxDate)) {
+    return {
+      ok: false,
+      code: "FORBIDDEN",
+      message: "Stav lodičky lze měnit pouze v aktuálním pololetí.",
+    };
+  }
+
   const context = await getPortalParentAndChildrenForActor(actor);
   if (!context) {
     return { ok: false, code: "FORBIDDEN", message: "Přístup zamítnut." };
   }
 
-  const targetRows = await prisma.$queryRaw<Array<{ personal_id: string; child_id: string }>>(Prisma.sql`
+  const targetRows = await prisma.$queryRaw<Array<{
+    personal_id: string;
+    child_id: string;
+    garant_person_id: string | null;
+  }>>(Prisma.sql`
     SELECT
       ol.id AS personal_id,
-      os.person_id AS child_id
+      os.person_id AS child_id,
+      l.garant_person_id AS garant_person_id
     FROM app_m01_osobni_lodicka ol
     JOIN app_m01_osobni_sada_lodicek os
       ON os.id = ol.osobni_sada_id
+    JOIN app_m01_lodicka l
+      ON l.id = ol.lodicka_id
+      AND l.is_deleted = false
     WHERE ol.id = ${input.personalLodickaId}
       AND ol.is_deleted = false
       AND os.status = 'ACTIVE'
@@ -1367,6 +1435,14 @@ export async function savePortalLodickaStatusForActor(
   const accessibleChildIds = new Set(context.children.map((child) => child.id));
   if (!accessibleChildIds.has(target.child_id)) {
     return { ok: false, code: "FORBIDDEN", message: "Tato osobní lodička vám není přiřazena." };
+  }
+
+  const actorPersonIds = new Set(
+    [...actor.personIds, input.actorPersonId ?? ""].map((id) => id.trim()).filter(Boolean),
+  );
+  const targetGarantId = target.garant_person_id?.trim() ?? "";
+  if (!targetGarantId || !actorPersonIds.has(targetGarantId)) {
+    return { ok: false, code: "FORBIDDEN", message: "Stav této lodičky smí měnit pouze její garant." };
   }
 
   const sameDayRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
