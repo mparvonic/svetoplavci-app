@@ -274,21 +274,25 @@ model CodaSyncLog {
 }
 
 model AppPerson {
-  id          String   @id @default(cuid())
-  dedupKey    String   @unique @map("dedup_key")
-  displayName String   @map("display_name")
-  nickname    String?
-  chipUid     String?  @map("chip_uid")
-  chipHid     String?  @map("chip_hid")
-  photo       String?
-  firstName   String?  @map("first_name")
-  middleName  String?  @map("middle_name")
-  lastName    String?  @map("last_name")
-  identifier  String?
-  plus4uId    String?  @map("plus4u_id")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                 String    @id @default(cuid())
+  dedupKey           String    @unique @map("dedup_key")
+  displayName        String    @map("display_name")
+  nickname           String?
+  chipUid            String?   @map("chip_uid")
+  chipHid            String?   @map("chip_hid")
+  photo              String?
+  firstName          String?   @map("first_name")
+  middleName         String?   @map("middle_name")
+  lastName           String?   @map("last_name")
+  identifier         String?
+  plus4uId           String?   @map("plus4u_id")
+  isActive           Boolean   @default(true) @map("is_active")
+  mergedIntoPersonId String?   @map("merged_into_person_id")
+  mergedAt           DateTime? @map("merged_at")
+  mergedBy           String?   @map("merged_by")
+  mergeReason        String?   @map("merge_reason")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   sourceRecords       AppPersonSourceRecord[]
   loginLinks          AppLoginPersonLink[]
@@ -303,7 +307,10 @@ model AppPerson {
   schoolEventsCreated AppSchoolEvent[]         @relation("AppSchoolEventCreatedBy")
   schoolEventsUpdated AppSchoolEvent[]         @relation("AppSchoolEventUpdatedBy")
   schoolEventTargets  AppSchoolEventTarget[]
+  mergedIntoPerson    AppPerson?               @relation("MergedPersons", fields: [mergedIntoPersonId], references: [id], onDelete: SetNull)
+  mergedPersons       AppPerson[]              @relation("MergedPersons")
 
+  @@index([mergedIntoPersonId], map: "app_person_merged_into_person_id_idx")
   @@index([identifier], map: "app_person_identifier_idx")
   @@index([plus4uId], map: "app_person_plus4u_id_idx")
   @@index([chipUid], map: "app_person_chip_uid_idx")
@@ -385,6 +392,9 @@ model AppLoginPersonLink {
   person   AppPerson        @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@unique([identityId, personId], map: "app_login_person_link_identity_id_person_id_key")
+  // DB migration 20260507090000_single_approved_login_owner adds a partial unique
+  // index on identityId for rows where status = 'approved'. Prisma cannot express
+  // that partial index in schema.prisma.
   @@index([personId], map: "app_login_person_link_person_id_idx")
   @@index([status], map: "app_login_person_link_status_idx")
   @@map("app_login_person_link")
@@ -416,6 +426,9 @@ model AppPersonRelation {
   relationType   String   @default("parent_of") @map("relation_type")
   source         String   @default("auto")
   isActive       Boolean  @default(true) @map("is_active")
+  createdBy      String?  @map("created_by")
+  updatedBy      String?  @map("updated_by")
+  changeReason   String?  @map("change_reason")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -423,7 +436,9 @@ model AppPersonRelation {
   childPerson  AppPerson @relation("ChildPerson", fields: [childPersonId], references: [id], onDelete: Cascade)
 
   @@unique([parentPersonId, childPersonId, relationType, source], map: "app_person_relation_parent_child_relation_source_key")
+  @@index([parentPersonId], map: "app_person_relation_parent_person_id_idx")
   @@index([childPersonId], map: "app_person_relation_child_person_id_idx")
+  @@index([source], map: "app_person_relation_source_idx")
   @@map("app_person_relation")
 }
 

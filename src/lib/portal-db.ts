@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/src/lib/prisma";
 import { resolvePersonName } from "@/src/lib/person-name";
@@ -38,6 +39,34 @@ export interface PortalLodickaRow {
   datumStavu: string | null;
   history: PortalLodickaHistoryRow[];
 }
+
+export interface PortalLodickaCatalogRow {
+  lodickaId: string;
+  kodLodicky: string | null;
+  predmet: string;
+  podpredmet: string;
+  oblast: string;
+  nazevLodicky: string;
+  typ: string | null;
+  stupen: string | null;
+  rocnikOd: number | null;
+  rocnikDo: number | null;
+  garantPersonId: string | null;
+  garantName: string | null;
+}
+
+export type PortalOsobniLodickaCurrentRow = [
+  childIndex: number,
+  id: string,
+  lodickaIndex: number,
+  kodOsobniLodicky: string | null,
+  stav: string,
+  hodnota: number | null,
+  uspech: string,
+  poznamka: string,
+  datumStavu: string | null,
+  history?: PortalLodickaHistoryRow[],
+];
 
 export interface PortalLodickaHistoryRow {
   id: string;
@@ -107,6 +136,12 @@ type LodickaQueryRow = {
   history_json: unknown;
 };
 
+type CompactPayloadQueryRow = {
+  catalog_items: unknown;
+  personal_items: unknown;
+  child_ids_with_rows: string[] | null;
+};
+
 type ParentCandidate = {
   id: string;
   displayName: string;
@@ -119,6 +154,42 @@ type PortalActorAccessInput = {
   personIds: string[];
   roles: string[];
 };
+
+export type PortalLodickaStav = 0 | 1 | 2 | 3 | 4;
+
+type PortalSaveLodickaStatusInput = {
+  personalLodickaId: string;
+  effectiveDate: string;
+  status: PortalLodickaStav;
+  overwriteSameDate: boolean;
+  allowHistorical: boolean;
+  invalidateNewer: boolean;
+  note?: string | null;
+  actorPersonId: string | null;
+  actorLabel: string;
+};
+
+type PortalSaveLodickaStatusResult =
+  | {
+      ok: true;
+      event: {
+        id: string;
+        osobniLodickaId: string;
+        datumStavu: string;
+        zapsanoAt: string;
+        stav: PortalLodickaStav;
+        zapsalId: string;
+        poznamka?: string;
+      };
+      invalidatedEventIds: string[];
+    }
+  | {
+      ok: false;
+      code: "NOT_FOUND" | "FORBIDDEN" | "SAME_DATE_EXISTS" | "HISTORICAL_CONFLICT" | "INVALID_INPUT";
+      message: string;
+      sameDateCount?: number;
+      newerCount?: number;
+    };
 
 const GLOBAL_CHILD_ACCESS_ROLES = new Set(["tester", "garant", "pruvodce", "ucitel", "zamestnanec"]);
 
@@ -807,13 +878,14 @@ export async function getPortalLodickyByActor(
     includeHistory?: boolean;
     garantPersonId?: string | null;
     childIds?: string[];
+    context?: { parent: PortalParent; children: PortalChild[] };
   },
 ): Promise<{
   parent: PortalParent;
   children: PortalChild[];
   lodickyByChild: Record<string, PortalLodickaRow[]>;
 } | null> {
-  const context = await getPortalParentAndChildrenForActor(input);
+  const context = options?.context ?? await getPortalParentAndChildrenForActor(input);
   if (!context) return null;
 
   const includeHistory = options?.includeHistory === true;
@@ -944,7 +1016,508 @@ export async function getPortalLodickyByActor(
 
   return {
     parent: context.parent,
-    children: accessibleChildren,
+    children: garantPersonId
+      ? accessibleChildren.filter((child) => (lodickyByChild[child.id]?.length ?? 0) > 0)
+      : accessibleChildren,
     lodickyByChild,
+  };
+}
+
+export async function getPortalLodickyCompactByActor(
+  input: PortalActorAccessInput,
+  options?: {
+    includeHistory?: boolean;
+    garantPersonId?: string | null;
+    childIds?: string[];
+    context?: { parent: PortalParent; children: PortalChild[] };
+  },
+): Promise<{
+  parent: PortalParent;
+  children: PortalChild[];
+  lodickyCatalog: PortalLodickaCatalogRow[];
+  osobniLodicky: PortalOsobniLodickaCurrentRow[];
+} | null> {
+  const context = options?.context ?? await getPortalParentAndChildrenForActor(input);
+  if (!context) return null;
+
+  const includeHistory = options?.includeHistory === true;
+  const garantPersonId = options?.garantPersonId?.trim() ?? "";
+  const requestedChildIds = [...new Set((options?.childIds ?? []).map((id) => id.trim()).filter(Boolean))];
+  const accessibleChildren =
+    requestedChildIds.length > 0
+      ? context.children.filter((child) => requestedChildIds.includes(child.id))
+      : context.children;
+
+  if (accessibleChildren.length === 0) {
+    return {
+      parent: context.parent,
+      children: [],
+      lodickyCatalog: [],
+      osobniLodicky: [],
+    };
+  }
+
+  const childIds = accessibleChildren.map((child) => child.id);
+  const historyJoin = includeHistory
+    ? Prisma.sql`
+      LEFT JOIN LATERAL (
+        SELECT json_agg(
+          json_build_object(
+            'id', e.id,
+            'stavLabel', e.stav_label,
+            'hodnota', e.hodnota,
+            'datumStavu', e.datum_stavu,
+            'poznamka', e.poznamka,
+            'uspech', e.uspech,
+            'changedByPersonId', e.changed_by_person_id,
+            'changedByLabel', e.changed_by_label,
+            'sourceCreatedByLabel', e.source_created_by_label,
+            'sourceModifiedByLabel', e.source_modified_by_label,
+            'sourceCreatedAt', e.source_created_at,
+            'sourceModifiedAt', e.source_modified_at,
+            'createdAt', e.created_at
+          )
+          ORDER BY e.datum_stavu ASC, e.created_at ASC
+        ) AS history_json
+        FROM app_m01_osobni_lodicka_event e
+        WHERE e.osobni_lodicka_id = ol.id
+          AND COALESCE(e.is_invalidated, false) = false
+      ) ev ON true
+    `
+    : Prisma.empty;
+  const garantJoin = garantPersonId
+    ? Prisma.sql`
+      JOIN app_m01_lodicka lf
+        ON lf.id = ol.lodicka_id
+        AND lf.is_deleted = false
+    `
+    : Prisma.empty;
+  const garantFilter = garantPersonId
+    ? Prisma.sql`AND lf.garant_person_id = ${garantPersonId}`
+    : Prisma.empty;
+  const personalTuple = includeHistory
+    ? Prisma.sql`
+      json_build_array(
+        pb.child_idx,
+        pb.id,
+        cb.catalog_idx,
+        pb.kod_osobni_lodicky,
+        pb.stav,
+        pb.hodnota,
+        pb.uspech,
+        pb.poznamka,
+        pb.datum_stavu,
+        pb.history_json
+      )
+    `
+    : Prisma.sql`
+      json_build_array(
+        pb.child_idx,
+        pb.id,
+        cb.catalog_idx,
+        pb.kod_osobni_lodicky,
+        pb.stav,
+        pb.hodnota,
+        pb.uspech,
+        pb.poznamka,
+        pb.datum_stavu
+      )
+    `;
+
+  const payloadRows = await prisma.$queryRaw<CompactPayloadQueryRow[]>(Prisma.sql`
+    WITH child_input AS (
+      SELECT id::text AS child_id, ord::int - 1 AS child_idx
+      FROM unnest(ARRAY[${Prisma.join(childIds)}]::text[]) WITH ORDINALITY AS input(id, ord)
+    ),
+    personal_base AS (
+      SELECT
+        ci.child_idx,
+        os.person_id AS child_id,
+        ol.id AS id,
+        ol.lodicka_id AS lodicka_id,
+        ol.kod_osobni_lodicky AS kod_osobni_lodicky,
+        COALESCE(NULLIF(BTRIM(ol.current_stav_label), ''), 'Nezahájeno') AS stav,
+        ol.current_hodnota AS hodnota,
+        COALESCE(NULLIF(BTRIM(ol.uspech), ''), '—') AS uspech,
+        COALESCE(NULLIF(BTRIM(ol.poznamka), ''), '—') AS poznamka,
+        ol.datum_stavu AS datum_stavu,
+        ${includeHistory ? Prisma.sql`COALESCE(ev.history_json, '[]'::json)` : Prisma.sql`'[]'::json`} AS history_json
+      FROM child_input ci
+      JOIN app_m01_osobni_sada_lodicek os
+        ON os.person_id = ci.child_id
+        AND os.status = 'ACTIVE'
+      JOIN app_m01_osobni_lodicka ol
+        ON ol.osobni_sada_id = os.id
+        AND ol.is_deleted = false
+      ${garantJoin}
+      ${historyJoin}
+      WHERE true
+        ${garantFilter}
+    ),
+    catalog_base AS (
+      SELECT
+        row_number() OVER (ORDER BY pr.nazev ASC, pp.nazev ASC NULLS FIRST, ob.nazev ASC, l.nazev ASC)::int - 1 AS catalog_idx,
+        l.id AS lodicka_id,
+        l.kod AS kod_lodicky,
+        pr.nazev AS predmet,
+        pp.nazev AS podpredmet,
+        ob.nazev AS oblast,
+        l.nazev AS nazev_lodicky,
+        l.typ::text AS typ,
+        l.stupen::text AS stupen,
+        l.rocnik_od AS rocnik_od,
+        l.rocnik_do AS rocnik_do,
+        l.garant_person_id AS garant_person_id,
+        gp.display_name AS garant_name
+      FROM (SELECT DISTINCT lodicka_id FROM personal_base) ids
+      JOIN app_m01_lodicka l
+        ON l.id = ids.lodicka_id
+        AND l.is_deleted = false
+      JOIN app_m01_predmet pr
+        ON pr.id = l.predmet_id
+      LEFT JOIN app_m01_podpredmet pp
+        ON pp.id = l.podpredmet_id
+      JOIN app_m01_oblast ob
+        ON ob.id = l.oblast_id
+      LEFT JOIN app_person gp
+        ON gp.id = l.garant_person_id
+    )
+    SELECT
+      COALESCE(
+        (
+          SELECT json_agg(
+            json_build_object(
+              'lodickaId', cb.lodicka_id,
+              'kodLodicky', cb.kod_lodicky,
+              'predmet', COALESCE(NULLIF(BTRIM(cb.predmet), ''), '—'),
+              'podpredmet', COALESCE(NULLIF(BTRIM(cb.podpredmet), ''), '—'),
+              'oblast', COALESCE(NULLIF(BTRIM(cb.oblast), ''), '—'),
+              'nazevLodicky', COALESCE(NULLIF(BTRIM(cb.nazev_lodicky), ''), '—'),
+              'typ', NULLIF(BTRIM(cb.typ), ''),
+              'stupen', NULLIF(BTRIM(cb.stupen), ''),
+              'rocnikOd', cb.rocnik_od,
+              'rocnikDo', cb.rocnik_do,
+              'garantPersonId', NULLIF(BTRIM(cb.garant_person_id), ''),
+              'garantName', NULLIF(BTRIM(cb.garant_name), '')
+            )
+            ORDER BY cb.catalog_idx
+          )
+          FROM catalog_base cb
+        ),
+        '[]'::json
+      ) AS catalog_items,
+      COALESCE(
+        (
+          SELECT json_agg(${personalTuple} ORDER BY pb.child_idx ASC, cb.catalog_idx ASC)
+          FROM personal_base pb
+          JOIN catalog_base cb
+            ON cb.lodicka_id = pb.lodicka_id
+        ),
+        '[]'::json
+      ) AS personal_items,
+      COALESCE(
+        (
+          SELECT array_agg(DISTINCT pb.child_id)
+          FROM personal_base pb
+          JOIN catalog_base cb
+            ON cb.lodicka_id = pb.lodicka_id
+        ),
+        ARRAY[]::text[]
+      ) AS child_ids_with_rows
+  `);
+
+  const payload = payloadRows[0];
+  const catalogItems = Array.isArray(payload?.catalog_items) ? payload.catalog_items : [];
+  const personalItems = Array.isArray(payload?.personal_items) ? payload.personal_items : [];
+  const childIdsWithRows = new Set(payload?.child_ids_with_rows ?? []);
+  const children = garantPersonId
+    ? accessibleChildren.filter((child) => childIdsWithRows.has(child.id))
+    : accessibleChildren;
+  const childIndexOffset =
+    garantPersonId && children.length !== accessibleChildren.length
+      ? new Map(children.map((child, index) => [accessibleChildren.findIndex((item) => item.id === child.id), index]))
+      : null;
+
+  const lodickyCatalog: PortalLodickaCatalogRow[] = catalogItems.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const lodickaId = typeof row.lodickaId === "string" ? row.lodickaId : "";
+    if (!lodickaId) return [];
+    return [{
+      lodickaId,
+      kodLodicky: typeof row.kodLodicky === "string" ? normalizeOptionalText(row.kodLodicky) : null,
+      predmet: typeof row.predmet === "string" ? normalizeText(row.predmet, "—") : "—",
+      podpredmet: typeof row.podpredmet === "string" ? normalizeText(row.podpredmet, "—") : "—",
+      oblast: typeof row.oblast === "string" ? normalizeText(row.oblast, "—") : "—",
+      nazevLodicky: typeof row.nazevLodicky === "string" ? normalizeText(row.nazevLodicky, "—") : "—",
+      typ: typeof row.typ === "string" ? normalizeOptionalText(row.typ) : null,
+      stupen: typeof row.stupen === "string" ? normalizeOptionalText(row.stupen) : null,
+      rocnikOd: typeof row.rocnikOd === "number" ? row.rocnikOd : null,
+      rocnikDo: typeof row.rocnikDo === "number" ? row.rocnikDo : null,
+      garantPersonId: typeof row.garantPersonId === "string" ? normalizeOptionalText(row.garantPersonId) : null,
+      garantName: typeof row.garantName === "string" ? normalizeOptionalText(row.garantName) : null,
+    }];
+  });
+
+  const osobniLodicky: PortalOsobniLodickaCurrentRow[] = personalItems.flatMap((item) => {
+    if (!Array.isArray(item)) return [];
+    const childIndex = typeof item[0] === "number" ? item[0] : null;
+    const id = typeof item[1] === "string" ? item[1] : "";
+    const lodickaIndex = typeof item[2] === "number" ? item[2] : null;
+    if (childIndex === null || !id || lodickaIndex === null) return [];
+    const adjustedChildIndex = childIndexOffset?.get(childIndex) ?? childIndex;
+    if (!children[adjustedChildIndex] || !lodickyCatalog[lodickaIndex]) return [];
+    const base: PortalOsobniLodickaCurrentRow = [
+      adjustedChildIndex,
+      id,
+      lodickaIndex,
+      typeof item[3] === "string" ? normalizeOptionalText(item[3]) : null,
+      typeof item[4] === "string" ? normalizeText(item[4], "Nezahájeno") : "Nezahájeno",
+      typeof item[5] === "number" && Number.isFinite(item[5]) ? item[5] : null,
+      typeof item[6] === "string" ? normalizeText(item[6], "—") : "—",
+      typeof item[7] === "string" ? normalizeText(item[7], "—") : "—",
+      toIso(item[8] instanceof Date || typeof item[8] === "string" ? item[8] : null),
+    ];
+    const history = includeHistory ? toHistoryRows(item[9]) : [];
+    if (history.length > 0) base.push(history);
+    return [base];
+  });
+
+  return {
+    parent: context.parent,
+    children,
+    lodickyCatalog,
+    osobniLodicky,
+  };
+}
+
+function formatProtoDateTime(value: Date): string {
+  const iso = value.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
+}
+
+function statusToLabel(status: PortalLodickaStav): string {
+  if (status === 4) return "Samostatně";
+  if (status === 3) return "Částečně";
+  if (status === 2) return "S dopomocí";
+  if (status === 1) return "Zahájeno";
+  return "Nezahájeno";
+}
+
+function toActorFallbackId(label: string): string {
+  const slug = label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug ? `db-label-${slug}` : "db-unknown-actor";
+}
+
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+export async function savePortalLodickaStatusForActor(
+  actor: PortalActorAccessInput,
+  input: PortalSaveLodickaStatusInput,
+): Promise<PortalSaveLodickaStatusResult> {
+  if (!isIsoDate(input.effectiveDate)) {
+    return { ok: false, code: "INVALID_INPUT", message: "Neplatné datum stavu." };
+  }
+  if (![0, 1, 2, 3, 4].includes(input.status)) {
+    return { ok: false, code: "INVALID_INPUT", message: "Neplatná hodnota stavu lodičky." };
+  }
+
+  const context = await getPortalParentAndChildrenForActor(actor);
+  if (!context) {
+    return { ok: false, code: "FORBIDDEN", message: "Přístup zamítnut." };
+  }
+
+  const targetRows = await prisma.$queryRaw<Array<{ personal_id: string; child_id: string }>>(Prisma.sql`
+    SELECT
+      ol.id AS personal_id,
+      os.person_id AS child_id
+    FROM app_m01_osobni_lodicka ol
+    JOIN app_m01_osobni_sada_lodicek os
+      ON os.id = ol.osobni_sada_id
+    WHERE ol.id = ${input.personalLodickaId}
+      AND ol.is_deleted = false
+      AND os.status = 'ACTIVE'
+    LIMIT 1
+  `);
+
+  const target = targetRows[0];
+  if (!target) {
+    return { ok: false, code: "NOT_FOUND", message: "Osobní lodička nebyla nalezena." };
+  }
+
+  const accessibleChildIds = new Set(context.children.map((child) => child.id));
+  if (!accessibleChildIds.has(target.child_id)) {
+    return { ok: false, code: "FORBIDDEN", message: "Tato osobní lodička vám není přiřazena." };
+  }
+
+  const sameDayRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT id
+    FROM app_m01_osobni_lodicka_event
+    WHERE osobni_lodicka_id = ${input.personalLodickaId}
+      AND COALESCE(is_invalidated, false) = false
+      AND DATE(datum_stavu AT TIME ZONE 'UTC') = ${input.effectiveDate}::date
+  `);
+
+  const newerRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT id
+    FROM app_m01_osobni_lodicka_event
+    WHERE osobni_lodicka_id = ${input.personalLodickaId}
+      AND COALESCE(is_invalidated, false) = false
+      AND DATE(datum_stavu AT TIME ZONE 'UTC') > ${input.effectiveDate}::date
+  `);
+
+  if (sameDayRows.length > 0 && !input.overwriteSameDate) {
+    return {
+      ok: false,
+      code: "SAME_DATE_EXISTS",
+      message: "Pro dané datum už existuje stav lodičky.",
+      sameDateCount: sameDayRows.length,
+    };
+  }
+
+  if (newerRows.length > 0 && !input.allowHistorical) {
+    return {
+      ok: false,
+      code: "HISTORICAL_CONFLICT",
+      message: "Existují novější záznamy. Potvrďte historický zápis.",
+      newerCount: newerRows.length,
+    };
+  }
+
+  const toInvalidate = [
+    ...sameDayRows.map((row) => row.id),
+    ...(input.invalidateNewer ? newerRows.map((row) => row.id) : []),
+  ];
+  const note = input.note?.trim() || null;
+  const now = new Date();
+  const eventId = `evt-manual-${randomUUID()}`;
+  const eventDate = new Date(`${input.effectiveDate}T12:00:00.000Z`);
+  const statusLabel = statusToLabel(input.status);
+  const actorLabel = input.actorLabel.trim() || "Neznámý uživatel";
+  const source = "portal_osobni_lodicky_manual_v1";
+
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO app_m01_osobni_lodicka_event (
+        id,
+        osobni_lodicka_id,
+        stupen,
+        stav_label,
+        hodnota,
+        datum_stavu,
+        poznamka,
+        uspech,
+        changed_by_person_id,
+        source,
+        source_row_id,
+        changed_by_label,
+        source_created_by_person_id,
+        source_created_by_label,
+        source_created_at,
+        source_modified_by_person_id,
+        source_modified_by_label,
+        source_modified_at
+      ) VALUES (
+        ${eventId},
+        ${input.personalLodickaId},
+        ${input.status},
+        ${statusLabel},
+        ${input.status},
+        ${eventDate},
+        ${note},
+        NULL,
+        ${input.actorPersonId},
+        ${source},
+        NULL,
+        ${actorLabel},
+        ${input.actorPersonId},
+        ${actorLabel},
+        ${now},
+        ${input.actorPersonId},
+        ${actorLabel},
+        ${now}
+      )
+    `);
+
+    if (toInvalidate.length > 0) {
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE app_m01_osobni_lodicka_event
+        SET
+          is_invalidated = true,
+          invalidated_at = ${now},
+          invalidated_reason = ${input.invalidateNewer ? "manual_overwrite_same_or_newer" : "manual_overwrite_same_day"},
+          invalidated_by_event_id = ${eventId}
+        WHERE osobni_lodicka_id = ${input.personalLodickaId}
+          AND id IN (${Prisma.join(toInvalidate)})
+          AND COALESCE(is_invalidated, false) = false
+      `);
+    }
+
+    const latestRows = await tx.$queryRaw<Array<{
+      id: string;
+      stupen: number;
+      stav_label: string | null;
+      hodnota: number | null;
+      datum_stavu: Date | string | null;
+      poznamka: string | null;
+      uspech: string | null;
+    }>>(Prisma.sql`
+      SELECT
+        id,
+        stupen,
+        stav_label,
+        hodnota,
+        datum_stavu,
+        poznamka,
+        uspech
+      FROM app_m01_osobni_lodicka_event
+      WHERE osobni_lodicka_id = ${input.personalLodickaId}
+        AND COALESCE(is_invalidated, false) = false
+      ORDER BY datum_stavu DESC, source_modified_at DESC NULLS LAST, created_at DESC, id DESC
+      LIMIT 1
+    `);
+
+    const latest = latestRows[0];
+    if (!latest) {
+      throw new Error("Nepodařilo se určit aktuální stav osobní lodičky po zápisu.");
+    }
+
+    await tx.$executeRaw(Prisma.sql`
+      UPDATE app_m01_osobni_lodicka
+      SET
+        current_stupen = ${latest.stupen},
+        current_stav_label = ${latest.stav_label},
+        current_hodnota = ${latest.hodnota},
+        datum_stavu = ${latest.datum_stavu as Date | string | null},
+        poznamka = ${latest.poznamka},
+        uspech = ${latest.uspech},
+        last_event_id = ${latest.id},
+        updated_at = ${now}
+      WHERE id = ${input.personalLodickaId}
+    `);
+  });
+
+  const eventWriterId = input.actorPersonId?.trim() || toActorFallbackId(actorLabel);
+  const writtenAt = now;
+
+  return {
+    ok: true,
+    event: {
+      id: eventId,
+      osobniLodickaId: input.personalLodickaId,
+      datumStavu: input.effectiveDate,
+      zapsanoAt: formatProtoDateTime(writtenAt),
+      stav: input.status,
+      zapsalId: eventWriterId,
+      poznamka: note ?? undefined,
+    },
+    invalidatedEventIds: toInvalidate,
   };
 }
