@@ -7,13 +7,6 @@ import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "l
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ProtoDebugPanel, createProtoDebugEvent, type ProtoDebugEvent } from "@/components/proto/proto-debug-panel";
@@ -27,7 +20,6 @@ import {
   PROTO_OSOBNI_LODICKY,
   PROTO_STUDENTS,
   PROTO_ROLE_OPTIONS,
-  getActiveSemesterBounds,
   getActorsByRole,
   getParentChildren,
   getTodayIsoForProto,
@@ -161,11 +153,39 @@ type ChildrenResponse = {
   parent: Parent;
   userEmail: string | null;
   children: Child[];
-  parentChildren?: Child[];
 };
 
-type LodickyBulkResponse = ChildrenResponse & {
-  lodickyByChild: Record<string, LodickaRow[]>;
+type LodickaCatalogCompactRow = {
+  lodickaId: string;
+  kodLodicky: string | null;
+  predmet: string;
+  podpredmet: string;
+  oblast: string;
+  nazevLodicky: string;
+  typ: string | null;
+  stupen: string | null;
+  rocnikOd: number | null;
+  rocnikDo: number | null;
+  garantPersonId: string | null;
+  garantName: string | null;
+};
+
+type OsobniLodickaCompactRow = [
+  childIndex: number,
+  id: string,
+  lodickaIndex: number,
+  kodOsobniLodicky: string | null,
+  stav: string,
+  hodnota: number | null,
+  uspech: string,
+  poznamka: string,
+  datumStavu: string | null,
+  history?: LodickaHistoryRow[],
+];
+
+type LodickyCompactResponse = ChildrenResponse & {
+  lodickyCatalog: LodickaCatalogCompactRow[];
+  osobniLodicky: OsobniLodickaCompactRow[];
 };
 
 class SessionExpiredError extends Error {
@@ -181,6 +201,38 @@ async function readApiErrorMessage(response: Response, fallbackMessage: string):
     return body.error;
   }
   return fallbackMessage;
+}
+
+const LODICKY_HYDRATION_CACHE_TTL_MS = 15_000;
+const lodickyHydrationRequests = new Map<
+  string,
+  { expiresAt: number; promise: Promise<LodickyCompactResponse> }
+>();
+
+function fetchLodickyCompact(requestUrl: string): Promise<LodickyCompactResponse> {
+  const now = Date.now();
+  const existing = lodickyHydrationRequests.get(requestUrl);
+  if (existing && existing.expiresAt > now) return existing.promise;
+  if (existing) lodickyHydrationRequests.delete(requestUrl);
+
+  const request = fetch(requestUrl, { cache: "no-store" })
+    .then(async (response) => {
+      if (!response.ok) {
+        const message = await readApiErrorMessage(response, "Nepodařilo se načíst osobní lodičky.");
+        if (response.status === 401) throw new SessionExpiredError(message);
+        throw new Error(message);
+      }
+      return (await response.json()) as LodickyCompactResponse;
+    })
+    .catch((error) => {
+      lodickyHydrationRequests.delete(requestUrl);
+      throw error;
+    });
+  lodickyHydrationRequests.set(requestUrl, {
+    expiresAt: now + LODICKY_HYDRATION_CACHE_TTL_MS,
+    promise: request,
+  });
+  return request;
 }
 
 const DEFAULT_ROLE: ProtoRoleId = "rodic";
@@ -213,7 +265,6 @@ function isProtoRoleId(value: string | null): value is ProtoRoleId {
 const SESSION_ROLE_TO_PROTO_ROLE: Record<string, ProtoRoleId> = {
   admin: "spravce",
   zamestnanec: "spravce",
-  ucitel: "garant",
   pruvodce: "garant",
   garant: "garant",
   rodic: "rodic",
@@ -222,7 +273,7 @@ const SESSION_ROLE_TO_PROTO_ROLE: Record<string, ProtoRoleId> = {
   proto: "spravce",
 };
 
-const WORK_VIEW_SESSION_ROLES = new Set(["garant", "pruvodce", "ucitel"]);
+const WORK_VIEW_SESSION_ROLES = new Set(["garant", "pruvodce"]);
 
 function getProtoRoleLabel(role: ProtoRoleId): string {
   return PROTO_ROLE_OPTIONS.find((option) => option.id === role)?.label ?? role;
@@ -252,30 +303,24 @@ function OsobniLodickyPrototypePageInner({
   const queryRole = searchParams.get("role");
   const sessionRoleOptions = mapSessionRolesToProto(sessionUser.roles, sessionUser.role);
   const rawSessionRoles = useMemo(
-    () =>
-      new Set(
-        [...sessionUser.roles, sessionUser.role]
-          .map((role) => String(role).trim().toLowerCase())
-          .filter(Boolean),
-      ),
+    () => new Set([...sessionUser.roles, sessionUser.role]),
     [sessionUser.role, sessionUser.roles],
   );
-  const hasGarantWorkRole = rawSessionRoles.has("garant");
-  const hasGuideWorkRole = rawSessionRoles.has("pruvodce") || rawSessionRoles.has("ucitel");
   const sessionViewRoleOptions = useMemo(() => {
     const options: ProtoRoleId[] = [];
-    if (rawSessionRoles.has("rodic")) options.push("rodic");
     if ([...WORK_VIEW_SESSION_ROLES].some((role) => rawSessionRoles.has(role))) options.push("garant");
+    if (rawSessionRoles.has("rodic")) options.push("rodic");
     return options;
   }, [rawSessionRoles]);
   const effectiveSessionRoleOptions = sessionViewRoleOptions.length > 0 ? sessionViewRoleOptions : sessionRoleOptions;
-  const preferredSessionRole: ProtoRoleId = effectiveSessionRoleOptions.includes("rodic")
-    ? "rodic"
+  const preferredSessionRole: ProtoRoleId = effectiveSessionRoleOptions.includes("garant")
+    ? "garant"
     : (effectiveSessionRoleOptions[0] ?? DEFAULT_ROLE);
   const queryRoleCandidate = isProtoRoleId(queryRole) ? queryRole : null;
 
   const todayIso = getTodayIsoForProto();
-  const semesterBounds = getActiveSemesterBounds(todayIso);
+  const schoolYearBounds = getSchoolYearBounds(todayIso);
+  const writableSemesterBounds = getSemesterBoundsForDate(todayIso);
 
   const initialRole: ProtoRoleId =
     queryRoleCandidate && effectiveSessionRoleOptions.includes(queryRoleCandidate)
@@ -285,6 +330,7 @@ function OsobniLodickyPrototypePageInner({
   const queryUserId = adminToolsEnabled ? (searchParams.get("user") ?? "") : "";
   const [datasetVersion, setDatasetVersion] = useState(0);
   const [dbLoading, setDbLoading] = useState(true);
+  const [dbRefreshing, setDbRefreshing] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [dbLoadProgress, setDbLoadProgress] = useState<{
     loaded: number;
@@ -294,6 +340,7 @@ function OsobniLodickyPrototypePageInner({
   const initialRoleRef = useRef<ProtoRoleId>(initialRole);
   const initialQueryUserIdRef = useRef(queryUserId);
   const hasHydratedFromDbRef = useRef(false);
+  const skipNextViewDateBlurRef = useRef(false);
   const usersForRoleRaw = useMemo(() => getActorsByRole(activeRole), [activeRole, datasetVersion]);
 
   const [selectedUserId, setSelectedUserId] = useState<string>(queryUserId);
@@ -306,10 +353,9 @@ function OsobniLodickyPrototypePageInner({
   );
 
   const [scopeMode, setScopeMode] = useState<ScopeMode>("moje");
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    initialRole === "rodic" || initialRole === "zak" ? "po_lidech" : "po_lodickach",
-  );
-  const [viewDate, setViewDate] = useState<string>(semesterBounds.maxDate);
+  const [viewMode, setViewMode] = useState<ViewMode>("po_lidech");
+  const [viewDate, setViewDate] = useState<string>(todayIso);
+  const [viewDateDraft, setViewDateDraft] = useState<string>(todayIso);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [filtersCollapsed, setFiltersCollapsed] = useState(true);
 
@@ -354,47 +400,55 @@ function OsobniLodickyPrototypePageInner({
   const isWideLayout = viewportWidth >= DESKTOP_BASE_WIDTH;
   const paneCardStyle = isWideLayout ? { maxHeight: `${panesHeight}px` } : undefined;
   const activeUser = usersForRoleRaw.find((item) => item.id === activeUserId) ?? usersForRoleRaw[0] ?? null;
-  const effectiveViewDate = clampDate(viewDate, semesterBounds.minDate, semesterBounds.maxDate);
+  const effectiveViewDate = clampDate(viewDate, schoolYearBounds.minDate, schoolYearBounds.maxDate);
   const hasHistoricalViewDate = effectiveViewDate !== todayIso;
-  const canUseOwnLodickyScope = activeRole === "garant" && (hasGarantWorkRole || adminToolsEnabled);
-  const forceAllLodickyScope =
-    activeRole === "garant" && hasGuideWorkRole && !hasGarantWorkRole && !adminToolsEnabled;
-  const showScopeSwitcher =
-    activeRole === "spravce" ||
-    (activeRole === "garant" && ((hasGarantWorkRole && hasGuideWorkRole) || adminToolsEnabled));
-  const effectiveScope: ScopeMode =
-    activeRole === "spravce"
-      ? scopeMode
-      : activeRole === "garant"
-        ? forceAllLodickyScope
-          ? "vsechny"
-          : canUseOwnLodickyScope
-            ? showScopeSwitcher
-              ? scopeMode
-              : "moje"
-            : "vsechny"
-        : "moje";
-  const canEditStatuses =
-    activeRole === "spravce" ||
-    (activeRole === "garant" && canUseOwnLodickyScope && effectiveScope === "moje");
-  const isReadonly = !canEditStatuses;
+  const effectiveScope: ScopeMode = activeRole === "garant" || activeRole === "spravce" ? scopeMode : "moje";
+  const requestGarantId =
+    adminToolsEnabled &&
+    (activeRole === "garant" || activeRole === "spravce") &&
+    effectiveScope === "moje" &&
+    activeUserId
+      ? activeUserId
+      : "";
+  const isReadonly = activeRole === "rodic" || activeRole === "zak";
+  const isParentLayout = activeRole === "rodic";
+  const effectiveViewMode: ViewMode = isParentLayout ? "po_lidech" : viewMode;
+  const isViewDateWritableForGarant = isDateInRange(
+    effectiveViewDate,
+    writableSemesterBounds.minDate,
+    writableSemesterBounds.maxDate,
+  );
+  const isReadonlyForDate = activeRole === "garant" && !isViewDateWritableForGarant;
+  const effectiveReadonly = isReadonly || isReadonlyForDate;
   const showGarantControls = effectiveScope !== "moje";
-  const pageTitle = activeRole === "zak"
-    ? "Moje osobní lodičky"
-    : activeRole === "rodic"
-      ? "Osobní lodičky dítěte"
-      : activeRole === "garant"
-        ? hasGuideWorkRole && !hasGarantWorkRole && !adminToolsEnabled
-          ? "Přehled osobních lodiček pro průvodce"
-          : "Kompaktní pohled pro práci garanta"
-        : "Správa osobních lodiček";
-  const pageDescription = canEditStatuses
-    ? "Tři okna vedle sebe: levé, pravé a detail osobní lodičky. Minimum klikání, detail přes ikonu a modal."
-    : "Přehled aktuálních lodiček, stavu a posledních záznamů.";
+  const pageTitle = `Pohled osobních lodiček - ${getProtoRoleLabel(activeRole)}`;
+  const hasPendingViewDate = viewDateDraft !== effectiveViewDate;
+
+  const commitViewDateDraft = useCallback(
+    (nextValue: string) => {
+      const clamped = clampDate(nextValue || effectiveViewDate, schoolYearBounds.minDate, schoolYearBounds.maxDate);
+      setViewDateDraft(clamped);
+      if (clamped === effectiveViewDate) return;
+      setViewDate(clamped);
+      pushDebug({
+        elementId: "DATE-VIEW",
+        label: "Datum pohledu",
+        action: "change-date",
+        hierarchy: "PERSONAL_LODICKY > TOP_BAR",
+        payload: `date=${clamped}`,
+      });
+    },
+    [effectiveViewDate, pushDebug, schoolYearBounds.maxDate, schoolYearBounds.minDate],
+  );
+
+  useEffect(() => {
+    setViewDateDraft(effectiveViewDate);
+  }, [effectiveViewDate]);
 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
+    const isInitialHydration = !hasHydratedFromDbRef.current;
     const abortHydration = () => {
       cancelled = true;
       controller.abort();
@@ -402,7 +456,11 @@ function OsobniLodickyPrototypePageInner({
 
     async function hydrateFromDb() {
       try {
-        setDbLoading(true);
+        if (isInitialHydration) {
+          setDbLoading(true);
+        } else {
+          setDbRefreshing(true);
+        }
         setDbError(null);
 
         const commitDataset = (dataset: ProtoDatasetFromDb, resetUserSelection: boolean) => {
@@ -435,23 +493,15 @@ function OsobniLodickyPrototypePageInner({
         const requestParams = new URLSearchParams();
         requestParams.set("role", activeRole);
         requestParams.set("scope", effectiveScope);
+        requestParams.set("viewDate", effectiveViewDate);
         requestParams.set("includeHistory", hasHistoricalViewDate ? "1" : "0");
-        if (adminToolsEnabled && (activeRole === "garant" || activeRole === "spravce") && effectiveScope === "moje" && activeUserId) {
-          requestParams.set("garantId", activeUserId);
+        requestParams.set("format", "compact");
+        if (requestGarantId) {
+          requestParams.set("garantId", requestGarantId);
         }
 
-        const lodickyRes = await fetch(`/api/m01/lodicky?${requestParams.toString()}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (!lodickyRes.ok) {
-          const message = await readApiErrorMessage(lodickyRes, "Nepodařilo se načíst osobní lodičky.");
-          if (lodickyRes.status === 401) throw new SessionExpiredError(message);
-          throw new Error(message);
-        }
-
-        const lodickyBody = (await lodickyRes.json()) as LodickyBulkResponse;
-        const nextDataset = buildProtoDatasetFromDb(lodickyBody, lodickyBody.lodickyByChild, sessionUser);
+        const lodickyBody = await fetchLodickyCompact(`/api/m01/lodicky?${requestParams.toString()}`);
+        const nextDataset = buildProtoDatasetFromCompact(lodickyBody);
         const shouldResetUserSelection = !hasHydratedFromDbRef.current;
         commitDataset(nextDataset, shouldResetUserSelection);
         hasHydratedFromDbRef.current = true;
@@ -462,7 +512,7 @@ function OsobniLodickyPrototypePageInner({
           label: "Hydratace proto UI z DB",
           action: "load",
           hierarchy: "OSOBNI_LODICKY > INIT",
-          payload: `children=${lodickyBody.children.length}; rows=${nextDataset.lodickyRowsCount}; scope=${effectiveScope}`,
+          payload: `children=${lodickyBody.children.length}; rows=${nextDataset.lodickyRowsCount}; catalog=${lodickyBody.lodickyCatalog.length}; scope=${effectiveScope}; date=${effectiveViewDate}; history=${hasHistoricalViewDate ? "1" : "0"}`,
         });
       } catch (error) {
         if (cancelled) return;
@@ -477,7 +527,11 @@ function OsobniLodickyPrototypePageInner({
         setDbError(error instanceof Error ? error.message : "Nepodařilo se načíst osobní lodičky.");
       } finally {
         if (!cancelled) {
-          setDbLoading(false);
+          if (isInitialHydration) {
+            setDbLoading(false);
+          } else {
+            setDbRefreshing(false);
+          }
         }
       }
     }
@@ -489,7 +543,7 @@ function OsobniLodickyPrototypePageInner({
       abortHydration();
       window.removeEventListener("sv:signout-start", abortHydration);
     };
-  }, [activeRole, activeUserId, adminToolsEnabled, effectiveScope, hasHistoricalViewDate, pushDebug, sessionUser]);
+  }, [activeRole, effectiveScope, effectiveViewDate, hasHistoricalViewDate, pushDebug, requestGarantId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -635,43 +689,88 @@ function OsobniLodickyPrototypePageInner({
     return PROTO_STUDENTS;
   }, [activeRole, activeUser, datasetVersion]);
 
-  const searchTokens = useMemo(() => tokenizeSearch(searchInput), [searchInput]);
+  const searchPlan = useMemo(
+    () =>
+      buildSmartSearchPlan(searchInput, {
+        stupne: isParentLayout ? [] : filterOptions.stupne,
+        rocniky: isParentLayout ? [] : filterOptions.rocniky,
+        smecky: isParentLayout ? [] : filterOptions.smecky,
+        predmety: filterOptions.predmety,
+        podpredmety: filterOptions.podpredmety,
+        oblasti: filterOptions.oblasti,
+        stavy: filterOptions.stavy,
+        garanti: showGarantControls ? filterOptions.garanti : [],
+        studentHaystacks: accessibleStudents.map((student) => buildStudentSearchHaystack(student)),
+      }),
+    [accessibleStudents, filterOptions, isParentLayout, searchInput, showGarantControls],
+  );
+
+  const getRocnikyForStupne = useCallback((stupne: string[]) => {
+    const rocniky = new Set<string>();
+    if (stupne.includes("1")) {
+      ["1", "2", "3", "4", "5"].forEach((rocnik) => rocniky.add(rocnik));
+    }
+    if (stupne.includes("2")) {
+      ["6", "7", "8", "9"].forEach((rocnik) => rocniky.add(rocnik));
+    }
+    return rocniky;
+  }, []);
+
+  const handlePeopleStupenFilterChange = useCallback(
+    (nextStupne: string[]) => {
+      const previousManagedRocniky = getRocnikyForStupne(peopleStupenFilter);
+      const nextManagedRocniky = getRocnikyForStupne(nextStupne);
+      setPeopleStupenFilter(nextStupne);
+      setPeopleRocnikFilter((prev) => {
+        const manualRocniky = prev.filter((rocnik) => !previousManagedRocniky.has(rocnik));
+        return uniqueValues([...manualRocniky, ...nextManagedRocniky]);
+      });
+    },
+    [getRocnikyForStupne, peopleStupenFilter],
+  );
 
   const effectivePeopleStupenFilter = useMemo(
-    () => uniqueValues(peopleStupenFilter),
-    [peopleStupenFilter],
+    () => (isParentLayout ? [] : uniqueValues([...peopleStupenFilter, ...searchPlan.people.stupen])),
+    [isParentLayout, peopleStupenFilter, searchPlan.people.stupen],
   );
   const effectivePeopleRocnikFilter = useMemo(
-    () => uniqueValues(peopleRocnikFilter),
-    [peopleRocnikFilter],
+    () => (isParentLayout ? [] : uniqueValues([...peopleRocnikFilter, ...searchPlan.people.rocnik])),
+    [isParentLayout, peopleRocnikFilter, searchPlan.people.rocnik],
   );
   const effectivePeopleSmeckaFilter = useMemo(
-    () => uniqueValues(peopleSmeckaFilter),
-    [peopleSmeckaFilter],
+    () => (isParentLayout ? [] : uniqueValues([...peopleSmeckaFilter, ...searchPlan.people.smecka])),
+    [isParentLayout, peopleSmeckaFilter, searchPlan.people.smecka],
   );
 
   const effectiveLodickyPredmetFilter = useMemo(
-    () => uniqueValues(lodickyPredmetFilter),
-    [lodickyPredmetFilter],
+    () => uniqueValues([...lodickyPredmetFilter, ...searchPlan.lodicky.predmet]),
+    [lodickyPredmetFilter, searchPlan.lodicky.predmet],
   );
   const effectiveLodickyPodpredmetFilter = useMemo(
-    () => uniqueValues(lodickyPodpredmetFilter),
-    [lodickyPodpredmetFilter],
+    () => uniqueValues([...lodickyPodpredmetFilter, ...searchPlan.lodicky.podpredmet]),
+    [lodickyPodpredmetFilter, searchPlan.lodicky.podpredmet],
   );
   const effectiveLodickyOblastFilter = useMemo(
-    () => uniqueValues(lodickyOblastFilter),
-    [lodickyOblastFilter],
+    () => uniqueValues([...lodickyOblastFilter, ...searchPlan.lodicky.oblast]),
+    [lodickyOblastFilter, searchPlan.lodicky.oblast],
   );
   const effectiveLodickyStavFilter = useMemo(
-    () => uniqueValues(lodickyStavFilter),
-    [lodickyStavFilter],
+    () => uniqueValues([...lodickyStavFilter, ...searchPlan.lodicky.stav]),
+    [lodickyStavFilter, searchPlan.lodicky.stav],
   );
   const effectiveLodickyGarantFilter = useMemo(
-    () => uniqueValues(lodickyGarantFilter),
-    [lodickyGarantFilter],
+    () => uniqueValues([...lodickyGarantFilter, ...searchPlan.lodicky.garant]),
+    [lodickyGarantFilter, searchPlan.lodicky.garant],
   );
 
   const filteredStudents = useMemo(() => {
+    const tokens = searchPlan.freeTokens;
+    const tokenHasStudentMatch = new Map<string, boolean>();
+    tokens.forEach((token) => {
+      const hasMatch = accessibleStudents.some((student) => buildStudentSearchHaystack(student).includes(token));
+      tokenHasStudentMatch.set(token, hasMatch);
+    });
+
     return accessibleStudents.filter((student) => {
       if (
         effectivePeopleStupenFilter.length > 0 &&
@@ -691,6 +790,13 @@ function OsobniLodickyPrototypePageInner({
       ) {
         return false;
       }
+      if (tokens.length > 0) {
+        const haystack = buildStudentSearchHaystack(student);
+        const relevantTokens = tokens.filter((token) => tokenHasStudentMatch.get(token));
+        if (relevantTokens.length > 0 && !relevantTokens.every((token) => haystack.includes(token))) {
+          return false;
+        }
+      }
       return true;
     });
   }, [
@@ -698,9 +804,17 @@ function OsobniLodickyPrototypePageInner({
     effectivePeopleRocnikFilter,
     effectivePeopleSmeckaFilter,
     effectivePeopleStupenFilter,
+    searchPlan.freeTokens,
   ]);
 
   const filteredLodicky = useMemo(() => {
+    const tokens = searchPlan.freeTokens;
+    const tokenHasLodickaMatch = new Map<string, boolean>();
+    tokens.forEach((token) => {
+      const hasMatch = PROTO_LODICKY_CATALOG.some((lodicka) => buildLodickaSearchHaystack(lodicka).includes(token));
+      tokenHasLodickaMatch.set(token, hasMatch);
+    });
+
     return PROTO_LODICKY_CATALOG.filter((lodicka) => {
       if (effectiveScope === "moje" && activeRole === "garant" && activeUserId) {
         if (lodicka.garantId !== activeUserId) return false;
@@ -730,21 +844,75 @@ function OsobniLodickyPrototypePageInner({
       ) {
         return false;
       }
+      if (tokens.length > 0) {
+        const haystack = buildLodickaSearchHaystack(lodicka);
+        const relevantTokens = tokens.filter((token) => tokenHasLodickaMatch.get(token));
+        if (relevantTokens.length > 0 && !relevantTokens.every((token) => haystack.includes(token))) {
+          return false;
+        }
+      }
       return true;
     });
   }, [
     activeRole,
     activeUserId,
+    datasetVersion,
     effectiveLodickyGarantFilter,
     effectiveLodickyOblastFilter,
     effectiveLodickyPodpredmetFilter,
     effectiveLodickyPredmetFilter,
     effectiveScope,
+    searchPlan.freeTokens,
     showGarantControls,
   ]);
 
   const filteredStudentIds = useMemo(() => new Set(filteredStudents.map((student) => student.id)), [filteredStudents]);
   const filteredLodickaIds = useMemo(() => new Set(filteredLodicky.map((lodicka) => lodicka.id)), [filteredLodicky]);
+
+  const searchSuggestionStudents = useMemo(
+    () =>
+      accessibleStudents.filter((student) => {
+        if (isParentLayout) return true;
+        if (peopleStupenFilter.length > 0 && !peopleStupenFilter.includes(String(student.stupen))) return false;
+        if (peopleRocnikFilter.length > 0 && !peopleRocnikFilter.includes(String(student.rocnik))) return false;
+        if (peopleSmeckaFilter.length > 0 && !peopleSmeckaFilter.includes(student.smecka)) return false;
+        return true;
+      }),
+    [accessibleStudents, isParentLayout, peopleRocnikFilter, peopleSmeckaFilter, peopleStupenFilter],
+  );
+
+  const searchSuggestionLodicky = useMemo(
+    () =>
+      PROTO_LODICKY_CATALOG.filter((lodicka) => {
+        if (effectiveScope === "moje" && activeRole === "garant" && activeUserId) {
+          if (lodicka.garantId !== activeUserId) return false;
+        }
+        if (lodickyPredmetFilter.length > 0 && !lodickyPredmetFilter.includes(lodicka.predmet)) return false;
+        if (lodickyPodpredmetFilter.length > 0 && !lodickyPodpredmetFilter.includes(lodicka.podpředmět ?? "-")) {
+          return false;
+        }
+        if (lodickyOblastFilter.length > 0 && !lodickyOblastFilter.includes(lodicka.oblast)) return false;
+        if (
+          showGarantControls &&
+          lodickyGarantFilter.length > 0 &&
+          !lodickyGarantFilter.includes(getGuideDisplayName(lodicka.garantId))
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [
+      activeRole,
+      activeUserId,
+      datasetVersion,
+      effectiveScope,
+      lodickyGarantFilter,
+      lodickyOblastFilter,
+      lodickyPodpredmetFilter,
+      lodickyPredmetFilter,
+      showGarantControls,
+    ],
+  );
 
   const personalRows = useMemo(() => {
     const rows: PersonalWithSnapshot[] = [];
@@ -756,7 +924,6 @@ function OsobniLodickyPrototypePageInner({
       const student = studentsById.get(personal.studentId);
       const lodicka = lodickyById.get(personal.lodickaId);
       if (!student || !lodicka) return;
-      if (!matchesFulltextSearch(student, lodicka, searchTokens)) return;
 
       const snapshot = statusSnapshotByPersonal.get(personal.id);
       const stav = snapshot?.stav ?? 0;
@@ -778,13 +945,12 @@ function OsobniLodickyPrototypePageInner({
     filteredLodickaIds,
     filteredStudentIds,
     lodickyById,
-    searchTokens,
     statusSnapshotByPersonal,
     studentsById,
   ]);
 
   const leftItems = useMemo(() => {
-    if (viewMode === "po_lodickach") {
+    if (effectiveViewMode === "po_lodickach") {
       const map = new Map<string, number>();
       personalRows.forEach((row) => {
         map.set(row.lodicka.id, (map.get(row.lodicka.id) ?? 0) + 1);
@@ -798,7 +964,7 @@ function OsobniLodickyPrototypePageInner({
         }))
         .filter((item) => item.count > 0);
 
-      return sortLeftItems(items, leftSort, viewMode, activeRole) as LeftItem[];
+      return sortLeftItems(items, leftSort, effectiveViewMode, activeRole) as LeftItem[];
     }
 
     const map = new Map<string, number>();
@@ -814,8 +980,8 @@ function OsobniLodickyPrototypePageInner({
       }))
       .filter((item) => item.count > 0);
 
-    return sortLeftItems(items, leftSort, viewMode, activeRole) as LeftItem[];
-  }, [activeRole, filteredLodicky, filteredStudents, leftSort, personalRows, viewMode]);
+    return sortLeftItems(items, leftSort, effectiveViewMode, activeRole) as LeftItem[];
+  }, [activeRole, effectiveViewMode, filteredLodicky, filteredStudents, leftSort, personalRows]);
 
   const selectedLeftIdEffective = useMemo(() => {
     const ids = leftItems.map((item) => (item.kind === "lodicka" ? item.lodicka.id : item.student.id));
@@ -827,11 +993,16 @@ function OsobniLodickyPrototypePageInner({
   const rightRows = useMemo(() => {
     if (!selectedLeftIdEffective) return [] as PersonalWithSnapshot[];
     const result =
-      viewMode === "po_lodickach"
+      effectiveViewMode === "po_lodickach"
         ? personalRows.filter((row) => row.lodicka.id === selectedLeftIdEffective)
         : personalRows.filter((row) => row.student.id === selectedLeftIdEffective);
-    return sortRightRows(result, rightSort, viewMode, activeRole);
-  }, [activeRole, personalRows, rightSort, selectedLeftIdEffective, viewMode]);
+    return sortRightRows(result, rightSort, effectiveViewMode, activeRole);
+  }, [activeRole, effectiveViewMode, personalRows, rightSort, selectedLeftIdEffective]);
+
+  const selectedParentStudent = useMemo(() => {
+    if (!isParentLayout || !selectedLeftIdEffective) return null;
+    return studentsById.get(selectedLeftIdEffective) ?? null;
+  }, [isParentLayout, selectedLeftIdEffective, studentsById]);
 
   const selectedPersonalEffective = useMemo(() => {
     if (rightRows.length === 0) return null;
@@ -840,15 +1011,6 @@ function OsobniLodickyPrototypePageInner({
     }
     return rightRows[0]?.personal.id ?? null;
   }, [rightRows, selectedPersonalId]);
-
-  const selectedPersonalRow = rightRows.find((row) => row.personal.id === selectedPersonalEffective) ?? null;
-  const selectedPersonalHistory = (selectedPersonalEffective
-    ? [...(eventsByPersonalAll.get(selectedPersonalEffective) ?? [])]
-    : []
-  ).sort((a, b) => {
-    if (a.datumStavu === b.datumStavu) return b.zapsanoAt.localeCompare(a.zapsanoAt);
-    return b.datumStavu.localeCompare(a.datumStavu);
-  });
 
   const lodickaGroupKeys = useMemo(() => {
     const keys: LodickaGroupKey[] = [];
@@ -867,51 +1029,93 @@ function OsobniLodickyPrototypePageInner({
 
   const suggestions = useMemo(() => {
     if (!searchInput.trim()) return [] as SearchSuggestion[];
-    const output: SearchSuggestion[] = [];
+    const filterSuggestions: SearchSuggestion[] = [];
+    const entitySuggestions: SearchSuggestion[] = [];
     const seen = new Set<string>();
     const tokens = tokenizeSearch(searchInput);
 
-    filteredStudents
-      .filter((student) => matchesAllSearchTokens(buildStudentSearchHaystack(student), tokens))
-      .slice(0, 4)
-      .forEach((student) => {
+    const filterMatchers: Array<{
+      type: SearchSuggestion["type"];
+      label: string;
+      options: string[];
+    }> = [
+      ...(!isParentLayout
+        ? [
+            { type: "smecka" as const, label: "Smečka", options: filterOptions.smecky },
+            { type: "rocnik" as const, label: "Ročník", options: filterOptions.rocniky },
+            { type: "stupen" as const, label: "Stupeň", options: filterOptions.stupne },
+          ]
+        : []),
+      { type: "predmet", label: "Předmět", options: filterOptions.predmety },
+      { type: "podpredmet", label: "Podpředmět", options: filterOptions.podpredmety },
+      { type: "oblast", label: "Oblast", options: filterOptions.oblasti },
+      { type: "stav", label: "Stav lodičky", options: filterOptions.stavy },
+      ...(showGarantControls
+        ? [{ type: "garant" as const, label: "Garant", options: filterOptions.garanti }]
+        : []),
+    ];
+
+    tokens.forEach((token) => {
+      filterMatchers.forEach((matcher) => {
+        matcher.options
+          .filter((option) => normalizeSearch(option).includes(token))
+          .slice(0, 2)
+          .forEach((option) => {
+            const id = `${matcher.type}-${option}-${token}`;
+            if (seen.has(id)) return;
+            seen.add(id);
+            filterSuggestions.push({
+              id,
+              label: `${matcher.label}: ${matcher.type === "rocnik" ? formatRocnikLabel(Number(option)) : matcher.type === "stupen" ? `${option}. stupeň` : option}`,
+              type: matcher.type,
+              value: option,
+              token,
+            });
+          });
+      });
+    });
+
+    const queryNeedle = normalizeSearch(searchInput);
+    searchSuggestionStudents
+      .map((student) => ({ student, score: scoreStudentSuggestion(student, queryNeedle) }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score || a.student.jmeno.localeCompare(b.student.jmeno, "cs"))
+      .slice(0, 3)
+      .forEach(({ student }) => {
         const display = getStudentDisplayName(student, activeRole);
         const id = `student-${student.id}`;
         if (seen.has(id)) return;
         seen.add(id);
-        output.push({ id, label: `Dítě: ${display}`, type: "student", value: display });
+        entitySuggestions.push({ id, label: `Dítě: ${display}`, type: "student", value: display });
       });
 
-    filteredLodicky
-      .filter((lodicka) => matchesAllSearchTokens(buildLodickaSearchHaystack(lodicka), tokens))
-      .slice(0, 4)
-      .forEach((lodicka) => {
+    searchSuggestionLodicky
+      .map((lodicka) => ({ lodicka, score: scoreLodickaSuggestion(lodicka, queryNeedle) }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score || a.lodicka.nazev.localeCompare(b.lodicka.nazev, "cs"))
+      .slice(0, 8)
+      .forEach(({ lodicka }) => {
         const id = `lodicka-${lodicka.id}`;
         if (seen.has(id)) return;
         seen.add(id);
-        output.push({ id, label: `Lodička: ${lodicka.nazev}`, type: "lodicka", value: lodicka.nazev });
+        entitySuggestions.push({ id, label: `Lodička: ${lodicka.nazev}`, type: "lodicka", value: lodicka.nazev });
       });
 
-    return output.slice(0, 10);
-  }, [activeRole, filteredLodicky, filteredStudents, searchInput]);
+    return [...entitySuggestions, ...filterSuggestions].slice(0, 10);
+  }, [
+    activeRole,
+    filterOptions,
+    isParentLayout,
+    searchInput,
+    searchSuggestionLodicky,
+    searchSuggestionStudents,
+    showGarantControls,
+  ]);
 
   const options = filterOptions;
 
-  const leftTableId = viewMode === "po_lodickach" ? "T221" : "T222";
-  const rightTableId = viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
-
-  function resetViewForRole(nextRole: ProtoRoleId) {
-    const nextViewMode: ViewMode = nextRole === "rodic" || nextRole === "zak" ? "po_lidech" : "po_lodickach";
-    setViewMode(nextViewMode);
-    setSelectedLeftId(null);
-    setSelectedPersonalId(null);
-    setDetailSheet({ type: "none" });
-    setLeftSort(nextViewMode === "po_lidech" ? "jmeno" : "nazev");
-    setRightSort(nextViewMode === "po_lidech" ? "nazev" : "jmeno");
-    if (nextRole === "rodic" || nextRole === "zak") {
-      setScopeMode("moje");
-    }
-  }
+  const leftTableId = effectiveViewMode === "po_lodickach" ? "T221" : "T222";
+  const rightTableId = effectiveViewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE;
 
   function handleSessionRoleChange(nextRole: ProtoRoleId) {
     if (!effectiveSessionRoleOptions.includes(nextRole)) return;
@@ -921,7 +1125,6 @@ function OsobniLodickyPrototypePageInner({
       : (usersForNextRole[0]?.id ?? "");
     setActiveRole(nextRole);
     setSelectedUserId(nextUserId);
-    resetViewForRole(nextRole);
 
     pushDebug({
       elementId: "HDR-ROLE",
@@ -938,7 +1141,6 @@ function OsobniLodickyPrototypePageInner({
     const nextUserId = usersForNextRole[0]?.id ?? "";
     setActiveRole(nextRole);
     setSelectedUserId(nextUserId);
-    resetViewForRole(nextRole);
 
     pushDebug({
       elementId: "TOOLS-ROLE",
@@ -1022,7 +1224,7 @@ function OsobniLodickyPrototypePageInner({
   }
 
   function updateStatus(personalId: string, nextStatus: LodickaStav) {
-    if (isReadonly || !activeUser) return;
+    if (effectiveReadonly || !activeUser) return;
 
     const activeEvents = [...(eventsByPersonalActive.get(personalId) ?? [])];
     const previousStatus = statusSnapshotByPersonal.get(personalId)?.stav ?? 0;
@@ -1078,7 +1280,7 @@ function OsobniLodickyPrototypePageInner({
       elementId: `BTN-S${nextStatus}-${personalId}`,
       label: "Změna stavu osobní lodičky",
       action: "set-status",
-      tableId: viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
+      tableId: effectiveViewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
       rowId: personalId,
       hierarchy: "PERSONAL_LODICKY > RIGHT_PANE > STATUS_BUTTONS",
       payload: `from=${previousStatus}; to=${nextStatus}; datum=${effectiveViewDate}; overwriteSameDate=${sameDateEvents.length > 0}; invalidateNewer=${invalidateNewer}`,
@@ -1101,7 +1303,7 @@ function OsobniLodickyPrototypePageInner({
         elementId: `ADMIN-STATUS-${debugEvent.id}`,
         label: "Admin audit: změna stavu",
         action: "admin-status-change",
-        tableId: viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
+        tableId: effectiveViewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
         rowId: personalId,
         hierarchy: "OSOBNI_LODICKY > ADMIN_AUDIT",
         payload: `undo=${undoActionId}; from=${previousStatus}; to=${nextStatus}`,
@@ -1173,17 +1375,17 @@ function OsobniLodickyPrototypePageInner({
         elementId: `UNDO-${action.createdEventId}`,
         label: "Vzetí zpět změny stavu",
         action: "undo-set-status",
-        tableId: viewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
+        tableId: effectiveViewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
         rowId: action.personalId,
         hierarchy: "OSOBNI_LODICKY > ADMIN_AUDIT",
         payload: `undo=${undoActionId}; from=${action.createdStatus}; to=${action.previousStatus}`,
       });
     },
-    [adminToolsEnabled, pushDebug, statusUndoActions, viewMode],
+    [adminToolsEnabled, effectiveViewMode, pushDebug, statusUndoActions],
   );
 
   const leftRows = renderLeftPaneRows({
-    viewMode,
+    viewMode: effectiveViewMode,
     items: leftItems,
     selectedLeftId: selectedLeftIdEffective,
     tableId: leftTableId,
@@ -1210,9 +1412,9 @@ function OsobniLodickyPrototypePageInner({
   const rightRowsRendered = renderRightPaneRows({
     rows: rightRows,
     selectedPersonalId: selectedPersonalEffective,
-    viewMode,
+    viewMode: effectiveViewMode,
     tableId: rightTableId,
-    readonly: isReadonly,
+    readonly: effectiveReadonly,
     activeRole,
     peopleGroupBy,
     lodickaGroupKeys,
@@ -1228,6 +1430,7 @@ function OsobniLodickyPrototypePageInner({
       });
     },
     onSetStatus: updateStatus,
+    onOpenPersonalDetail: openPersonalDetail,
     onOpenLodickaDetail: openLodickaDetail,
     onOpenStudentDetail: openStudentDetail,
   });
@@ -1242,7 +1445,7 @@ function OsobniLodickyPrototypePageInner({
     );
   }
 
-  if (dbError) {
+  if (dbError && !hasHydratedFromDbRef.current) {
     return (
       <main className="min-h-screen bg-[#EEF2F7]">
         <section className="app-page-container py-6">
@@ -1262,9 +1465,6 @@ function OsobniLodickyPrototypePageInner({
             <div className="space-y-2">
               <p className="sv-eyebrow text-[#C8372D]">Osobní lodičky</p>
               <h1 className="sv-display-md text-[#0E2A5C]">{pageTitle}</h1>
-              <p className="text-sm text-[#4A5A7C]">
-                {pageDescription}
-              </p>
             </div>
 
             {(Boolean(dbLoadProgress && dbLoadProgress.loaded < dbLoadProgress.total) ||
@@ -1288,9 +1488,7 @@ function OsobniLodickyPrototypePageInner({
                         activeRole === roleId ? "bg-[#0E2A5C] text-white" : "text-slate-600 hover:bg-[#EEF2F7]"
                       }`}
                     >
-                      {roleId === "garant" && hasGuideWorkRole && !hasGarantWorkRole
-                        ? "Průvodce"
-                        : getProtoRoleLabel(roleId)}
+                      {getProtoRoleLabel(roleId)}
                     </button>
                   ))}
                 </div>
@@ -1361,47 +1559,18 @@ function OsobniLodickyPrototypePageInner({
           </Card>
         )}
 
-        <Card className="border-[#D6DFF0]">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-[#0E2A5C]">Řízení pohledu a filtry</CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="border-[#D6DFF0]"
-                  onClick={clearAllFilters}
-                >
-                  Vymazat filtry
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="border-[#D6DFF0]"
-                  onClick={() => setFiltersCollapsed((prev) => !prev)}
-                >
-                  {filtersCollapsed ? (
-                    <>
-                      <ChevronDown className="size-4" />
-                      Rozbalit filtry
-                    </>
-                  ) : (
-                    <>
-                      <ChevronUp className="size-4" />
-                      Skrýt filtry
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
+        {dbError && (
+          <div className="rounded-md border border-[#C8372D]/30 bg-[#FAEAE9] p-3 text-sm text-[#A42A22]">
+            {dbError}
+          </div>
+        )}
 
-          {!filtersCollapsed && (
-            <CardContent className="space-y-4">
-              <div className={`grid gap-4 ${showScopeSwitcher ? "lg:grid-cols-[1fr_1fr_auto]" : "lg:grid-cols-[1fr_auto]"}`}>
-                {showScopeSwitcher && (
+        <Card className="border-[#D6DFF0]">
+          <CardContent className="space-y-4">
+              <CardTitle className="text-[#0E2A5C]">Nastavení zobrazení</CardTitle>
+
+              <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+                {!isParentLayout && (
                   <SegmentControl
                     label="Základní volba"
                     options={[
@@ -1410,6 +1579,7 @@ function OsobniLodickyPrototypePageInner({
                     ]}
                     value={effectiveScope}
                     onChange={(value) => {
+                      if (activeRole === "zak") return;
                       setScopeMode(value as ScopeMode);
                       pushDebug({
                         elementId: "SEG-SCOPE",
@@ -1419,32 +1589,65 @@ function OsobniLodickyPrototypePageInner({
                         payload: `scope=${value}`,
                       });
                     }}
+                    disabled={activeRole === "zak"}
                   />
                 )}
 
-                <SegmentControl
-                  label="Pohled"
-                  options={[
-                    { id: "po_lodickach", label: "Po lodičkách" },
-                    { id: "po_lidech", label: "Po dětech" },
-                  ]}
-                  value={viewMode}
-                  onChange={(value) => {
-                    setViewMode(value as ViewMode);
-                    setSelectedLeftId(null);
-                    setSelectedPersonalId(null);
-                    setLeftSort("nazev");
-                    setRightSort("jmeno");
-                    pushDebug({
-                      elementId: "SEG-VIEW",
-                      label: "Přepnutí režimu zobrazení",
-                      action: "change-view",
-                      hierarchy: "PERSONAL_LODICKY > TOP_BAR",
-                      payload: `view=${value}`,
-                    });
-                  }}
-                />
+                {!isParentLayout && (
+                  <SegmentControl
+                    label="Pohled"
+                    options={[
+                      { id: "po_lidech", label: "Po dětech" },
+                      { id: "po_lodickach", label: "Po lodičkách" },
+                    ]}
+                    value={viewMode}
+                    onChange={(value) => {
+                      setViewMode(value as ViewMode);
+                      setSelectedLeftId(null);
+                      setSelectedPersonalId(null);
+                      setLeftSort("nazev");
+                      setRightSort("jmeno");
+                      pushDebug({
+                        elementId: "SEG-VIEW",
+                        label: "Přepnutí režimu zobrazení",
+                        action: "change-view",
+                        hierarchy: "PERSONAL_LODICKY > TOP_BAR",
+                        payload: `view=${value}`,
+                      });
+                    }}
+                  />
+                )}
 
+                {isParentLayout && accessibleStudents.length > 1 && (
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-normal text-slate-500">
+                      Dítě
+                    </span>
+                    <select
+                      value={selectedLeftIdEffective ?? ""}
+                      onChange={(event) => {
+                        setSelectedLeftId(event.target.value);
+                        setSelectedPersonalId(null);
+                        pushDebug({
+                          elementId: "SELECT-PARENT-CHILD",
+                          label: "Přepnutí dítěte rodiče",
+                          action: "change-parent-child",
+                          hierarchy: "PERSONAL_LODICKY > TOP_BAR",
+                          payload: `student=${event.target.value}`,
+                        });
+                      }}
+                      className="h-10 w-full rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] px-3 text-sm font-semibold text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20"
+                    >
+                      {accessibleStudents.map((student) => (
+                        <option key={student.id} value={student.id}>
+                          {getStudentDisplayName(student, activeRole)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                {!isParentLayout && (
                 <label className="block">
                   <span className="mb-1 block text-[11px] font-semibold uppercase tracking-normal text-slate-500">
                     Datum pohledu
@@ -1457,122 +1660,259 @@ function OsobniLodickyPrototypePageInner({
                     <CalendarDays className={`size-4 ${hasHistoricalViewDate ? "text-[#C8372D]" : "text-[#1E3F7A]"}`} />
                     <input
                       type="date"
-                      min={semesterBounds.minDate}
-                      max={semesterBounds.maxDate}
-                      value={effectiveViewDate}
+                      min={schoolYearBounds.minDate}
+                      max={schoolYearBounds.maxDate}
+                      value={viewDateDraft}
                       onChange={(e) => {
-                        const clamped = clampDate(e.target.value, semesterBounds.minDate, semesterBounds.maxDate);
-                        setViewDate(clamped);
-                        pushDebug({
-                          elementId: "DATE-VIEW",
-                          label: "Datum pohledu",
-                          action: "change-date",
-                          hierarchy: "PERSONAL_LODICKY > TOP_BAR",
-                          payload: `date=${clamped}`,
-                        });
+                        setViewDateDraft(e.target.value);
+                      }}
+                      onBlur={() => {
+                        if (skipNextViewDateBlurRef.current) {
+                          skipNextViewDateBlurRef.current = false;
+                          return;
+                        }
+                        commitViewDateDraft(viewDateDraft);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          skipNextViewDateBlurRef.current = true;
+                          commitViewDateDraft(e.currentTarget.value);
+                          e.currentTarget.blur();
+                        }
+                        if (e.key === "Escape") {
+                          skipNextViewDateBlurRef.current = true;
+                          setViewDateDraft(effectiveViewDate);
+                          e.currentTarget.blur();
+                        }
                       }}
                       className={`w-full bg-transparent text-sm outline-none ${
                         hasHistoricalViewDate ? "text-[#B42318]" : "text-slate-700"
                       }`}
                     />
+                    {hasPendingViewDate && (
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        className="h-7 shrink-0 border-[#D6DFF0] px-2 text-xs font-semibold text-[#0E2A5C]"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => commitViewDateDraft(viewDateDraft)}
+                      >
+                        Použít
+                      </Button>
+                    )}
                   </div>
-                  <span className="mt-1 block text-[11px] text-slate-500">
-                    Aktivní pololetí: {formatDateCz(semesterBounds.minDate)} až {formatDateCz(semesterBounds.maxDate)}
-                  </span>
-                  {hasHistoricalViewDate && (
+                  {dbRefreshing && (
+                    <Badge className="mt-1 bg-[#FFF7E8] text-[#8A5A00] hover:bg-[#FFF7E8]">
+                      Přenačítám stav…
+                    </Badge>
+                  )}
+                  {isReadonlyForDate && (
                     <span className="mt-1 block text-[11px] font-medium text-[#B42318]">
-                      Zobrazuješ historické datum.
+                      Datum je mimo aktuální pololetí. Není možné zapisovat změny.
                     </span>
                   )}
                 </label>
-              </div>
-
-              <div className="relative">
-                <div className="flex items-center gap-2 rounded-2xl border border-[#D6DFF0] bg-white px-3 py-2">
-                  <Search className="size-4 text-[#1E3F7A]" />
-                  <input
-                    value={searchInput}
-                    onFocus={() => setSuggestionsOpen(true)}
-                    onChange={(e) => {
-                      setSearchInput(e.target.value);
-                      setSuggestionsOpen(true);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && suggestions.length > 0) {
-                        e.preventDefault();
-                        applySuggestion(suggestions[0], 0);
-                        return;
-                      }
-                      if (e.key === "Escape") setSuggestionsOpen(false);
-                    }}
-                    placeholder="Vyhledat lodičku, oblast, předmět nebo dítě"
-                    className="w-full text-sm text-slate-700 outline-none"
-                  />
-                  {searchInput.trim().length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchInput("");
-                        setSuggestionsOpen(false);
-                      }}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                      aria-label="Vymazat vyhledávání"
-                      title="Vymazat vyhledávání"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  )}
-                  <Badge className="bg-[#EEF2F7] text-[#1E3F7A] hover:bg-[#EEF2F7]">
-                    <Filter className="mr-1 size-3.5" />
-                    fulltext
-                  </Badge>
-                </div>
-
-                {suggestionsOpen && suggestions.length > 0 && (
-                  <div className="absolute top-[calc(100%+6px)] z-20 w-full rounded-xl border border-[#D6DFF0] bg-white p-1 shadow-xl">
-                    {suggestions.map((suggestion, index) => (
-                      <button
-                        key={suggestion.id}
-                        type="button"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => applySuggestion(suggestion, index)}
-                        className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-[#F4F8FF]"
-                      >
-                        {suggestion.label}
-                      </button>
-                    ))}
-                  </div>
                 )}
               </div>
 
-              <div className="grid gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                <Card className="border-[#E3ECF9]">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base text-[#0E2A5C]">Filtry po dětech</CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-3">
-                    <MultiToggleSelect
-                      label="Stupeň"
-                      options={options.stupne}
-                      value={effectivePeopleStupenFilter}
-                      onChange={setPeopleStupenFilter}
-                      renderOptionLabel={(option) => `${option}. stupeň`}
+              <div className={isParentLayout ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]" : "relative"}>
+                <div className="relative">
+                  <div className="flex items-center gap-2 rounded-2xl border border-[#D6DFF0] bg-white px-3 py-2">
+                    <Search className="size-4 text-[#1E3F7A]" />
+                    <input
+                      value={searchInput}
+                      onFocus={() => setSuggestionsOpen(true)}
+                      onChange={(e) => {
+                        setSearchInput(e.target.value);
+                        setSuggestionsOpen(true);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && suggestions.length > 0) {
+                          e.preventDefault();
+                          applySuggestion(suggestions[0], 0);
+                          return;
+                        }
+                        if (e.key === "Escape") setSuggestionsOpen(false);
+                      }}
+                      placeholder="Vyhledat lodičku, oblast, předmět nebo dítě"
+                      className="w-full text-sm text-slate-700 outline-none"
                     />
-                    <MultiToggleSelect
-                      label="Ročník"
-                      options={options.rocniky}
-                      value={effectivePeopleRocnikFilter}
-                      onChange={setPeopleRocnikFilter}
-                      renderOptionLabel={(option) => `${option}. ročník`}
-                    />
-                    <MultiToggleSelect
-                      label="Smečka"
-                      options={options.smecky}
-                      value={effectivePeopleSmeckaFilter}
-                      onChange={setPeopleSmeckaFilter}
-                    />
-                  </CardContent>
-                </Card>
+                    {searchInput.trim().length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchInput("");
+                          setSuggestionsOpen(false);
+                        }}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        aria-label="Vymazat vyhledávání"
+                        title="Vymazat vyhledávání"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                    <Badge className="bg-[#EEF2F7] text-[#1E3F7A] hover:bg-[#EEF2F7]">
+                      <Filter className="mr-1 size-3.5" />
+                      fulltext
+                    </Badge>
+                  </div>
+
+                  {suggestionsOpen && suggestions.length > 0 && (
+                    <div className="absolute top-[calc(100%+6px)] z-20 w-full rounded-xl border border-[#D6DFF0] bg-white p-1 shadow-xl">
+                      {suggestions.map((suggestion, index) => (
+                        <button
+                          key={suggestion.id}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => applySuggestion(suggestion, index)}
+                          className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-[#F4F8FF]"
+                        >
+                          {suggestion.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {isParentLayout && (
+                  <label className="block">
+                    <span className="sr-only">Datum pohledu</span>
+                    <div
+                      className={`flex h-[42px] items-center gap-2 rounded-2xl border px-3 ${
+                        hasHistoricalViewDate ? "border-[#C8372D] bg-[#FAEAE9]" : "border-[#D6DFF0] bg-[#EEF2F7]"
+                      }`}
+                    >
+                      <CalendarDays className={`size-4 ${hasHistoricalViewDate ? "text-[#C8372D]" : "text-[#1E3F7A]"}`} />
+                      <input
+                        type="date"
+                        min={schoolYearBounds.minDate}
+                        max={schoolYearBounds.maxDate}
+                        value={viewDateDraft}
+                        onChange={(e) => {
+                          setViewDateDraft(e.target.value);
+                        }}
+                        onBlur={() => {
+                          if (skipNextViewDateBlurRef.current) {
+                            skipNextViewDateBlurRef.current = false;
+                            return;
+                          }
+                          commitViewDateDraft(viewDateDraft);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            skipNextViewDateBlurRef.current = true;
+                            commitViewDateDraft(e.currentTarget.value);
+                            e.currentTarget.blur();
+                          }
+                          if (e.key === "Escape") {
+                            skipNextViewDateBlurRef.current = true;
+                            setViewDateDraft(effectiveViewDate);
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        className={`min-w-0 flex-1 bg-transparent text-sm outline-none ${
+                          hasHistoricalViewDate ? "text-[#B42318]" : "text-slate-700"
+                        }`}
+                      />
+                      {hasPendingViewDate && (
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          className="h-7 shrink-0 border-[#D6DFF0] px-2 text-xs font-semibold text-[#0E2A5C]"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => commitViewDateDraft(viewDateDraft)}
+                        >
+                          Použít
+                        </Button>
+                      )}
+                    </div>
+                    {hasHistoricalViewDate && (
+                      <span className="mt-1 block text-[11px] font-medium text-[#B42318]">
+                        Historické datum
+                        {dbRefreshing ? " · přenačítám stav…" : ""}
+                      </span>
+                    )}
+                  </label>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E3ECF9] pt-4">
+                <CardTitle className="text-[#0E2A5C]">Řízení pohledu a filtry</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-[#D6DFF0]"
+                    onClick={clearAllFilters}
+                  >
+                    Vymazat filtry
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-[#D6DFF0]"
+                    onClick={() => setFiltersCollapsed((prev) => !prev)}
+                  >
+                    {filtersCollapsed ? (
+                      <>
+                        <ChevronDown className="size-4" />
+                        Rozbalit filtry
+                      </>
+                    ) : (
+                      <>
+                        <ChevronUp className="size-4" />
+                        Skrýt filtry
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {!filtersCollapsed && (
+              <div
+                className={
+                  isParentLayout
+                    ? "grid gap-4"
+                    : "grid gap-4 min-[1180px]:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"
+                }
+              >
+                {!isParentLayout && (
+                  <Card className="border-[#E3ECF9]">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base text-[#0E2A5C]">Filtry po dětech</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-3">
+                      <MultiToggleSelect
+                        label="Stupeň"
+                        options={options.stupne}
+                        value={effectivePeopleStupenFilter}
+                        onChange={handlePeopleStupenFilterChange}
+                        renderOptionLabel={(option) => `${option}. stupeň`}
+                      />
+                      <MultiToggleSelect
+                        label="Ročník"
+                        options={uniqueValues([...options.rocniky, ...effectivePeopleRocnikFilter]).sort(
+                          (a, b) => Number(a) - Number(b),
+                        )}
+                        value={effectivePeopleRocnikFilter}
+                        onChange={setPeopleRocnikFilter}
+                        renderOptionLabel={(option) => `${option}. ročník`}
+                      />
+                      <MultiToggleSelect
+                        label="Smečka"
+                        options={options.smecky}
+                        value={effectivePeopleSmeckaFilter}
+                        onChange={setPeopleSmeckaFilter}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
 
                 <Card className="border-[#E3ECF9]">
                   <CardHeader className="pb-2">
@@ -1629,87 +1969,101 @@ function OsobniLodickyPrototypePageInner({
                   </CardContent>
                 </Card>
               </div>
+              )}
             </CardContent>
-          )}
         </Card>
 
         <section
           ref={panesSectionRef}
-          className="grid min-h-0 gap-4 min-[1180px]:items-start min-[1180px]:grid-cols-[minmax(0,0.33fr)_minmax(0,0.43fr)_minmax(0,0.24fr)]"
+          className={
+            isParentLayout
+              ? "grid min-h-0 gap-4 min-[1180px]:items-start"
+              : "grid min-h-0 gap-4 min-[1180px]:items-start min-[1180px]:grid-cols-[minmax(280px,0.38fr)_minmax(0,0.62fr)]"
+          }
         >
-          <Card
-            className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
-            style={paneCardStyle}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <CardTitle className="text-[#0E2A5C]">{viewMode === "po_lodickach" ? "Lodičky" : "Děti"}</CardTitle>
-                </div>
-                <div className="flex items-center gap-2">
-                  <SortSelect
-                    value={leftSort}
-                    onChange={setLeftSort}
-                    options={
-                      viewMode === "po_lodickach"
-                        ? showGarantControls
-                          ? [
-                              { id: "nazev", label: "Název" },
-                              { id: "garant", label: "Garant" },
+          {!isParentLayout && (
+            <Card
+              className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
+              style={paneCardStyle}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-[#0E2A5C]">
+                      {effectiveViewMode === "po_lodickach" ? "Lodičky" : "Děti"}
+                    </CardTitle>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Celkem: {leftItems.length} {effectiveViewMode === "po_lodickach" ? "lodiček" : "dětí"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <SortSelect
+                      value={leftSort}
+                      onChange={setLeftSort}
+                      options={
+                        effectiveViewMode === "po_lodickach"
+                          ? showGarantControls
+                            ? [
+                                { id: "nazev", label: "Název" },
+                                { id: "garant", label: "Garant" },
+                              ]
+                            : [{ id: "nazev", label: "Název" }]
+                          : [
+                              { id: "jmeno", label: "Jméno" },
+                              { id: "rocnik", label: "Ročník" },
                             ]
-                          : [{ id: "nazev", label: "Název" }]
-                        : [
-                            { id: "jmeno", label: "Jméno" },
-                            { id: "rocnik", label: "Ročník" },
-                          ]
-                    }
-                  />
-                  {viewMode === "po_lidech" && (
-                    <InlineSelect
-                      label="Seskupit"
-                      value={peopleGroupBy}
-                      onChange={(value) => setPeopleGroupBy(value as PeopleGroupKey)}
-                      options={[
-                        { id: "smecka", label: "Smečky" },
-                        { id: "rocnik", label: "Ročníky" },
-                        { id: "none", label: "Neseskupovat" },
-                      ]}
+                      }
                     />
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="overflow-auto min-[1180px]:min-h-0 min-[1180px]:flex-1">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {viewMode === "po_lodickach" ? (
-                      <>
-                        <TableHead>Lodička</TableHead>
-                        {showGarantControls && <TableHead>Garant</TableHead>}
-                        <TableHead>Počet</TableHead>
-                      </>
-                    ) : (
-                      <>
-                        <TableHead>Dítě</TableHead>
-                        <TableHead>Počet</TableHead>
-                      </>
+                    {effectiveViewMode === "po_lidech" && (
+                      <InlineSelect
+                        label="Seskupit"
+                        value={peopleGroupBy}
+                        onChange={(value) => setPeopleGroupBy(value as PeopleGroupKey)}
+                        options={[
+                          { id: "smecka", label: "Smečky" },
+                          { id: "rocnik", label: "Ročníky" },
+                          { id: "none", label: "Neseskupovat" },
+                        ]}
+                      />
                     )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {leftItems.length === 0 && (
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="overflow-auto min-[1180px]:min-h-0 min-[1180px]:flex-1">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={showGarantControls && viewMode === "po_lodickach" ? 3 : 2} className="py-8 text-center text-slate-500">
-                        Žádná data pro zvolený filtr.
-                      </TableCell>
+                      {effectiveViewMode === "po_lodickach" ? (
+                        <>
+                          <TableHead>Lodička</TableHead>
+                          {showGarantControls && <TableHead>Garant</TableHead>}
+                          <TableHead>Počet</TableHead>
+                        </>
+                      ) : (
+                        <>
+                          <TableHead>Dítě</TableHead>
+                          <TableHead>Počet</TableHead>
+                        </>
+                      )}
                     </TableRow>
-                  )}
-                  {leftRows}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {leftItems.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={showGarantControls && effectiveViewMode === "po_lodickach" ? 3 : 2}
+                          className="py-8 text-center text-slate-500"
+                        >
+                          Žádná data pro zvolený filtr.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {leftRows}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
           <Card
             className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
@@ -1719,14 +2073,21 @@ function OsobniLodickyPrototypePageInner({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-[#0E2A5C]">
-                    {viewMode === "po_lodickach" ? "Děti pro vybranou lodičku" : "Lodičky vybraného dítěte"}
+                    {effectiveViewMode === "po_lodickach"
+                      ? "Děti pro vybranou lodičku"
+                      : selectedParentStudent
+                        ? `Lodičky dítěte ${getStudentDisplayName(selectedParentStudent, activeRole)}`
+                        : "Lodičky vybraného dítěte"}
                   </CardTitle>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Celkem: {rightRows.length} {effectiveViewMode === "po_lodickach" ? "dětí" : "lodiček"}
+                  </p>
                 </div>
                 <SortSelect
                   value={rightSort}
                   onChange={setRightSort}
                   options={
-                    viewMode === "po_lodickach"
+                    effectiveViewMode === "po_lodickach"
                       ? [
                           { id: "jmeno", label: "Jméno" },
                           { id: "stav", label: "Stav" },
@@ -1737,7 +2098,7 @@ function OsobniLodickyPrototypePageInner({
                       ]
                   }
                 />
-                {viewMode === "po_lodickach" && (
+                {effectiveViewMode === "po_lodickach" && (
                   <InlineSelect
                     label="Seskupit děti"
                     value={peopleGroupBy}
@@ -1755,78 +2116,22 @@ function OsobniLodickyPrototypePageInner({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{viewMode === "po_lodickach" ? "Dítě" : "Lodička"}</TableHead>
+                    <TableHead>{effectiveViewMode === "po_lodickach" ? "Dítě" : "Lodička"}</TableHead>
                     <TableHead>Stav</TableHead>
-                    <TableHead className="text-right">Změna</TableHead>
+                    <TableHead className="text-right">{isParentLayout ? "Stav" : "Změna"}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rightRows.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={3} className="py-8 text-center text-slate-500">
-                        Pravý panel je prázdný. Vyber vlevo řádek nebo uprav filtr.
+                        {isParentLayout
+                          ? "Pro vybrané dítě nejsou v aktuálním filtru žádné lodičky."
+                          : "Pravý panel je prázdný. Vyber vlevo řádek nebo uprav filtr."}
                       </TableCell>
                     </TableRow>
                   )}
                   {rightRowsRendered}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <Card
-            className="min-w-0 border-[#D6DFF0] min-[1180px]:flex min-[1180px]:min-h-0 min-[1180px]:flex-col min-[1180px]:overflow-hidden"
-            style={paneCardStyle}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-[#0E2A5C]">
-                  {selectedPersonalRow
-                    ? getStudentDisplayName(selectedPersonalRow.student, activeRole)
-                    : "Historie osobní lodičky"}
-                </CardTitle>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="border-[#D6DFF0]"
-                  disabled={!selectedPersonalRow}
-                  onClick={() => {
-                    if (!selectedPersonalRow) return;
-                    openPersonalDetail(
-                      selectedPersonalRow.personal.id,
-                      selectedPersonalHistory[0]?.id,
-                    );
-                  }}
-                >
-                  Detail
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="overflow-auto min-[1180px]:min-h-0 min-[1180px]:flex-1">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Datum stavu</TableHead>
-                    <TableHead>Stav</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedPersonalHistory.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={2} className="py-6 text-center text-slate-500">
-                        Pro vybranou položku zatím nejsou eventy.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  {selectedPersonalHistory.map((event) => (
-                    <TableRow key={event.id}>
-                      <TableCell>{formatDateCz(event.datumStavu)}</TableCell>
-                      <TableCell>
-                        <Badge className={stavBadgeClass(event.stav)}>{TEST_LODICKA_STAV_LABEL[event.stav]}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
                 </TableBody>
               </Table>
             </CardContent>
@@ -1890,9 +2195,6 @@ function DetailSheet({
   onClose: () => void;
 }) {
   const open = state.type !== "none";
-  const onOpenChange = (next: boolean) => {
-    if (!next) onClose();
-  };
 
   const personal =
     state.type === "personal" ? PROTO_OSOBNI_LODICKY.find((item) => item.id === state.personalId) ?? null : null;
@@ -1920,20 +2222,37 @@ function DetailSheet({
   const highlightedEventId = state.type === "personal" ? state.eventId : undefined;
   const detailWidthClass =
     state.type === "student"
-      ? "w-[84vw] max-w-[460px] sm:max-w-[460px]"
+      ? "max-w-[460px]"
       : state.type === "personal"
-        ? "w-[92vw] max-w-[920px] sm:max-w-[920px]"
-        : "w-[88vw] max-w-[620px] sm:max-w-[620px]";
+        ? "max-w-[920px]"
+        : "max-w-[620px]";
+
+  if (!open) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className={`${detailWidthClass} overflow-y-auto`}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#07173A]/45 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        className={`relative max-h-[90vh] w-full ${detailWidthClass} overflow-y-auto rounded-xl border border-[#D6DFF0] bg-white shadow-[var(--sv-shadow-lift)]`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <Button
+          type="button"
+          size="xs"
+          variant="outline"
+          className="absolute right-4 top-4 h-8 w-8 rounded-full border-[#D6DFF0] p-0 text-[#0E2A5C]"
+          onClick={onClose}
+        >
+          <X className="size-4" />
+          <span className="sr-only">Zavřít</span>
+        </Button>
         {state.type === "student" && student && (
           <>
-            <SheetHeader>
-              <SheetTitle>Detail dítěte</SheetTitle>
-              <SheetDescription>{student.prezdivka}</SheetDescription>
-            </SheetHeader>
+            <DetailModalHeader title="Detail dítěte" description={student.prezdivka} />
             <div className="space-y-4 p-4 pt-0">
               <div className="flex items-start gap-4 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
                 <Image
@@ -1958,10 +2277,7 @@ function DetailSheet({
 
         {state.type === "lodicka" && lodicka && (
           <>
-            <SheetHeader>
-              <SheetTitle>Detail lodičky</SheetTitle>
-              <SheetDescription>{lodicka.nazev}</SheetDescription>
-            </SheetHeader>
+            <DetailModalHeader title="Detail lodičky" description={lodicka.nazev} />
             <div className="space-y-4 p-4 pt-0">
               <div className="grid gap-2 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
                 <InfoCell label="Kód" value={lodicka.kod} />
@@ -1979,12 +2295,10 @@ function DetailSheet({
 
         {state.type === "personal" && personal && student && lodicka && (
           <>
-            <SheetHeader>
-              <SheetTitle>Detail osobní lodičky</SheetTitle>
-              <SheetDescription>
-                {getStudentDisplayName(student, activeRole)} · {lodicka.nazev}
-              </SheetDescription>
-            </SheetHeader>
+            <DetailModalHeader
+              title="Detail osobní lodičky"
+              description={`${getStudentDisplayName(student, activeRole)} · ${lodicka.nazev}`}
+            />
             <div className="space-y-4 p-4 pt-0">
               <div className="grid gap-2 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3">
                 <InfoCell label="Dítě" value={student.jmeno} />
@@ -2027,8 +2341,17 @@ function DetailSheet({
             </div>
           </>
         )}
-      </SheetContent>
-    </Sheet>
+      </div>
+    </div>
+  );
+}
+
+function DetailModalHeader({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="mb-4 border-b border-[#D6DFF0] px-4 py-4 pr-14">
+      <div className="font-semibold text-[#0E2A5C]">{title}</div>
+      <div className="mt-1 text-sm text-slate-500">{description}</div>
+    </div>
   );
 }
 
@@ -2057,37 +2380,65 @@ function replaceArray<T>(target: T[], next: T[]) {
   target.push(...next);
 }
 
-function mapSessionUserToProtoActorRoles(sessionUser: SessionUserContext): ProtoRoleId[] {
-  const rawRoles = [...sessionUser.roles, sessionUser.role]
-    .map((role) => String(role).trim().toLowerCase())
-    .filter(Boolean);
-  const roles = new Set<ProtoRoleId>();
+function buildProtoDatasetFromCompact(data: LodickyCompactResponse): ProtoDatasetFromDb {
+  const children = Array.isArray(data.children) ? data.children : [];
+  const lodickyCatalog = Array.isArray(data.lodickyCatalog) ? data.lodickyCatalog : [];
+  const osobniLodicky = Array.isArray(data.osobniLodicky) ? data.osobniLodicky : [];
+  const rowsByChild: Record<string, LodickaRow[]> = {};
+  for (const child of children) rowsByChild[child.id] = [];
 
-  if (rawRoles.includes("rodic")) roles.add("rodic");
-  if (rawRoles.includes("zak")) roles.add("zak");
-  if (rawRoles.some((role) => role === "garant" || role === "pruvodce" || role === "ucitel")) {
-    roles.add("garant");
-  }
-  if (rawRoles.some((role) => role === "admin" || role === "tester" || role === "zamestnanec" || role === "proto")) {
-    roles.add("spravce");
+  for (const personal of osobniLodicky) {
+    const [
+      childIndex,
+      id,
+      lodickaIndex,
+      kodOsobniLodicky,
+      stav,
+      hodnota,
+      uspech,
+      poznamka,
+      datumStavu,
+      history = [],
+    ] = personal;
+    const childId = children[childIndex]?.id ?? "";
+    const catalog = lodickyCatalog[lodickaIndex] ?? null;
+    if (!childId || !catalog) continue;
+    if (!rowsByChild[childId]) rowsByChild[childId] = [];
+
+    rowsByChild[childId].push({
+      id,
+      lodickaId: catalog.lodickaId,
+      kodLodicky: catalog.kodLodicky,
+      kodOsobniLodicky,
+      predmet: catalog.predmet,
+      podpredmet: catalog.podpredmet,
+      oblast: catalog.oblast,
+      nazevLodicky: catalog.nazevLodicky,
+      typ: catalog.typ,
+      stupen: catalog.stupen,
+      rocnikOd: catalog.rocnikOd,
+      rocnikDo: catalog.rocnikDo,
+      garantPersonId: catalog.garantPersonId,
+      garantName: catalog.garantName,
+      stav,
+      hodnota,
+      uspech,
+      poznamka,
+      datumStavu,
+      history,
+    });
   }
 
-  if (roles.size === 0) roles.add("rodic");
-  return [...roles];
+  return buildProtoDatasetFromDb({ ...data, children }, rowsByChild);
 }
 
 function buildProtoDatasetFromDb(
   childrenData: ChildrenResponse,
   rowsByChild: Record<string, LodickaRow[]>,
-  sessionUser: SessionUserContext,
 ): ProtoDatasetFromDb {
-  const parentActorId =
-    childrenData.parent.id?.trim() ||
-    (childrenData.userEmail ?? "").trim().toLowerCase() ||
-    `u-user-${slugify(childrenData.parent.name || "db")}`;
-  const parentName = childrenData.parent.name?.trim() || sessionUser.displayName.trim() || "Uživatel";
+  const parentActorId = `u-rodic-${slugify(childrenData.parent.id || childrenData.parent.name || "db")}`;
+  const parentName = childrenData.parent.name?.trim() || "Rodič";
   const parentEmail = (childrenData.userEmail ?? "").trim().toLowerCase();
-  const parentChildren = childrenData.parentChildren ?? childrenData.children;
 
   const students: ProtoStudent[] = childrenData.children.map((child) => {
     const rocnik = normalizeChildRocnik(child.rocnik);
@@ -2107,7 +2458,7 @@ function buildProtoDatasetFromDb(
     id: parentActorId,
     jmeno: parentName,
     email: parentEmail,
-    roles: mapSessionUserToProtoActorRoles(sessionUser),
+    roles: ["rodic", "spravce"],
   };
   actorsMap.set(parentActor.id, parentActor);
   for (const student of students) {
@@ -2142,7 +2493,7 @@ function buildProtoDatasetFromDb(
     });
   }
 
-  const parentLinks: ProtoParentChildLink[] = parentChildren.map((student) => ({
+  const parentLinks: ProtoParentChildLink[] = students.map((student) => ({
     parentId: parentActorId,
     studentId: student.id,
   }));
@@ -2498,6 +2849,7 @@ function MultiToggleSelect({
             <button
               key={option}
               type="button"
+              aria-pressed={selected}
               onClick={() => {
                 if (selected) {
                   onChange(value.filter((item) => item !== option));
@@ -2748,6 +3100,7 @@ function renderRightPaneRows({
   lodickaGroupKeys,
   onSelectRow,
   onSetStatus,
+  onOpenPersonalDetail,
   onOpenLodickaDetail,
   onOpenStudentDetail,
 }: {
@@ -2761,6 +3114,7 @@ function renderRightPaneRows({
   lodickaGroupKeys: LodickaGroupKey[];
   onSelectRow: (personalId: string, label: string, rowId: string, hierarchy: string) => void;
   onSetStatus: (personalId: string, status: LodickaStav) => void;
+  onOpenPersonalDetail: (personalId: string, eventId?: string) => void;
   onOpenLodickaDetail: (lodickaId: string, rowId: string, tableId: string) => void;
   onOpenStudentDetail: (studentId: string, rowId: string, tableId: string) => void;
 }) {
@@ -2843,7 +3197,7 @@ function renderRightPaneRows({
           </TableCell>
           <TableCell className="text-right">
             <TooltipProvider delayDuration={450}>
-              <div className="inline-flex gap-1">
+              <div className="inline-flex items-center justify-end gap-1">
                 {STATUS_BUTTONS.map((statusButton) => (
                   <Tooltip key={statusButton.value}>
                     <TooltipTrigger asChild>
@@ -2866,6 +3220,25 @@ function renderRightPaneRows({
                     </TooltipContent>
                   </Tooltip>
                 ))}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      className="h-7 border-[#D6DFF0] px-2.5 text-xs font-semibold text-[#0E2A5C] hover:border-[#1E3F7A] hover:bg-[#EEF2F7]"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenPersonalDetail(row.personal.id, row.lastEvent?.id);
+                      }}
+                    >
+                      Detail
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={8}>
+                    Detail osobní lodičky
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </TooltipProvider>
           </TableCell>
@@ -2888,11 +3261,44 @@ function normalizeSearch(value: string): string {
 function buildStudentSearchHaystack(student: ProtoStudent): string {
   const firstName = getFirstName(student.jmeno);
   const lastName = getLastName(student.jmeno);
-  return normalizeSearch(`${student.jmeno} ${firstName} ${lastName} ${student.prezdivka}`);
+  return normalizeSearch(
+    `${student.jmeno} ${firstName} ${lastName} ${student.prezdivka} ${student.smecka} ${student.rocnik}`,
+  );
 }
 
 function buildLodickaSearchHaystack(lodicka: ProtoLodickaCatalogItem): string {
-  return normalizeSearch(`${lodicka.nazev} ${lodicka.oblast} ${lodicka.predmet}`);
+  return normalizeSearch(
+    `${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast} ${lodicka.predmet} ${lodicka.podpředmět ?? ""} ${getGuideDisplayName(lodicka.garantId)}`,
+  );
+}
+
+function scoreTextMatch(value: string, needle: string): number {
+  if (!needle) return 0;
+  const normalized = normalizeSearch(value);
+  const index = normalized.indexOf(needle);
+  if (index < 0) return 0;
+  const wordStartBonus = index === 0 || normalized[index - 1] === " " ? 20 : 0;
+  return 100 + wordStartBonus - Math.min(index, 40);
+}
+
+function scoreStudentSuggestion(student: ProtoStudent, needle: string): number {
+  return Math.max(
+    scoreTextMatch(student.jmeno, needle),
+    scoreTextMatch(getFirstName(student.jmeno), needle),
+    scoreTextMatch(getLastName(student.jmeno), needle),
+    scoreTextMatch(student.prezdivka, needle),
+    buildStudentSearchHaystack(student).includes(needle) ? 10 : 0,
+  );
+}
+
+function scoreLodickaSuggestion(lodicka: ProtoLodickaCatalogItem, needle: string): number {
+  return Math.max(
+    scoreTextMatch(lodicka.nazev, needle) + 1_000,
+    scoreTextMatch(lodicka.oblast, needle) + 200,
+    scoreTextMatch(lodicka.predmet, needle) + 100,
+    scoreTextMatch(lodicka.podpředmět ?? "", needle) + 100,
+    buildLodickaSearchHaystack(lodicka).includes(needle) ? 10 : 0,
+  );
 }
 
 function tokenizeSearch(value: string): string[] {
@@ -2906,20 +3312,33 @@ function uniqueValues(values: string[]): string[] {
   return [...new Set(values)];
 }
 
-function matchesAllSearchTokens(haystack: string, tokens: string[]): boolean {
-  if (tokens.length === 0) return true;
-  return tokens.every((token) => haystack.includes(token));
-}
-
-function matchesFulltextSearch(
-  student: ProtoStudent,
-  lodicka: ProtoLodickaCatalogItem,
-  tokens: string[],
-): boolean {
-  if (tokens.length === 0) return true;
-  const studentHaystack = buildStudentSearchHaystack(student);
-  const lodickaHaystack = buildLodickaSearchHaystack(lodicka);
-  return tokens.every((token) => studentHaystack.includes(token) || lodickaHaystack.includes(token));
+function buildSmartSearchPlan(
+  input: string,
+  options: {
+    stupne: string[];
+    rocniky: string[];
+    smecky: string[];
+    predmety: string[];
+    podpredmety: string[];
+    oblasti: string[];
+    stavy: string[];
+    garanti: string[];
+    studentHaystacks: string[];
+  },
+) {
+  void options;
+  const tokens = tokenizeSearch(input);
+  return {
+    people: { stupen: [] as string[], rocnik: [] as string[], smecka: [] as string[] },
+    lodicky: {
+      predmet: [] as string[],
+      podpredmet: [] as string[],
+      oblast: [] as string[],
+      stav: [] as string[],
+      garant: [] as string[],
+    },
+    freeTokens: uniqueValues(tokens),
+  };
 }
 
 function removeTokenFromSearch(searchInput: string, token: string): string {
@@ -3036,6 +3455,47 @@ function groupBy<T>(items: T[], getKey: (item: T) => string): [string, T[]][] {
     map.set(key, bucket);
   });
   return [...map.entries()];
+}
+
+function getSchoolYearBounds(dateIso: string) {
+  const [year, month] = parseIsoYearMonth(dateIso);
+  const startYear = month >= 9 ? year : year - 1;
+  return {
+    minDate: `${startYear}-09-01`,
+    maxDate: `${startYear + 1}-08-31`,
+  };
+}
+
+function getSemesterBoundsForDate(dateIso: string) {
+  const [year, month] = parseIsoYearMonth(dateIso);
+  if (month >= 9) {
+    return {
+      minDate: `${year}-09-01`,
+      maxDate: `${year + 1}-01-31`,
+    };
+  }
+  if (month === 1) {
+    return {
+      minDate: `${year - 1}-09-01`,
+      maxDate: `${year}-01-31`,
+    };
+  }
+  return {
+    minDate: `${year}-02-01`,
+    maxDate: `${year}-08-31`,
+  };
+}
+
+function parseIsoYearMonth(dateIso: string): [number, number] {
+  const [yearRaw, monthRaw] = dateIso.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  if (!year || !month) return [new Date().getFullYear(), new Date().getMonth() + 1];
+  return [year, month];
+}
+
+function isDateInRange(value: string, min: string, max: string): boolean {
+  return value >= min && value <= max;
 }
 
 function clampDate(value: string, min: string, max: string): string {

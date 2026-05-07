@@ -1,11 +1,12 @@
 export const GUIDE_ACCESS_ROLES = new Set([
+  "tester",
   "ucitel",
   "zamestnanec",
   "pruvodce",
   "garant",
 ]);
 
-export const CHILD_ACCESS_ROLES = new Set(["rodic", "zak"]);
+export const CHILD_ACCESS_ROLES = new Set(["tester", "rodic", "zak"]);
 export const M01_ACCESS_ROLES = new Set([
   "rodic",
   "zak",
@@ -30,6 +31,7 @@ export const AUTHENTICATED_APP_ROLES = new Set([
   "schvalovatel_hodnoceni",
   "rodic",
   "zak",
+  "tester",
   "proto",
 ]);
 

@@ -1705,9 +1705,10 @@ export async function resolveIdentityConflict(
   resolvedBy: string
 ) {
   const approvedSet = new Set(approvedPersonIds.filter(Boolean));
-  if (approvedSet.size === 0) {
-    throw new Error("At least one person must be approved.");
+  if (approvedSet.size !== 1) {
+    throw new Error("Exactly one person must be approved for a login identity.");
   }
+  const [approvedPersonId] = [...approvedSet];
 
   await prisma.$transaction(async (tx) => {
     const links = await tx.appLoginPersonLink.findMany({
@@ -1717,9 +1718,12 @@ export async function resolveIdentityConflict(
     if (links.length === 0) {
       throw new Error("Identity links not found.");
     }
+    if (!links.some((link) => link.personId === approvedPersonId)) {
+      throw new Error("Approved person is not linked to this login identity.");
+    }
 
     for (const link of links) {
-      if (approvedSet.has(link.personId)) {
+      if (link.personId === approvedPersonId) {
         await tx.appLoginPersonLink.update({
           where: { id: link.id },
           data: {
@@ -1747,20 +1751,35 @@ export async function resolveIdentityConflict(
 }
 
 export async function approveIdentityLink(identityId: string, personId: string, approvedBy: string) {
-  const result = await prisma.appLoginPersonLink.update({
-    where: {
-      identityId_personId: {
+  const result = await prisma.$transaction(async (tx) => {
+    const otherApprovedLink = await tx.appLoginPersonLink.findFirst({
+      where: {
         identityId,
-        personId,
+        status: "approved",
+        personId: { not: personId },
       },
-    },
-    data: {
-      status: "approved",
-      approvedBy,
-      approvedAt: new Date(),
-      reason: null,
-    },
+      select: { id: true },
+    });
+    if (otherApprovedLink) {
+      throw new Error("Login identity already has an approved person.");
+    }
+
+    return tx.appLoginPersonLink.update({
+      where: {
+        identityId_personId: {
+          identityId,
+          personId,
+        },
+      },
+      data: {
+        status: "approved",
+        approvedBy,
+        approvedAt: new Date(),
+        reason: null,
+      },
+    });
   });
+
   await refreshIdentityConflict(identityId);
   return result;
 }

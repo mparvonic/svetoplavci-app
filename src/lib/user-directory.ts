@@ -97,6 +97,14 @@ export async function getApprovedLoginProfileByEmail(email: string): Promise<Log
 
   if (!identity) return null;
   if (identity.personLinks.length === 0) return null;
+  if (identity.personLinks.length > 1) {
+    console.warn("[user-directory] login identity has multiple approved person links; denying ambiguous login", {
+      identityId: identity.id,
+      email: normalized,
+      personIds: identity.personLinks.map((link) => link.personId),
+    });
+    return null;
+  }
 
   const personIds = identity.personLinks.map((link) => link.personId);
   const allRoles = uniqueRoles(
