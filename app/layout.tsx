@@ -3,6 +3,7 @@ import { Instrument_Serif, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/g
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Providers } from "@/components/providers";
 import { DevAppMenu } from "@/components/dev-app-menu";
+import { ensureDevDbTunnel } from "@/src/lib/dev-db-tunnel";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({
@@ -30,11 +31,13 @@ export const metadata: Metadata = {
   description: "Aplikace pro školu – portál, admin, kiosk",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await ensureDevDbTunnel();
+
   return (
     <html lang="cs">
       <body className={`${plusJakarta.variable} ${instrumentSerif.variable} ${jetBrainsMono.variable} antialiased`}>
