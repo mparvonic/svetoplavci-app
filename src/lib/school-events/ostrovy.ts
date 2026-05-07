@@ -1355,18 +1355,19 @@ export async function listOstrovyTerms(params: {
 }
 
 export async function listOstrovyForChild(personId: string, params: { from?: string | Date; to?: string | Date } = {}) {
-  const from = params.from ? parseDate(params.from, "from") : new Date();
+  const now = new Date();
+  const from = params.from ? parseDate(params.from, "from") : now;
   const to = params.to ? parseDate(params.to, "to") : undefined;
   const events = await prisma.appSchoolEvent.findMany({
     where: {
       isActive: true,
       startsAt: to ? { lt: to, gte: from } : { gte: from },
       eventType: { code: OSTROVY_EVENT_TYPE_CODE },
-      lifecycleStatus: {
-        in: [
-          AppSchoolEventLifecycleStatus.PUBLISHED,
-          AppSchoolEventLifecycleStatus.REGISTRATION_CLOSED,
-        ],
+      lifecycleStatus: AppSchoolEventLifecycleStatus.PUBLISHED,
+      registrationPolicy: {
+        isEnabled: true,
+        opensAt: { lte: now },
+        closesAt: { gte: now },
       },
     },
     include: {
@@ -1387,7 +1388,6 @@ export async function listOstrovyForChild(personId: string, params: { from?: str
     orderBy: [{ startsAt: "asc" }, { title: "asc" }],
   });
 
-  const now = new Date();
   const audienceContext = await buildAudienceMatchContext(prisma, personId, events, now);
   const enriched = [];
   for (const event of events) {

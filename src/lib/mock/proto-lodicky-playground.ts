@@ -19,6 +19,7 @@ export type ProtoStudent = {
   id: string;
   jmeno: string;
   prezdivka: string;
+  searchAliases?: string[];
   stupen: 1 | 2;
   rocnik: number;
   smecka: string;
