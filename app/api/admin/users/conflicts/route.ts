@@ -77,8 +77,8 @@ export async function POST(req: NextRequest) {
   if (!identityId) {
     return NextResponse.json({ error: "Missing identityId." }, { status: 400 });
   }
-  if (approvedPersonIds.length === 0) {
-    return NextResponse.json({ error: "Missing approvedPersonIds." }, { status: 400 });
+  if (approvedPersonIds.length !== 1) {
+    return NextResponse.json({ error: "Exactly one approved person is required." }, { status: 400 });
   }
 
   try {

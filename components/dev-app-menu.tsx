@@ -17,6 +17,7 @@ const REPORT_ROLES = new Set(["admin", "tester", "rodic"]);
 const GUIDE_ROLES = new Set(["admin", "tester", "ucitel", "zamestnanec", "pruvodce", "garant"]);
 const LODICKY_ROLES = new Set([...CHILD_VIEW_ROLES, ...GUIDE_ROLES]);
 const ISLAND_ROLES = new Set([...CHILD_VIEW_ROLES, ...GUIDE_ROLES]);
+const ADMIN_ROLES = new Set(["admin"]);
 
 type DevNavItem = {
   href: string;
@@ -41,6 +42,11 @@ const DEV_NAV_ITEMS: DevNavItem[] = [
     label: "Ostrovy",
     roles: ISLAND_ROLES,
     kind: "ostrovy",
+  },
+  {
+    href: "/admin",
+    label: "Admin",
+    roles: ADMIN_ROLES,
   },
 ] satisfies DevNavItem[];
 

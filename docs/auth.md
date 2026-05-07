@@ -2,6 +2,24 @@
 
 Tento dokument shrnuje aktuální stav přihlašování a práce se session.
 
+### Login identity a osoba
+
+Přihlášení přes e-mail je v aplikaci oddělené od osoby:
+
+- `AppLoginIdentity` reprezentuje login e-mail,
+- `AppLoginPersonLink` reprezentuje vazbu loginu na konkrétní `AppPerson`,
+- přístup je povolen jen přes vazbu se stavem `approved`.
+
+Jedna login identita smí mít nejvýše jednu schválenou osobu. Rodinný přístup se neřeší tím, že se stejný e-mail schválí rodiči i dítěti; schválí se rodič a přístup k dítěti vzniká přes `AppPersonRelation`. Pokud jeden e-mail ukazuje na dvě osoby, je to konflikt k rozhodnutí v adminu. Pokud jde o duplicitu osoby, má se opravit/sloučit osoba.
+
+Pravidlo je vynucené:
+
+- v admin UI radio výběrem jedné osoby při řešení login konfliktu,
+- v API validací, že konflikt schvaluje přesně jednu osobu,
+- v databázi částečným unikátním indexem `app_login_person_link_single_approved_identity_idx` pro `status = 'approved'`.
+
+Auth vrstva navíc defensivně odmítne přihlášení, pokud by v datech našla více schválených osob pro jednu login identitu.
+
 ### 1. Providers
 
 - **Google (OAuth 2.0)**
@@ -108,4 +126,3 @@ if (session.user) {
 - `pages.error = "/auth/error"` – vlastní stránka pro chybové stavy:
   - `error=Verification` – vypršel / znovu použitý odkaz,
   - `error=NoRole` – e‑mail není evidován jako rodič v Codě.
-
