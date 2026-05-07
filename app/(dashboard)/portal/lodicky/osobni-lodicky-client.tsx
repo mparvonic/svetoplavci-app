@@ -93,6 +93,9 @@ type LeftItem = LeftLodickaItem | LeftStudentItem;
 type Child = {
   id: string;
   name: string;
+  displayName?: string | null;
+  firstName?: string | null;
+  nickname?: string | null;
   rocnik: number | null;
   stupen: 1 | 2 | null;
   smecka: string | null;
@@ -869,20 +872,19 @@ function OsobniLodickyPrototypePageInner({
   const filteredStudentIds = useMemo(() => new Set(filteredStudents.map((student) => student.id)), [filteredStudents]);
   const filteredLodickaIds = useMemo(() => new Set(filteredLodicky.map((lodicka) => lodicka.id)), [filteredLodicky]);
 
-  const searchSuggestionStudents = useMemo(
-    () =>
-      accessibleStudents.filter((student) => {
-        if (isParentLayout) return true;
-        if (peopleStupenFilter.length > 0 && !peopleStupenFilter.includes(String(student.stupen))) return false;
-        if (peopleRocnikFilter.length > 0 && !peopleRocnikFilter.includes(String(student.rocnik))) return false;
-        if (peopleSmeckaFilter.length > 0 && !peopleSmeckaFilter.includes(student.smecka)) return false;
-        return true;
-      }),
-    [accessibleStudents, isParentLayout, peopleRocnikFilter, peopleSmeckaFilter, peopleStupenFilter],
-  );
-
-  const searchSuggestionLodicky = useMemo(
-    () =>
+  const searchSuggestionRows = useMemo(() => {
+    const allowedStudentIds = new Set(
+      accessibleStudents
+        .filter((student) => {
+          if (isParentLayout) return true;
+          if (peopleStupenFilter.length > 0 && !peopleStupenFilter.includes(String(student.stupen))) return false;
+          if (peopleRocnikFilter.length > 0 && !peopleRocnikFilter.includes(String(student.rocnik))) return false;
+          if (peopleSmeckaFilter.length > 0 && !peopleSmeckaFilter.includes(student.smecka)) return false;
+          return true;
+        })
+        .map((student) => student.id),
+    );
+    const allowedLodickaIds = new Set(
       PROTO_LODICKY_CATALOG.filter((lodicka) => {
         if (effectiveScope === "moje" && activeRole === "garant" && activeUserId) {
           if (lodicka.garantId !== activeUserId) return false;
@@ -900,19 +902,68 @@ function OsobniLodickyPrototypePageInner({
           return false;
         }
         return true;
-      }),
-    [
-      activeRole,
-      activeUserId,
-      datasetVersion,
-      effectiveScope,
-      lodickyGarantFilter,
-      lodickyOblastFilter,
-      lodickyPodpredmetFilter,
-      lodickyPredmetFilter,
-      showGarantControls,
-    ],
-  );
+      }).map((lodicka) => lodicka.id),
+    );
+    const rows: PersonalWithSnapshot[] = [];
+
+    PROTO_OSOBNI_LODICKY.forEach((personal) => {
+      if (!allowedStudentIds.has(personal.studentId)) return;
+      if (!allowedLodickaIds.has(personal.lodickaId)) return;
+
+      const student = studentsById.get(personal.studentId);
+      const lodicka = lodickyById.get(personal.lodickaId);
+      if (!student || !lodicka) return;
+
+      const snapshot = statusSnapshotByPersonal.get(personal.id);
+      const stav = snapshot?.stav ?? 0;
+      if (lodickyStavFilter.length > 0 && !lodickyStavFilter.includes(TEST_LODICKA_STAV_LABEL[stav])) return;
+
+      rows.push({
+        personal,
+        student,
+        lodicka,
+        stav,
+        lastEvent: snapshot?.lastEvent ?? null,
+      });
+    });
+
+    return rows;
+  }, [
+    accessibleStudents,
+    activeRole,
+    activeUserId,
+    datasetVersion,
+    effectiveScope,
+    isParentLayout,
+    lodickyById,
+    lodickyGarantFilter,
+    lodickyOblastFilter,
+    lodickyPodpredmetFilter,
+    lodickyPredmetFilter,
+    lodickyStavFilter,
+    peopleRocnikFilter,
+    peopleSmeckaFilter,
+    peopleStupenFilter,
+    showGarantControls,
+    statusSnapshotByPersonal,
+    studentsById,
+  ]);
+
+  const searchSuggestionStudents = useMemo(() => {
+    const map = new Map<string, ProtoStudent>();
+    searchSuggestionRows.forEach((row) => {
+      map.set(row.student.id, row.student);
+    });
+    return [...map.values()];
+  }, [searchSuggestionRows]);
+
+  const searchSuggestionLodicky = useMemo(() => {
+    const map = new Map<string, ProtoLodickaCatalogItem>();
+    searchSuggestionRows.forEach((row) => {
+      map.set(row.lodicka.id, row.lodicka);
+    });
+    return [...map.values()];
+  }, [searchSuggestionRows]);
 
   const personalRows = useMemo(() => {
     const rows: PersonalWithSnapshot[] = [];
@@ -1076,17 +1127,20 @@ function OsobniLodickyPrototypePageInner({
     });
 
     const queryNeedle = normalizeSearch(searchInput);
+    const studentSuggestions: SearchSuggestion[] = [];
+    const lodickaSuggestions: SearchSuggestion[] = [];
+
     searchSuggestionStudents
       .map((student) => ({ student, score: scoreStudentSuggestion(student, queryNeedle) }))
       .filter(({ score }) => score > 0)
       .sort((a, b) => b.score - a.score || a.student.jmeno.localeCompare(b.student.jmeno, "cs"))
-      .slice(0, 3)
+      .slice(0, 5)
       .forEach(({ student }) => {
         const display = getStudentDisplayName(student, activeRole);
         const id = `student-${student.id}`;
         if (seen.has(id)) return;
         seen.add(id);
-        entitySuggestions.push({ id, label: `Dítě: ${display}`, type: "student", value: display });
+        studentSuggestions.push({ id, label: `Dítě: ${display}`, type: "student", value: display });
       });
 
     searchSuggestionLodicky
@@ -1098,8 +1152,10 @@ function OsobniLodickyPrototypePageInner({
         const id = `lodicka-${lodicka.id}`;
         if (seen.has(id)) return;
         seen.add(id);
-        entitySuggestions.push({ id, label: `Lodička: ${lodicka.nazev}`, type: "lodicka", value: lodicka.nazev });
+        lodickaSuggestions.push({ id, label: `Lodička: ${lodicka.nazev}`, type: "lodicka", value: lodicka.nazev });
       });
+
+    entitySuggestions.push(...studentSuggestions, ...lodickaSuggestions);
 
     return [...entitySuggestions, ...filterSuggestions].slice(0, 10);
   }, [
@@ -2446,7 +2502,13 @@ function buildProtoDatasetFromDb(
     return {
       id: child.id,
       jmeno: child.name,
-      prezdivka: toNickname(child.name),
+      prezdivka: child.nickname?.trim() || toNickname(child.displayName?.trim() || child.name),
+      searchAliases: uniqueValues([
+        child.name,
+        child.displayName?.trim() ?? "",
+        child.firstName?.trim() ?? "",
+        child.nickname?.trim() ?? "",
+      ].filter(Boolean)),
       stupen,
       rocnik,
       smecka: normalizeChildSmecka(child.smecka),
@@ -3261,8 +3323,9 @@ function normalizeSearch(value: string): string {
 function buildStudentSearchHaystack(student: ProtoStudent): string {
   const firstName = getFirstName(student.jmeno);
   const lastName = getLastName(student.jmeno);
+  const aliases = student.searchAliases?.join(" ") ?? "";
   return normalizeSearch(
-    `${student.jmeno} ${firstName} ${lastName} ${student.prezdivka} ${student.smecka} ${student.rocnik}`,
+    `${student.jmeno} ${firstName} ${lastName} ${student.prezdivka} ${aliases} ${student.smecka} ${student.rocnik}`,
   );
 }
 
@@ -3282,11 +3345,13 @@ function scoreTextMatch(value: string, needle: string): number {
 }
 
 function scoreStudentSuggestion(student: ProtoStudent, needle: string): number {
+  const aliasScore = Math.max(...(student.searchAliases ?? []).map((alias) => scoreTextMatch(alias, needle)), 0);
   return Math.max(
     scoreTextMatch(student.jmeno, needle),
     scoreTextMatch(getFirstName(student.jmeno), needle),
     scoreTextMatch(getLastName(student.jmeno), needle),
     scoreTextMatch(student.prezdivka, needle),
+    aliasScore,
     buildStudentSearchHaystack(student).includes(needle) ? 10 : 0,
   );
 }
