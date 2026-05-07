@@ -273,6 +273,51 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
+          const activeExistingRelations = await tx.appPersonRelation.findMany({
+            where: {
+              id: { not: relation.id },
+              parentPersonId: nextParentPersonId,
+              childPersonId: nextChildPersonId,
+              relationType: relation.relationType,
+              isActive: true,
+            },
+            select: { id: true, source: true },
+          });
+          const shouldPreferCsvRelation =
+            relation.isActive &&
+            relation.source === "csv_parent" &&
+            activeExistingRelations.length > 0 &&
+            !activeExistingRelations.some(
+              (activeRelation) => activeRelation.source === relation.source,
+            );
+          if (shouldPreferCsvRelation) {
+            await tx.appPersonRelation.updateMany({
+              where: {
+                id: {
+                  in: activeExistingRelations.map(
+                    (activeRelation) => activeRelation.id,
+                  ),
+                },
+              },
+              data: {
+                isActive: false,
+                updatedBy: admin.email,
+                changeReason: `Nahrazeno csv_parent vazbou po sloučení osob: ${reason}`,
+              },
+            });
+          } else if (activeExistingRelations.length > 0) {
+            await tx.appPersonRelation.update({
+              where: { id: relation.id },
+              data: {
+                isActive: false,
+                updatedBy: admin.email,
+                changeReason: `Duplicitní aktivní vazba po sloučení osob: ${reason}`,
+              },
+            });
+            summary.relationsSkipped += 1;
+            continue;
+          }
+
           const existing = await tx.appPersonRelation.findUnique({
             where: {
               parentPersonId_childPersonId_relationType_source: {
