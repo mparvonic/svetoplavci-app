@@ -192,6 +192,12 @@ type LodickyCompactResponse = ChildrenResponse & {
   osobniLodicky: OsobniLodickaCompactRow[];
 };
 
+type SaveLodickaStatusResponse = {
+  ok: true;
+  event: ProtoOsobniLodickaEvent;
+  invalidatedEventIds?: string[];
+};
+
 class SessionExpiredError extends Error {
   constructor(message = "Přihlášení vypršelo.") {
     super(message);
@@ -237,6 +243,36 @@ function fetchLodickyCompact(requestUrl: string): Promise<LodickyCompactResponse
     promise: request,
   });
   return request;
+}
+
+async function saveLodickaStatus(
+  personalId: string,
+  payload: {
+    status: LodickaStav;
+    effectiveDate: string;
+    overwriteSameDate: boolean;
+    allowHistorical: boolean;
+    invalidateNewer: boolean;
+    note?: string;
+  },
+): Promise<SaveLodickaStatusResponse> {
+  const response = await fetch(`/api/m01/lodicky/${encodeURIComponent(personalId)}/status`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const message = await readApiErrorMessage(response, "Nepodařilo se uložit stav lodičky.");
+    if (response.status === 401) throw new SessionExpiredError(message);
+    throw new Error(message);
+  }
+
+  const body = (await response.json()) as SaveLodickaStatusResponse;
+  if (!body?.ok || !body.event?.id) {
+    throw new Error("Server nevrátil potvrzení uložené změny lodičky.");
+  }
+  return body;
 }
 
 const DEFAULT_ROLE: ProtoRoleId = "rodic";
@@ -389,6 +425,9 @@ function OsobniLodickyPrototypePageInner({
 
   const [events, setEvents] = useState<ProtoOsobniLodickaEvent[]>(PROTO_OSOBNI_LODICKA_EVENTS);
   const [invalidatedEventIds, setInvalidatedEventIds] = useState<string[]>([]);
+  const [savingStatusIds, setSavingStatusIds] = useState<string[]>([]);
+  const [statusSaveError, setStatusSaveError] = useState<string | null>(null);
+  const savingStatusIdsRef = useRef(new Set<string>());
   const [debugEvents, setDebugEvents] = useState<ProtoDebugEvent[]>([]);
   const [statusUndoActions, setStatusUndoActions] = useState<Record<string, StatusUndoAction>>({});
   const pushDebug = useCallback((event: Omit<ProtoDebugEvent, "id" | "at">) => {
@@ -488,6 +527,9 @@ function OsobniLodickyPrototypePageInner({
             setSelectedUserId(nextUserId);
             setInvalidatedEventIds([]);
             setStatusUndoActions({});
+            savingStatusIdsRef.current.clear();
+            setSavingStatusIds([]);
+            setStatusSaveError(null);
           }
 
           setEvents([...dataset.events]);
@@ -607,6 +649,7 @@ function OsobniLodickyPrototypePageInner({
   );
 
   const invalidatedEventIdSet = useMemo(() => new Set(invalidatedEventIds), [invalidatedEventIds]);
+  const savingStatusIdSet = useMemo(() => new Set(savingStatusIds), [savingStatusIds]);
 
   const eventsByPersonalAll = useMemo(() => {
     const map = new Map<string, ProtoOsobniLodickaEvent[]>();
@@ -1278,11 +1321,13 @@ function OsobniLodickyPrototypePageInner({
   function canWriteStatusForRow(row: PersonalWithSnapshot): boolean {
     if (effectiveReadonly) return false;
     if (activeRole !== "garant") return false;
+    if (savingStatusIdSet.has(row.personal.id)) return false;
     return Boolean(effectiveWriterId && row.lodicka.garantId === effectiveWriterId);
   }
 
-  function updateStatus(personalId: string, nextStatus: LodickaStav) {
+  async function updateStatus(personalId: string, nextStatus: LodickaStav) {
     if (effectiveReadonly || !statusWriter) return;
+    if (savingStatusIdsRef.current.has(personalId)) return;
 
     const targetRow = personalRows.find((row) => row.personal.id === personalId);
     if (!targetRow || !canWriteStatusForRow(targetRow)) return;
@@ -1311,64 +1356,84 @@ function OsobniLodickyPrototypePageInner({
       );
     }
 
-    const now = new Date();
-    const hour = String(now.getHours()).padStart(2, "0");
-    const minute = String(now.getMinutes()).padStart(2, "0");
-    const event: ProtoOsobniLodickaEvent = {
-      id: `evt-manual-${personalId}-${now.getTime()}`,
-      osobniLodickaId: personalId,
-      datumStavu: effectiveViewDate,
-      zapsanoAt: `${effectiveViewDate} ${hour}:${minute}`,
-      stav: nextStatus,
-      zapsalId: statusWriter.id,
-      poznamka: "Prototyp: ruční změna stavu.",
-    };
+    setStatusSaveError(null);
+    savingStatusIdsRef.current.add(personalId);
+    setSavingStatusIds((prev) => uniqueValues([...prev, personalId]));
+    try {
+      const result = await saveLodickaStatus(personalId, {
+        status: nextStatus,
+        effectiveDate: effectiveViewDate,
+        overwriteSameDate: sameDateEvents.length > 0,
+        allowHistorical: newerEvents.length > 0,
+        invalidateNewer,
+      });
+      const event = result.event;
+      const invalidatedIds = Array.isArray(result.invalidatedEventIds) ? result.invalidatedEventIds : [];
+      const newlyInvalidatedIds = invalidatedIds.filter((id) => !invalidatedEventIdSet.has(id));
+      if (newlyInvalidatedIds.length > 0) {
+        setInvalidatedEventIds((prev) => uniqueValues([...prev, ...newlyInvalidatedIds]));
+      }
 
-    const toInvalidate = [
-      ...sameDateEvents.map((event) => event.id),
-      ...(invalidateNewer ? newerEvents.map((event) => event.id) : []),
-    ];
-    const newlyInvalidatedIds = toInvalidate.filter((id) => !invalidatedEventIdSet.has(id));
-    if (newlyInvalidatedIds.length > 0) {
-      setInvalidatedEventIds((prev) => uniqueValues([...prev, ...newlyInvalidatedIds]));
-    }
+      setEvents((prev) => [...prev.filter((item) => item.id !== event.id), event]);
+      setSelectedPersonalId(personalId);
 
-    setEvents((prev) => [...prev, event]);
-    setSelectedPersonalId(personalId);
-
-    const undoActionId = adminToolsEnabled ? `status:${event.id}` : undefined;
-    const debugEvent = pushDebug({
-      elementId: `BTN-S${nextStatus}-${personalId}`,
-      label: "Změna stavu osobní lodičky",
-      action: "set-status",
-      tableId: effectiveViewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
-      rowId: personalId,
-      hierarchy: "PERSONAL_LODICKY > RIGHT_PANE > STATUS_BUTTONS",
-      payload: `from=${previousStatus}; to=${nextStatus}; datum=${effectiveViewDate}; overwriteSameDate=${sameDateEvents.length > 0}; invalidateNewer=${invalidateNewer}`,
-      undoActionId,
-    });
-
-    if (adminToolsEnabled && undoActionId) {
-      setStatusUndoActions((prev) => ({
-        ...prev,
-        [undoActionId]: {
-          actionId: undoActionId,
-          personalId,
-          createdEventId: event.id,
-          createdStatus: nextStatus,
-          previousStatus,
-          newlyInvalidatedIds,
-        },
-      }));
-      pushDebug({
-        elementId: `ADMIN-STATUS-${debugEvent.id}`,
-        label: "Admin audit: změna stavu",
-        action: "admin-status-change",
+      const undoActionId = adminToolsEnabled ? `status:${event.id}` : undefined;
+      const debugEvent = pushDebug({
+        elementId: `BTN-S${nextStatus}-${personalId}`,
+        label: "Změna stavu osobní lodičky",
+        action: "set-status",
         tableId: effectiveViewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
         rowId: personalId,
-        hierarchy: "OSOBNI_LODICKY > ADMIN_AUDIT",
-        payload: `undo=${undoActionId}; from=${previousStatus}; to=${nextStatus}`,
+        hierarchy: "PERSONAL_LODICKY > RIGHT_PANE > STATUS_BUTTONS",
+        payload: `from=${previousStatus}; to=${nextStatus}; datum=${effectiveViewDate}; overwriteSameDate=${sameDateEvents.length > 0}; invalidateNewer=${invalidateNewer}; saved=1`,
+        undoActionId,
       });
+
+      if (adminToolsEnabled && undoActionId) {
+        setStatusUndoActions((prev) => ({
+          ...prev,
+          [undoActionId]: {
+            actionId: undoActionId,
+            personalId,
+            createdEventId: event.id,
+            createdStatus: nextStatus,
+            previousStatus,
+            newlyInvalidatedIds,
+          },
+        }));
+        pushDebug({
+          elementId: `ADMIN-STATUS-${debugEvent.id}`,
+          label: "Admin audit: změna stavu",
+          action: "admin-status-change",
+          tableId: effectiveViewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
+          rowId: personalId,
+          hierarchy: "OSOBNI_LODICKY > ADMIN_AUDIT",
+          payload: `undo=${undoActionId}; from=${previousStatus}; to=${nextStatus}`,
+        });
+      }
+      pushDebug({
+        elementId: `API-SAVE-${event.id}`,
+        label: "Uložení stavu osobní lodičky do DB",
+        action: "save-status",
+        tableId: effectiveViewMode === "po_lodickach" ? RIGHT_TABLE_LODICKY : RIGHT_TABLE_LIDE,
+        rowId: personalId,
+        hierarchy: "PERSONAL_LODICKY > API",
+        payload: `event=${event.id}`,
+      });
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        setStatusSaveError("Přihlášení vypršelo. Probíhá přesměrování na přihlášení.");
+        const callbackUrl = `${window.location.pathname}${window.location.search}`;
+        const loginUrl = `/auth/signin?reason=inactivity&callbackUrl=${encodeURIComponent(callbackUrl)}`;
+        window.location.replace(loginUrl);
+        return;
+      }
+      const message = error instanceof Error ? error.message : "Nepodařilo se uložit stav lodičky.";
+      setStatusSaveError(message);
+      window.alert(message);
+    } finally {
+      savingStatusIdsRef.current.delete(personalId);
+      setSavingStatusIds((prev) => prev.filter((id) => id !== personalId));
     }
   }
 
@@ -1613,6 +1678,19 @@ function OsobniLodickyPrototypePageInner({
         {dbError && (
           <div className="rounded-md border border-[#C8372D]/30 bg-[#FAEAE9] p-3 text-sm text-[#A42A22]">
             {dbError}
+          </div>
+        )}
+
+        {statusSaveError && (
+          <div className="flex items-start justify-between gap-3 rounded-md border border-[#C8372D]/30 bg-[#FAEAE9] p-3 text-sm text-[#A42A22]">
+            <span>{statusSaveError}</span>
+            <button
+              type="button"
+              className="font-semibold text-[#7D1F19] underline-offset-2 hover:underline"
+              onClick={() => setStatusSaveError(null)}
+            >
+              Zavřít
+            </button>
           </div>
         )}
 
