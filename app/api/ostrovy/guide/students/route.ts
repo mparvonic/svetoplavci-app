@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AppGroupKind, AppSchoolEventRegistrationStatus, Prisma } from "@prisma/client";
+import { AppSchoolEventRegistrationStatus, Prisma } from "@prisma/client";
 
 import {
   getApiSessionContext,
   GUIDE_ROLE_CODES,
   hasAnySessionRole,
 } from "@/src/lib/api/session";
+import { DAILY_STUDY_MODE_CODE, DAILY_STUDY_MODE_KEY } from "@/src/lib/daily-students";
 import { prisma } from "@/src/lib/prisma";
 
 export const runtime = "nodejs";
@@ -95,8 +96,8 @@ export async function GET(req: NextRequest) {
       AND grp_smecka.code IS NOT NULL
       AND COALESCE(grp_rocnik.code, ss.current_grade_num::text) IS NOT NULL
       AND (
-        ss.study_mode_code = '11'
-        OR lower(ss.study_mode_key::text) = 'denni'
+        ss.study_mode_code = ${DAILY_STUDY_MODE_CODE}
+        OR lower(ss.study_mode_key::text) = ${DAILY_STUDY_MODE_KEY}
       )
     ORDER BY c.display_name ASC
   `);
