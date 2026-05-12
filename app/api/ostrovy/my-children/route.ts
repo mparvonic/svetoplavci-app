@@ -12,6 +12,7 @@ import {
   getApiSessionContext,
   hasAnySessionRole,
 } from "@/src/lib/api/session";
+import { getActiveDailyStudentInfo, getActiveDailyStudentInfoByIds } from "@/src/lib/daily-students";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -25,6 +26,11 @@ function unauthorized() {
 
 function forbidden() {
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
+
+async function filterDailyChildren<T extends { id: string }>(children: T[]): Promise<T[]> {
+  const dailyStudents = await getActiveDailyStudentInfoByIds(prisma, children.map((child) => child.id));
+  return children.filter((child) => dailyStudents.has(child.id));
 }
 
 async function resolveAccessibleChildren(personIds: string[], roles: string[]): Promise<ChildSummary[]> {
@@ -53,7 +59,8 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
       select: { id: true, displayName: true, firstName: true, nickname: true },
       orderBy: { displayName: "asc" },
     });
-    return students.map((student) => ({
+    const dailyStudents = await filterDailyChildren(students);
+    return dailyStudents.map((student) => ({
       ...student,
       displayName: resolvePersonName(
         {
@@ -101,7 +108,8 @@ async function resolveAccessibleChildren(personIds: string[], roles: string[]): 
   const unique = new Map<string, ChildSummary>();
   for (const child of directStudents) unique.set(child.id, child);
   for (const link of parentChildren) unique.set(link.childPerson.id, link.childPerson);
-  return [...unique.values()]
+  const dailyChildren = await filterDailyChildren([...unique.values()]);
+  return dailyChildren
     .map((child) => ({
       ...child,
       displayName: resolvePersonName(
@@ -132,6 +140,7 @@ async function resolveAccessibleChild(
       },
       select: { id: true, displayName: true, firstName: true, nickname: true },
     });
+    if (child && !(await getActiveDailyStudentInfo(prisma, child.id))) return null;
     return child
       ? {
           ...child,
@@ -153,6 +162,7 @@ async function resolveAccessibleChild(
       },
       select: { id: true, displayName: true, firstName: true, nickname: true },
     });
+    if (child && !(await getActiveDailyStudentInfo(prisma, child.id))) return null;
     return child
       ? {
           ...child,
@@ -186,6 +196,7 @@ async function resolveAccessibleChild(
       },
     });
     const child = link?.childPerson ?? null;
+    if (child && !(await getActiveDailyStudentInfo(prisma, child.id))) return null;
     return child
       ? {
           ...child,
