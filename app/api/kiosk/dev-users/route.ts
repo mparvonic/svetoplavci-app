@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DEV_AUTH_COOKIE_NAME } from "@/src/lib/dev-auth";
 import { isDevAuthBypassEnabled } from "@/src/lib/dev-auth";
 import { isBypassAllowedForHost, normalizeHost } from "@/src/lib/environment-access";
+import { getActiveDailyStudentInfoByIds } from "@/src/lib/daily-students";
 import { prisma } from "@/src/lib/prisma";
 import { resolvePersonName } from "@/src/lib/person-name";
 
@@ -46,7 +47,8 @@ export async function GET(req: NextRequest) {
     orderBy: [{ nickname: "asc" }, { displayName: "asc" }],
   });
 
-  const users: DevKioskUser[] = usersRaw.map((user) => ({
+  const dailyStudents = await getActiveDailyStudentInfoByIds(prisma, usersRaw.map((user) => user.id), now);
+  const users: DevKioskUser[] = usersRaw.filter((user) => dailyStudents.has(user.id)).map((user) => ({
     id: user.id,
     displayName: resolvePersonName({
       nickname: user.nickname,

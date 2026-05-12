@@ -10,6 +10,13 @@ import {
 } from "@prisma/client";
 
 import { enqueueSchoolEventCalendarSyncJobs } from "@/src/lib/calendar/school-event-sync";
+import {
+  assertActiveDailyStudent,
+  filterActiveDailyStudentRegistrations,
+  getActiveDailyStudentInfo,
+  getActiveDailyStudentInfoByIds,
+  isActiveSchoolEventRegistrationStatus,
+} from "@/src/lib/daily-students";
 import { prisma } from "@/src/lib/prisma";
 import { assignKioskSlot } from "@/src/lib/kiosk";
 import { upsertSchoolEventRegistration } from "@/src/lib/school-events/registration";
@@ -131,10 +138,7 @@ const ACTIVE_REGISTRATION_STATUSES = [
 ];
 
 function isActiveRegistrationStatus(status: AppSchoolEventRegistrationStatus): boolean {
-  return (
-    status === AppSchoolEventRegistrationStatus.REGISTERED ||
-    status === AppSchoolEventRegistrationStatus.WAITLIST
-  );
+  return isActiveSchoolEventRegistrationStatus(status);
 }
 
 function ensureObject(value: unknown): Record<string, unknown> {
@@ -964,19 +968,7 @@ function isSchoolLevelGroupKind(kind: string | null | undefined): boolean {
 }
 
 async function getPersonCurrentGrade(client: DbClient, personId: string): Promise<number | null> {
-  const rows = await client.$queryRaw<Array<{ grade: number | null }>>(Prisma.sql`
-    SELECT (sr.payload->>'CurrentGradeNum')::int AS grade
-    FROM app_person_source_record sr
-    JOIN app_person p ON p.id = sr.person_id
-    WHERE sr.person_id = ${personId}
-      AND sr.active_source = TRUE
-      AND sr.derived_roles @> ARRAY['zak']::text[]
-      AND p.is_active = TRUE
-      AND (sr.payload->>'CurrentGradeNum') ~ '^[0-9]+$'
-    LIMIT 1
-  `);
-
-  return rows[0]?.grade ?? null;
+  return (await getActiveDailyStudentInfo(client, personId))?.currentGradeNum ?? null;
 }
 
 function schoolGradeMatchesGroup(
@@ -1140,6 +1132,31 @@ function personMatchesLoadedAudience(
   return false;
 }
 
+type LoadedRegistration = {
+  personId: string;
+  status: AppSchoolEventRegistrationStatus;
+};
+
+async function filterEventsToDailyRegistrations<T extends { registrations: LoadedRegistration[] }>(
+  events: T[],
+  at: Date = new Date(),
+): Promise<T[]> {
+  const activePersonIds = events.flatMap((event) =>
+    event.registrations
+      .filter((registration) => isActiveRegistrationStatus(registration.status))
+      .map((registration) => registration.personId),
+  );
+  const dailyStudents = await getActiveDailyStudentInfoByIds(prisma, activePersonIds, at);
+
+  return events.map((event) => ({
+    ...event,
+    registrations: event.registrations.filter((registration) => {
+      if (!isActiveRegistrationStatus(registration.status)) return true;
+      return dailyStudents.has(registration.personId);
+    }),
+  }));
+}
+
 async function assertCanRegisterToOstrov(client: DbClient, eventId: string, personId: string, now: Date): Promise<void> {
   const [event, student] = await Promise.all([
     client.appSchoolEvent.findFirst({
@@ -1151,7 +1168,7 @@ async function assertCanRegisterToOstrov(client: DbClient, eventId: string, pers
       select: {
         id: true,
         startsAt: true,
-        registrationPolicy: { select: { capacity: true } },
+        registrationPolicy: { select: { capacity: true, isEnabled: true } },
         registrations: {
           where: { status: { in: ACTIVE_REGISTRATION_STATUSES } },
           select: { personId: true, status: true },
@@ -1176,16 +1193,19 @@ async function assertCanRegisterToOstrov(client: DbClient, eventId: string, pers
   ]);
 
   if (!event) throw new Error("Ostrov not found or inactive.");
+  if (!event.registrationPolicy?.isEnabled) throw new Error("Přihlašování není povoleno.");
   if (!student) throw new Error("Selected person is not an active student.");
+  await assertActiveDailyStudent(client, personId, now);
 
   const audienceContext = await buildAudienceMatchContext(client, personId, [event], now);
   const matchesAudience = personMatchesLoadedAudience(event, audienceContext, personId);
   if (!matchesAudience) throw new Error("Student is outside the target audience for this Ostrov.");
 
-  const alreadyRegistered = event.registrations.some((registration) => registration.personId === personId);
+  const dailyRegistrations = await filterActiveDailyStudentRegistrations(client, event.registrations, now);
+  const alreadyRegistered = dailyRegistrations.some((registration) => registration.personId === personId);
   const capacity = event.registrationPolicy?.capacity ?? null;
   if (capacity != null && !alreadyRegistered) {
-    const occupied = event.registrations.length;
+    const occupied = dailyRegistrations.length;
     if (occupied >= capacity) {
       throw new Error("Ostrov capacity is full.");
     }
@@ -1274,7 +1294,7 @@ export async function unregisterOstrovStudent(input: UnregisterOstrovInput) {
 }
 
 export async function getOstrovyTerm(termId: string) {
-  return prisma.appSchoolEventOfferGroup.findUnique({
+  const term = await prisma.appSchoolEventOfferGroup.findUnique({
     where: { id: termId },
     include: {
       events: {
@@ -1292,10 +1312,15 @@ export async function getOstrovyTerm(termId: string) {
       },
     },
   });
+  if (!term) return null;
+  return {
+    ...term,
+    events: await filterEventsToDailyRegistrations(term.events),
+  };
 }
 
 export async function getOstrov(eventId: string) {
-  return prisma.appSchoolEvent.findFirst({
+  const event = await prisma.appSchoolEvent.findFirst({
     where: { id: eventId, eventType: { code: OSTROVY_EVENT_TYPE_CODE } },
     include: {
       offerGroup: true,
@@ -1310,6 +1335,9 @@ export async function getOstrov(eventId: string) {
       targets: true,
     },
   });
+  if (!event) return null;
+  const [filteredEvent] = await filterEventsToDailyRegistrations([event]);
+  return filteredEvent;
 }
 
 export async function listOstrovyTerms(params: {
@@ -1319,7 +1347,7 @@ export async function listOstrovyTerms(params: {
 } = {}) {
   const from = params.from ? parseDate(params.from, "from") : undefined;
   const to = params.to ? parseDate(params.to, "to") : undefined;
-  return prisma.appSchoolEventOfferGroup.findMany({
+  const terms = await prisma.appSchoolEventOfferGroup.findMany({
     where: {
       isActive: params.includeInactive ? undefined : true,
       startsAt: to ? { lt: to } : undefined,
@@ -1352,10 +1380,20 @@ export async function listOstrovyTerms(params: {
     },
     orderBy: [{ startsAt: "asc" }],
   });
+  const filteredEvents = await filterEventsToDailyRegistrations(terms.flatMap((term) => term.events));
+  let eventIndex = 0;
+  return terms.map((term) => {
+    const events = filteredEvents.slice(eventIndex, eventIndex + term.events.length);
+    eventIndex += term.events.length;
+    return { ...term, events };
+  });
 }
 
 export async function listOstrovyForChild(personId: string, params: { from?: string | Date; to?: string | Date } = {}) {
   const now = new Date();
+  const dailyStudent = await getActiveDailyStudentInfo(prisma, personId, now);
+  if (!dailyStudent) return [];
+
   const from = params.from ? parseDate(params.from, "from") : now;
   const to = params.to ? parseDate(params.to, "to") : undefined;
   const events = await prisma.appSchoolEvent.findMany({
@@ -1388,9 +1426,10 @@ export async function listOstrovyForChild(personId: string, params: { from?: str
     orderBy: [{ startsAt: "asc" }, { title: "asc" }],
   });
 
-  const audienceContext = await buildAudienceMatchContext(prisma, personId, events, now);
+  const filteredEvents = await filterEventsToDailyRegistrations(events, now);
+  const audienceContext = await buildAudienceMatchContext(prisma, personId, filteredEvents, now);
   const enriched = [];
-  for (const event of events) {
+  for (const event of filteredEvents) {
     const eligible = personMatchesLoadedAudience(event, audienceContext, personId);
     const myRegistration = event.registrations.find((registration) => registration.personId === personId) ?? null;
     const activeRegistrations = event.registrations.filter((registration) =>
@@ -1410,11 +1449,12 @@ export async function listOstrovyForChild(personId: string, params: { from?: str
 }
 
 export async function listOstrovRegistrations(eventId: string) {
-  return prisma.appSchoolEventRegistration.findMany({
+  const registrations = await prisma.appSchoolEventRegistration.findMany({
     where: { schoolEventId: eventId },
     include: {
       schoolEvent: { select: { id: true, title: true, offerGroupId: true } },
     },
     orderBy: [{ changedAt: "desc" }],
   });
+  return filterActiveDailyStudentRegistrations(prisma, registrations);
 }
