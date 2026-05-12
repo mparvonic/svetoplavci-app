@@ -15,6 +15,7 @@
     "dev:db:up": "./scripts/dev-db-up.sh",
     "db:push": "sh -c 'set -a; . ./.env.local; set +a; prisma db push'",
     "db:check:schema": "sh -c 'set -a; . ./.env.local; set +a; node scripts/check-schema-drift.mjs'",
+    "m01:lodicky:dry-run": "sh -c 'set -a; . ./.env.local; set +a; node scripts/dry-run-m01-lodicky-provisioning.mjs'",
     "db:refresh:dev": "./scripts/db-refresh-dev.sh",
     "db:refresh:staging": "./scripts/db-refresh-staging.sh",
     "ci:security": "node scripts/ci/security-checks.mjs"

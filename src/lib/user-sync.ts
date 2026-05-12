@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/src/lib/prisma";
+import {
+  provisionM01LodickyForSyncedStudents,
+  type ProvisionM01LodickyResult,
+} from "@/src/lib/m01-lodicky-provisioning";
 import { normalizeEmail } from "@/src/lib/user-directory";
 
 const DEFAULT_INITIAL_SYNC_DATE = "2021-09-01";
@@ -46,6 +50,8 @@ export interface SyncUsersOptions {
   includeInactiveSince?: string;
   csvPath?: string;
   mapCodaNicknames?: boolean;
+  provisionM01Lodicky?: boolean;
+  m01LodickyDryRun?: boolean;
 }
 
 export interface CodaNicknameSyncStats {
@@ -82,6 +88,7 @@ export interface SyncUsersResult {
   personsTouched: number;
   codaNickname?: CodaNicknameSyncStats;
   csvParentChildRelations?: CsvParentChildRelationSyncStats;
+  m01LodickyProvisioning?: ProvisionM01LodickyResult;
 }
 
 type EdookitStudent = Record<string, unknown>;
@@ -100,6 +107,16 @@ interface StudentStateProjection {
 
 function isApiReadOnlySourceType(sourceType: SourceType): boolean {
   return API_READ_ONLY_SOURCE_TYPES.has(sourceType);
+}
+
+function shouldProvisionM01LodickyOnSync(options: SyncUsersOptions): boolean {
+  if (options.provisionM01Lodicky !== undefined) return options.provisionM01Lodicky;
+  return process.env.M01_PROVISION_LODICKY_ON_SYNC !== "false";
+}
+
+function shouldDryRunM01LodickyProvisioning(options: SyncUsersOptions): boolean {
+  if (options.m01LodickyDryRun !== undefined) return options.m01LodickyDryRun;
+  return process.env.M01_PROVISION_LODICKY_DRY_RUN === "true";
 }
 
 function currentDateIso(): string {
@@ -1601,6 +1618,11 @@ export async function syncUsers(options: SyncUsersOptions = {}): Promise<SyncUse
       requestedDate: date,
     });
     const codaNickname = options.mapCodaNicknames ? await syncCodaNicknames() : undefined;
+    const m01LodickyProvisioning = shouldProvisionM01LodickyOnSync(options)
+      ? await provisionM01LodickyForSyncedStudents({
+          dryRun: shouldDryRunM01LodickyProvisioning(options),
+        })
+      : undefined;
 
     await prisma.appUserSyncRun.update({
       where: { id: run.id },
@@ -1625,6 +1647,7 @@ export async function syncUsers(options: SyncUsersOptions = {}): Promise<SyncUse
       personsTouched: applied.personsTouched,
       codaNickname,
       csvParentChildRelations: applied.csvParentChildRelations,
+      m01LodickyProvisioning,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
