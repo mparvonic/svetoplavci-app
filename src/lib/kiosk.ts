@@ -1,5 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { AppSchoolEventLifecycleStatus, AppSchoolEventRegistrationStatus } from "@prisma/client";
+import {
+  getActiveDailyStudentInfo,
+  getActiveDailyStudentInfoByIds,
+  isActiveSchoolEventRegistrationStatus,
+} from "@/src/lib/daily-students";
 import { prisma } from "@/src/lib/prisma";
 import { resolvePersonName } from "@/src/lib/person-name";
 import { isBypassAllowedForHost, normalizeHost } from "@/src/lib/environment-access";
@@ -132,37 +137,10 @@ function buildChipCandidates(rawChipCode: string): string[] {
   return Array.from(set);
 }
 
-export async function findChildByChip(chipCode: string): Promise<KioskChild | null> {
-  const trimmed = chipCode.trim();
-  if (!trimmed) return null;
-  const candidates = buildChipCandidates(trimmed);
+async function buildKioskChild(person: { id: string; displayName: string; nickname: string | null }): Promise<KioskChild | null> {
+  const dailyStudent = await getActiveDailyStudentInfo(prisma, person.id);
+  if (!dailyStudent) return null;
 
-  const person = await prisma.appPerson.findFirst({
-    where: {
-      isActive: true,
-      OR: [{ chipUid: { in: candidates } }, { chipHid: { in: candidates } }],
-    },
-    select: {
-      id: true,
-      displayName: true,
-      nickname: true,
-    },
-  });
-  if (!person) return null;
-
-  // Get current grade from source record
-  const gradeRows = await prisma.$queryRaw<Array<{ grade: number | null }>>(Prisma.sql`
-    SELECT (sr.payload->>'CurrentGradeNum')::int AS grade
-    FROM app_person_source_record sr
-    WHERE sr.person_id = ${person.id}
-      AND sr.active_source = TRUE
-      AND sr.derived_roles @> ARRAY['zak']::text[]
-      AND (sr.payload->>'CurrentGradeNum') ~ '^[0-9]+$'
-    LIMIT 1
-  `);
-  const schoolGrade = gradeRows[0]?.grade ?? null;
-
-  // Get current group memberships
   const now = new Date();
   const groupRows = await prisma.$queryRaw<Array<{ kind: string; code: string }>>(Prisma.sql`
     SELECT lower(g.kind::text) AS kind, lower(g.code) AS code
@@ -181,9 +159,43 @@ export async function findChildByChip(chipCode: string): Promise<KioskChild | nu
       displayName: person.displayName,
     }),
     nickname: person.nickname ?? null,
-    schoolGrade,
+    schoolGrade: dailyStudent.currentGradeNum,
     groupKeys: groupRows.map((r) => `${r.kind}::${r.code}`),
   };
+}
+
+export async function findChildById(personId: string): Promise<KioskChild | null> {
+  const person = await prisma.appPerson.findFirst({
+    where: { id: personId, isActive: true },
+    select: {
+      id: true,
+      displayName: true,
+      nickname: true,
+    },
+  });
+  if (!person) return null;
+  return buildKioskChild(person);
+}
+
+export async function findChildByChip(chipCode: string): Promise<KioskChild | null> {
+  const trimmed = chipCode.trim();
+  if (!trimmed) return null;
+  const candidates = buildChipCandidates(trimmed);
+
+  const person = await prisma.appPerson.findFirst({
+    where: {
+      isActive: true,
+      OR: [{ chipUid: { in: candidates } }, { chipHid: { in: candidates } }],
+    },
+    select: {
+      id: true,
+      displayName: true,
+      nickname: true,
+    },
+  });
+  if (!person) return null;
+
+  return buildKioskChild(person);
 }
 
 // ─── Available islands for a child ───────────────────────────────────────────
@@ -263,6 +275,8 @@ function childEligibleForEvent(
 
 export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTermGroup[]> {
   const now = new Date();
+  const dailyChild = await getActiveDailyStudentInfo(prisma, child.id, now);
+  if (!dailyChild) return [];
 
   // Load all active published ostrovy events with open registration windows in active terms
   const events = await prisma.appSchoolEvent.findMany({
@@ -304,6 +318,16 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
     orderBy: [{ offerGroup: { startsAt: "asc" } }, { kioskDisplayNumber: "asc" }],
   });
 
+  const dailyRegistrantIds = await getActiveDailyStudentInfoByIds(
+    prisma,
+    events.flatMap((event) =>
+      event.registrations
+        .filter((registration) => isActiveSchoolEventRegistrationStatus(registration.status))
+        .map((registration) => registration.personId),
+    ),
+    now,
+  );
+
   // Batch-load preferred names (nickname first) for registrants and guides
   const allPersonIds = [
     ...new Set(
@@ -315,7 +339,12 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
               .map((g) => (typeof g.personId === "string" ? g.personId : null))
               .filter((id): id is string => Boolean(id))
           : [];
-        return [...e.registrations.map((r) => r.personId), ...guideIds];
+        return [
+          ...e.registrations
+            .filter((registration) => dailyRegistrantIds.has(registration.personId))
+            .map((r) => r.personId),
+          ...guideIds,
+        ];
       }),
     ),
   ];
@@ -340,6 +369,9 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
 
   for (const event of events) {
     if (!event.offerGroup) continue;
+    const dailyRegistrations = event.registrations.filter((registration) =>
+      dailyRegistrantIds.has(registration.personId),
+    );
 
     // Eligibility check
     if (!childEligibleForEvent(child, event.audienceRules)) continue;
@@ -351,7 +383,7 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
     const rawMeta0 = (event.metadata as Record<string, unknown> | null) ?? {};
     const eventMeta0 = (rawMeta0.ostrovy as Record<string, unknown> | null) ?? rawMeta0;
     const guestCount = Array.isArray(eventMeta0["guestChildren"]) ? (eventMeta0["guestChildren"] as string[]).length : 0;
-    const occupied = event.registrations.length + guestCount;
+    const occupied = dailyRegistrations.length + guestCount;
     const capacity = event.registrationPolicy?.capacity ?? null;
     const regOpen = isWindowOpen(
       event.registrationPolicy?.opensAt ?? null,
@@ -363,7 +395,7 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
       event.registrationPolicy?.unregisterClosesAt ?? null,
       now,
     );
-    const myReg = event.registrations.find((r) => r.personId === child.id);
+    const myReg = dailyRegistrations.find((r) => r.personId === child.id);
     const eventMeta = eventMeta0;
 
     const island: KioskOstrov = {
@@ -388,7 +420,7 @@ export async function getKioskTermsForChild(child: KioskChild): Promise<KioskTer
             .filter(Boolean)
         : [],
       registrantNames: [
-        ...event.registrations.map((r) => personNameById.get(r.personId) ?? ""),
+        ...dailyRegistrations.map((r) => personNameById.get(r.personId) ?? ""),
         ...(Array.isArray(eventMeta["guestChildren"]) ? (eventMeta["guestChildren"] as string[]) : []),
       ].filter(Boolean),
       capacity,

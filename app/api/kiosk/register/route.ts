@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AppSchoolEventRegistrationStatus } from "@prisma/client";
 import { checkKioskKey } from "@/src/lib/kiosk";
-import { prisma } from "@/src/lib/prisma";
+import { registerOstrovStudent, unregisterOstrovStudent } from "@/src/lib/school-events/ostrovy";
 
 export const runtime = "nodejs";
 
@@ -13,6 +12,20 @@ function mapKioskError(error: unknown): { status: number; message: string } {
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes("ECONNREFUSED") || message.includes("connect ECONNREFUSED")) {
     return { status: 503, message: "Databáze není dostupná. Na devu nejdřív spusťte DB tunnel." };
+  }
+  if (message.includes("not found") || message.includes("neexistuje")) {
+    return { status: 404, message };
+  }
+  if (message.includes("capacity is full") || message.includes("plný") || message.includes("vyčerpaný limit")) {
+    return { status: 409, message };
+  }
+  if (
+    message.includes("Registrační okno") ||
+    message.includes("Okno pro odhlášení") ||
+    message.includes("není aktivní žák v denním studiu") ||
+    message.includes("outside the target audience")
+  ) {
+    return { status: 403, message };
   }
   return { status: 500, message: "Interní chyba kiosku." };
 }
@@ -34,68 +47,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "childId and islandId required" }, { status: 400 });
     }
 
-    const now = new Date();
-
-    const event = await prisma.appSchoolEvent.findFirst({
-      where: { id: islandId, isActive: true, eventType: { code: "OSTROVY" } },
-      include: {
-        registrationPolicy: true,
-        registrations: {
-          where: { status: { in: [AppSchoolEventRegistrationStatus.REGISTERED, AppSchoolEventRegistrationStatus.WAITLIST] } },
-        },
-        offerGroup: { select: { id: true } },
-      },
-    });
-    if (!event) {
-      return NextResponse.json({ error: "Ostrov nenalezen." }, { status: 404 });
-    }
-
-    const policy = event.registrationPolicy;
-    if (!policy?.isEnabled) {
-      return NextResponse.json({ error: "Přihlašování není povoleno." }, { status: 403 });
-    }
-    if (policy.opensAt && now < policy.opensAt) {
-      return NextResponse.json({ error: "Přihlašování ještě nezačalo." }, { status: 403 });
-    }
-    if (policy.closesAt && now > policy.closesAt) {
-      return NextResponse.json({ error: "Přihlašování bylo uzavřeno." }, { status: 403 });
-    }
-
-    const alreadyHere = event.registrations.some((r) => r.personId === childId);
-    if (!alreadyHere && policy.capacity != null && event.registrations.length >= policy.capacity) {
-      return NextResponse.json({ error: "Ostrov je plný." }, { status: 409 });
-    }
-
-    // Cancel any existing registration in the same term
-    if (event.offerGroup) {
-      const termEvents = await prisma.appSchoolEvent.findMany({
-        where: { offerGroupId: event.offerGroup.id, isActive: true, id: { not: islandId } },
-        select: { id: true },
-      });
-      if (termEvents.length > 0) {
-        await prisma.appSchoolEventRegistration.updateMany({
-          where: {
-            personId: childId,
-            schoolEventId: { in: termEvents.map((e) => e.id) },
-            status: { in: [AppSchoolEventRegistrationStatus.REGISTERED, AppSchoolEventRegistrationStatus.WAITLIST] },
-          },
-          data: { status: AppSchoolEventRegistrationStatus.UNREGISTERED, updatedAt: now },
-        });
-      }
-    }
-
-    // Upsert registration
-    await prisma.appSchoolEventRegistration.upsert({
-      where: { schoolEventId_personId: { schoolEventId: islandId, personId: childId } },
-      create: {
-        schoolEventId: islandId,
-        personId: childId,
-        status: AppSchoolEventRegistrationStatus.REGISTERED,
-      },
-      update: {
-        status: AppSchoolEventRegistrationStatus.REGISTERED,
-        updatedAt: now,
-      },
+    await registerOstrovStudent({
+      eventId: islandId,
+      personId: childId,
+      allowTransfer: true,
+      allowGuideException: false,
+      sourceRef: "api/kiosk/register",
+      enqueueCalendarSync: false,
+      waitForCalendarSync: false,
     });
 
     return NextResponse.json({ ok: true });
@@ -123,28 +82,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "childId and islandId required" }, { status: 400 });
     }
 
-    const now = new Date();
-
-    const event = await prisma.appSchoolEvent.findFirst({
-      where: { id: islandId, isActive: true, eventType: { code: "OSTROVY" } },
-      include: { registrationPolicy: true },
-    });
-    if (!event) {
-      return NextResponse.json({ error: "Ostrov nenalezen." }, { status: 404 });
-    }
-
-    const policy = event.registrationPolicy;
-    if (policy?.unregisterClosesAt && now > policy.unregisterClosesAt) {
-      return NextResponse.json({ error: "Odhlašování bylo uzavřeno." }, { status: 403 });
-    }
-
-    await prisma.appSchoolEventRegistration.updateMany({
-      where: {
-        schoolEventId: islandId,
-        personId: childId,
-        status: { in: [AppSchoolEventRegistrationStatus.REGISTERED, AppSchoolEventRegistrationStatus.WAITLIST] },
-      },
-      data: { status: AppSchoolEventRegistrationStatus.UNREGISTERED, updatedAt: now },
+    await unregisterOstrovStudent({
+      eventId: islandId,
+      personId: childId,
+      allowGuideException: false,
+      sourceRef: "api/kiosk/register",
+      enqueueCalendarSync: false,
+      waitForCalendarSync: false,
     });
 
     return NextResponse.json({ ok: true });
