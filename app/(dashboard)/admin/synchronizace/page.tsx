@@ -28,6 +28,8 @@ import {
 import { formatDateTime } from "../uzivatele/format";
 import { ADMIN_SYNC_RUN_LIMIT, getAdminSyncPage } from "./data";
 
+export const dynamic = "force-dynamic";
+
 type SyncRun = Awaited<ReturnType<typeof getAdminSyncPage>>["runs"][number];
 
 function statusBadge(status: string) {

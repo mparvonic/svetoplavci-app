@@ -32,6 +32,8 @@ import {
   DeactivateRelationDialog,
 } from "./relation-dialogs";
 
+export const dynamic = "force-dynamic";
+
 type AdminRelationsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
