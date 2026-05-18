@@ -1,0 +1,753 @@
+{
+  "apply": true,
+  "source": {
+    "docId": "Qt8oQFVMSJ",
+    "tableOstrovy": "grid-RPOzBx6_z5",
+    "tableZapisy": "grid-uxFgm5-EmQ",
+    "tableTerminy": "grid-2joE22w348",
+    "fromDate": "2025-09-01",
+    "toDate": "2026-08-31"
+  },
+  "config": {
+    "schoolYearCode": "2025/2026",
+    "eventTypeCode": "OSTROVY",
+    "mediaRoot": "/data/svetoplavci/media/school-events",
+    "includeInactiveZak": false,
+    "includeNonZak": false,
+    "skipImageDownload": false,
+    "importSource": "coda_ostrovy_import_2025_2026"
+  },
+  "fetched": {
+    "terminyRows": 162,
+    "ostrovyRows": 384,
+    "zapisyRows": 18314
+  },
+  "filtered": {
+    "ostrovyInRange": 139,
+    "zapisyInRangeWithEvent": 1412
+  },
+  "mapping": {
+    "uniqueParticipantNames": 98,
+    "resolvedActiveZak": 90,
+    "resolvedInactiveZak": 0,
+    "resolvedNonZak": 0,
+    "unresolved": {
+      "missing_in_db": 7,
+      "non_zak_not_allowed": 1
+    },
+    "unresolvedItems": [
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "candidatePersonId": null,
+        "candidateDisplay": null
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "candidatePersonId": null,
+        "candidateDisplay": null
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "candidatePersonId": null,
+        "candidateDisplay": null
+      },
+      {
+        "participantName": "Johana Měkotová",
+        "reason": "missing_in_db",
+        "candidatePersonId": null,
+        "candidateDisplay": null
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "candidatePersonId": null,
+        "candidateDisplay": null
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "candidatePersonId": null,
+        "candidateDisplay": null
+      },
+      {
+        "participantName": "Vojtěch Klabouch",
+        "reason": "missing_in_db",
+        "candidatePersonId": null,
+        "candidateDisplay": null
+      },
+      {
+        "participantName": "Anežka Dvořáková",
+        "reason": "non_zak_not_allowed",
+        "candidatePersonId": "cmnix8e0300c801qeymz8hq5d",
+        "candidateDisplay": "Anežka Dvořáková"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-Q7So8QuSxc",
+        "eventRowId": "i-vzNdHP8xRh"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-Xrqd7JH-xd",
+        "eventRowId": "i-vzNdHP8xRh"
+      },
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-3P0mLUNfQP",
+        "eventRowId": "i-LyJSAB2Rdb"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-XEoGQLHokb",
+        "eventRowId": "i-Te14JmykWF"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-HAZjS6WKhe",
+        "eventRowId": "i-Te14JmykWF"
+      },
+      {
+        "participantName": "Johana Měkotová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-LH1RvbB36j",
+        "eventRowId": "i-gRFUHDG-5O"
+      },
+      {
+        "participantName": "Vojtěch Klabouch",
+        "reason": "missing_in_db",
+        "signupRowId": "i-6-Yu3GXhJx",
+        "eventRowId": "i-gRFUHDG-5O"
+      },
+      {
+        "participantName": "Johana Měkotová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-v6ddBNw_1v",
+        "eventRowId": "i-3yWmcQ7uaC"
+      },
+      {
+        "participantName": "Vojtěch Klabouch",
+        "reason": "missing_in_db",
+        "signupRowId": "i-vFweWvh2kq",
+        "eventRowId": "i-aZUCccz3Jt"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-0J07OK6lQJ",
+        "eventRowId": "i-TnAWXsZdxl"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-2_0-0U9aPD",
+        "eventRowId": "i-TiQDUPDCjy"
+      },
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-NSuRYAECvG",
+        "eventRowId": "i-2fsKV7Y0Rg"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-i9Kt82fYxh",
+        "eventRowId": "i-iiV34mGNtk"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-i1hYwgJ__R",
+        "eventRowId": "i-iiV34mGNtk"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-VaJV6wOuwt",
+        "eventRowId": "i-D95TpGZDhE"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-g6NTsqNGK2",
+        "eventRowId": "i-u9qpF89Xfc"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-pRvYIpJiPo",
+        "eventRowId": "i-u9qpF89Xfc"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-JhVq0R7ux4",
+        "eventRowId": "i-fVum8E1dyR"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-mYhsrXXd1l",
+        "eventRowId": "i-W3yVd_JJ43"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-YrtBFD-QMZ",
+        "eventRowId": "i-gHTSS2T8rJ"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-5i9PXYBQS_",
+        "eventRowId": "i-gHTSS2T8rJ"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-zMvao6Yg5n",
+        "eventRowId": "i-ZOs8Bkc7N-"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-A6ckE1EttW",
+        "eventRowId": "i-gRaHsmvkSu"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-oM7TfzQXwy",
+        "eventRowId": "i-fn_a04qIQj"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-YeoQR8xF5I",
+        "eventRowId": "i-ZJRt3ysOCE"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-p5TgJSTvwF",
+        "eventRowId": "i-UxIZTkYkat"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-L7nahVmTgf",
+        "eventRowId": "i-UxIZTkYkat"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-Zg_mmArtHe",
+        "eventRowId": "i-yizAEVY6af"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-3DaV-TnzHJ",
+        "eventRowId": "i-fKTR9H9hBV"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-YHl5eqzcph",
+        "eventRowId": "i-OHkszTuaYW"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-eswPcJ5pl-",
+        "eventRowId": "i-OHkszTuaYW"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-oXLlnoQska",
+        "eventRowId": "i-GWOoDXoCif"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-ezZ80ONsUV",
+        "eventRowId": "i-xgGnV___e1"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-2cD30ar_8n",
+        "eventRowId": "i-XfyiXCCVZF"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-_UMrOsRggd",
+        "eventRowId": "i-XfyiXCCVZF"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-tKgh-eev7w",
+        "eventRowId": "i-EuSKAFSAjf"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-FhaN_xaOAc",
+        "eventRowId": "i-EuSKAFSAjf"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-owHqxM8pfL",
+        "eventRowId": "i-TY5BlfidTM"
+      },
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-CYJIGDX5Yb",
+        "eventRowId": "i-vcn2BG62oW"
+      },
+      {
+        "participantName": "Johana Měkotová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-l4YlupRyUz",
+        "eventRowId": "i-vcn2BG62oW"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-QM9LqWDt04",
+        "eventRowId": "i-yBTe6ZHiYU"
+      },
+      {
+        "participantName": "Vojtěch Klabouch",
+        "reason": "missing_in_db",
+        "signupRowId": "i-3BUfbpc6Dw",
+        "eventRowId": "i-i43D7Zchs1"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-VDH33eW6IF",
+        "eventRowId": "i-F5CkfN8b6q"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-AOd9cUpfe7",
+        "eventRowId": "i-F5CkfN8b6q"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i--EzNSCWYLI",
+        "eventRowId": "i-F5CkfN8b6q"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-4FTw74SwrB",
+        "eventRowId": "i-C_uOwpVAvA"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-i7q09NCDUv",
+        "eventRowId": "i-czhHVmU6G3"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-j0wupN2UIQ",
+        "eventRowId": "i-z-h_YXKLGI"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-jV7fxvbbrQ",
+        "eventRowId": "i-ki8Rw8fNkV"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-jssQd3JLb_",
+        "eventRowId": "i-kdkxPzif1U"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-cMUcUk_YRt",
+        "eventRowId": "i-kdkxPzif1U"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-6Txzn7uzfp",
+        "eventRowId": "i-g4snoNczU4"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-f89OMcxG0T",
+        "eventRowId": "i-g4snoNczU4"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-VNg4hKfvfe",
+        "eventRowId": "i-sBR1SZ5n90"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-2Sm8M2elRg",
+        "eventRowId": "i-k_gItt4lkr"
+      },
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-6U6nZvh6ww",
+        "eventRowId": "i-Q9uAGVhk9k"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-_p5VTz2swv",
+        "eventRowId": "i-Q9uAGVhk9k"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-WDrr1ZRbDm",
+        "eventRowId": "i--sVFpJ98c2"
+      },
+      {
+        "participantName": "Johana Měkotová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-r262Gg2hHw",
+        "eventRowId": "i--sVFpJ98c2"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-ScEmMETovb",
+        "eventRowId": "i-CkpCL2IwC-"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-EJXTxu2Job",
+        "eventRowId": "i-7hRD-aVZDD"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-pMY6bc6Q0c",
+        "eventRowId": "i-7hRD-aVZDD"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-Frsxy_Vgz4",
+        "eventRowId": "i-Zc_jS40vVn"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-xOwd0Koq7-",
+        "eventRowId": "i-4zKZbgd07v"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i--odsFXKvC-",
+        "eventRowId": "i-pKkarmO7lw"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-FYuCUXu0bh",
+        "eventRowId": "i-HdqjAXgsu7"
+      },
+      {
+        "participantName": "Johana Měkotová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-tbwn9AOxTY",
+        "eventRowId": "i-fIzZ2Tu_8u"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-lpI1iI69aq",
+        "eventRowId": "i-_Jsc8MEX-d"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-XNSxfaNHZl",
+        "eventRowId": "i-_Jsc8MEX-d"
+      },
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i--KIrAqzd0E",
+        "eventRowId": "i-ZlOYYL0F4a"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-Fhqd1KjdQl",
+        "eventRowId": "i-QxbZk_YXL_"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-UGqMr6NWsa",
+        "eventRowId": "i-aZKYaKqXoh"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i--f2w4f6q52",
+        "eventRowId": "i-aZKYaKqXoh"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-N07eydc6uJ",
+        "eventRowId": "i-CBVYRoHQ6A"
+      },
+      {
+        "participantName": "Vojtěch Klabouch",
+        "reason": "missing_in_db",
+        "signupRowId": "i-69Ad9Kc7nN",
+        "eventRowId": "i-CBVYRoHQ6A"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-ZwsKHW2oRV",
+        "eventRowId": "i-tzZfkhlHz-"
+      },
+      {
+        "participantName": "Johana Měkotová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-eCbncA18JM",
+        "eventRowId": "i-jMkBPx1Ml3"
+      },
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-Imso1eMXTg",
+        "eventRowId": "i-zEQI0cP0Q6"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-0ozeaKvEK7",
+        "eventRowId": "i-zEQI0cP0Q6"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-7XYahk9Ze2",
+        "eventRowId": "i-zEQI0cP0Q6"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-ZcnQjWBwIY",
+        "eventRowId": "i-VTlTi-f12W"
+      },
+      {
+        "participantName": "Vojtěch Klabouch",
+        "reason": "missing_in_db",
+        "signupRowId": "i-hTDNc0oOmh",
+        "eventRowId": "i-Q_9z90-tO1"
+      },
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-b04D8t62_J",
+        "eventRowId": "i-M0Ow55NQs0"
+      },
+      {
+        "participantName": "Johana Měkotová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-82gSvr1SSG",
+        "eventRowId": "i-M0Ow55NQs0"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-NaTS9QBga1",
+        "eventRowId": "i-8P3akC9_bk"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-e-TruWTdgi",
+        "eventRowId": "i-8P3akC9_bk"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-u5GgH81zjD",
+        "eventRowId": "i-MksJo932mu"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-XKkKMyAk-V",
+        "eventRowId": "i-QqNCOpUvb_"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-9ZKrqru_In",
+        "eventRowId": "i-QqNCOpUvb_"
+      },
+      {
+        "participantName": "Adéla Schneiderová",
+        "reason": "missing_in_db",
+        "signupRowId": "i--0qH32vP5u",
+        "eventRowId": "i-F1mkJJEM5j"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-6skCxdiB0A",
+        "eventRowId": "i-CYz0l6GlAQ"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-C61LsxaAcY",
+        "eventRowId": "i-5yzxkv0hVw"
+      },
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-2WQKrOFfWI",
+        "eventRowId": "i-9R3dG6Vrcn"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-yXzYssxVMi",
+        "eventRowId": "i-MTtDrmMuie"
+      },
+      {
+        "participantName": "Vojtěch Klabouch",
+        "reason": "missing_in_db",
+        "signupRowId": "i-cIiy7Ffeqt",
+        "eventRowId": "i-HuDGzDDcq3"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-J-QX0aUiur",
+        "eventRowId": "i-iZf0J6ufW-"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-MWcETzx7Z6",
+        "eventRowId": "i-Srd05C-KBZ"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-5GUQK0Cxjn",
+        "eventRowId": "i-cd0FToHxqh"
+      },
+      {
+        "participantName": "Anežka Dvořáková",
+        "reason": "non_zak_not_allowed",
+        "signupRowId": "i-sZxvL2Ah4B",
+        "eventRowId": "i-y7gLWlYwJx"
+      },
+      {
+        "participantName": "Isabel Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-xetF15e7V2",
+        "eventRowId": "i-y7gLWlYwJx"
+      },
+      {
+        "participantName": "Johana Měkotová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-tUfX6XtYho",
+        "eventRowId": "i-y7gLWlYwJx"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-ze1eUv6FBw",
+        "eventRowId": "i-igJeWOifc_"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-WeGBcOBdWX",
+        "eventRowId": "i-rYSwh8ZWOY"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-dfrJ63yYiG",
+        "eventRowId": "i-QwpaEh4CCG"
+      },
+      {
+        "participantName": "Vojtěch Klabouch",
+        "reason": "missing_in_db",
+        "signupRowId": "i-yMdG7M2doW",
+        "eventRowId": "i-QwpaEh4CCG"
+      },
+      {
+        "participantName": "Theodor Sicouret",
+        "reason": "missing_in_db",
+        "signupRowId": "i-TWYJ9drYdi",
+        "eventRowId": "i-rx8sdCVgPZ"
+      },
+      {
+        "participantName": "Yasmin Ventura",
+        "reason": "missing_in_db",
+        "signupRowId": "i-65BgXD-M0x",
+        "eventRowId": "i-rx8sdCVgPZ"
+      },
+      {
+        "participantName": "Elena Sofie Kratochvílová",
+        "reason": "missing_in_db",
+        "signupRowId": "i-_TzjEgBrVB",
+        "eventRowId": "i-FS0HwZ87O-"
+      }
+    ]
+  },
+  "applied": {
+    "offerGroupsInserted": 0,
+    "offerGroupsUpdated": 139,
+    "eventsInserted": 0,
+    "eventsUpdated": 139,
+    "policiesInserted": 0,
+    "policiesUpdated": 139,
+    "registrationsInserted": 0,
+    "registrationsUpdated": 1303,
+    "registrationsMarkedUnregistered": 0
+  },
+  "imagesDownloaded": 114,
+  "imagesFailed": 0,
+  "notes": [
+    "Import byl spusten v apply rezimu."
+  ]
+}

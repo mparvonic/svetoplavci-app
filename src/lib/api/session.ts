@@ -28,7 +28,7 @@ export interface ApiSessionContext {
 
 export const GUIDE_ROLE_CODES = GUIDE_ACCESS_ROLES;
 export const CHILD_VIEW_ROLE_CODES = CHILD_ACCESS_ROLES;
-export const LOCAL_DEV_ROLES = ["admin", "tester", "pruvodce", "rodic", "zak"];
+export const LOCAL_DEV_ROLES = ["admin", "tester", "pruvodce", "spravce_lodicek", "spravce_flotily", "rodic", "zak"];
 
 export function isLocalDevAuthBypass(host = getConfiguredAppHost()): boolean {
   const resolvedHost = resolveBypassHost(host);

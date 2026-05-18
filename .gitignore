@@ -18,11 +18,17 @@
 /.next/
 /out/
 
+# xcode
+DerivedData/
+*.xcuserstate
+ios/**/build/
+
 # production
 /build
 
 # misc
 .DS_Store
+._*
 *.pem
 .tmp/
 
@@ -38,6 +44,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+env*.local
 
 # vercel
 .vercel

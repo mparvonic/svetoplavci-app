@@ -27,6 +27,8 @@ import {
 import { formatDate } from "../uzivatele/format";
 import { getAdminSchoolYearsPage } from "./data";
 
+export const dynamic = "force-dynamic";
+
 function groupKindLabel(kind: string) {
   const labels: Record<string, string> = {
     stupen: "Stupeň",

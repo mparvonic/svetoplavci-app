@@ -1,0 +1,363 @@
+# Changelog dokumentace
+
+## 2026-04-06
+
+- Jednorázový přeliv DB `svetoplavci_test -> svetoplavci` (test -> produkce):
+  - důvod: přenesení importovaných dat z Coda z test prostředí do produkční DB před dalším testováním.
+  - provedeno přímo na VPS v PostgreSQL kontejneru `svetoplavci-app-postgres`.
+  - před přepisem vytvořeny backupy:
+    - `/var/lib/postgresql/data/backups/svetoplavci-prod-from-test/prod-before-test-clone-20260406T153735Z.dump`,
+    - `/var/lib/postgresql/data/backups/svetoplavci-prod-from-test/test-source-20260406T153735Z.dump`.
+  - přepis realizován `pg_restore --clean --if-exists` z dumpu test DB do `svetoplavci`.
+  - verifikace po přelivu:
+    - velikost DB `svetoplavci` ~ `svetoplavci_test` (`103 MB` vs `104 MB`),
+    - shodný počet tabulek v `public` (`74`),
+    - přesné porovnání počtů řádků po tabulkách: `NO_DIFF`.
+
+- Úprava pravidel auto-schvalování email identit ve syncu uživatelů:
+  - změna pořadí zpracování zdrojů na `rodiče (CSV) -> zaměstnanci (API) -> žáci (API)`,
+  - auto-approve preferuje rodiče před žáky, pokud je kandidát jednoznačný,
+  - pokud už existuje `approved` vazba, sync ji automaticky nemění (pozdější duplicity zůstávají `pending`),
+  - při více kandidátech stejné priority se stav nechává na ruční resolve konfliktu.
+
+- Autorizační omezení rolí podle domény přihlašovacího emailu:
+  - emaily mimo `@svetoplavci.cz` mohou používat pouze role `rodic` a `zak`,
+  - pracovní role (`admin`, `zamestnanec`, `ucitel`, `tester`, `proto`) jsou povoleny jen při přihlášení přes školní doménový email,
+  - pokud externí email nemá žádnou z rolí `rodic`/`zak`, přihlášení je zamítnuto.
+
+- Jednorázová oprava pending/approved konfliktů email identit v produkci (`svetoplavci`):
+  - scope: identity s konfliktem `rodič/zaměstnanec/admin/učitel` vs `žák`,
+  - pravidlo: dospělý účet `approved`, žák `pending`,
+  - provedeno po záloze:
+    - `/var/lib/postgresql/data/backups/svetoplavci-login-link-fix/login-link-fix-before-20260406T161805Z.dump`,
+  - změny:
+    - `UPDATE 73` (pending -> approved pro dospělé),
+    - `UPDATE 6` + `UPDATE 46` (approved -> pending pro žáky),
+  - verifikace:
+    - `target_identities=72`,
+    - `adult_pending_in_target=0`,
+    - `child_approved_in_target=0`,
+    - `remaining_violations=0`.
+  - reporty:
+    - před opravou: `docs/09-status/reports/user-email-overview-prod-2026-04-06-before-pending-fix.xlsx`,
+    - po opravě: `docs/09-status/reports/user-email-overview-prod-2026-04-06-after-pending-fix.xlsx`.
+
+## 2026-04-05
+
+- M10 Dashboard a UX vrstvy (proto-first):
+  - doplněna dokumentace modulu:
+    - `docs/04-modules/M10-dashboard-a-ux-vrstvy/README.md`,
+    - `docs/04-modules/M10-dashboard-a-ux-vrstvy/implementation-plan.md`,
+    - `docs/05-delivery/implementation-checklist-m10-frontend-proto-first.md`.
+  - spuštěna implementace Fáze A:
+    - mock datový zdroj rozšířen o akce:
+      - `src/lib/mock/proto-shell.ts`,
+    - přidána proto stránka:
+      - `app/(prototype)/proto-shell/page.tsx`,
+    - přidán proto rozcestník:
+      - `app/(prototype)/prototype/page.tsx`.
+  - checklist Fáze A průběžně aktualizován:
+    - splněno `role shell`, `dashboard placeholdery`, `mock data`, `klikací stavy`,
+    - čeká schválení navigace/layoutu.
+  - navazující rozšíření Fáze B (Lodičky mock):
+    - klikací výběr osobní lodičky + detail,
+    - mock historie změn stavů lodičky,
+    - pokryty stavy `prázdno / načítání / chyba / read-only`.
+
+- M03 Ostrovy: plán převodu historických akcí z Coda pro školní rok `2025/2026`:
+  - přidán runbook:
+    - `docs/07-operations/runbooks/m03-ostrovy-coda-import-2025-2026-runbook.md`.
+  - přidán import skript:
+    - `scripts/import-m03-ostrovy-2025-2026-from-coda.mjs`,
+    - npm script `m03:import:ostrovy:2025-2026`.
+  - doplněny navazující odkazy:
+    - `docs/04-modules/M03-ostrovy/README.md`,
+    - `docs/07-operations/runbooks/README.md`.
+  - rozšířen delivery checklist:
+    - `docs/05-delivery/implementation-checklist-m03-akce.md` o fázi A6 (jednorázový převod Coda -> M03).
+  - import skript stabilizován pro běh proti Coda:
+    - přidány timeout parametry `--request-timeout-ms`, `--image-timeout-ms`,
+    - přidán retry/backoff pro stránkování Coda API (řeší přechodné `504`/`429`).
+  - potvrzen ostrý běh na `svetoplavci_test` s ukládáním obrázků na VPS:
+    - fyzické úložiště: `/data/svetoplavci/media/school-events`,
+    - `eventsUpdated=139`, `registrationsUpdated=1303`,
+    - `imagesDownloaded=114`, `imagesFailed=0`.
+  - uložen výstup běhu:
+    - `docs/09-status/m03-ostrovy-import-2026-04-05.md`,
+    - `docs/09-status/m03-ostrovy-import-2026-04-05-apply-with-images.json`.
+  - oprava datumu akcí (posun o 1 den):
+    - příčina: převod půlnoci v `Europe/Prague` v import skriptu,
+    - fix ve `scripts/import-m03-ostrovy-2025-2026-from-coda.mjs` (`hourCycle: h23` + ošetření `24 -> 00`),
+    - spuštěn hromadný re-run na `svetoplavci_test` bez stahování obrázků:
+      - `eventsUpdated=139`, `registrationsUpdated=1411`,
+      - report: `docs/09-status/m03-ostrovy-apply-fix-dates-2026-04-05.json`.
+
+- M03 Akce (návrh -> implementační základ):
+  - doplněna dokumentace modulu:
+    - `docs/04-modules/M03-ostrovy/README.md`,
+    - `docs/04-modules/M03-ostrovy/domenovy-model-akci.md`,
+    - `docs/04-modules/M03-ostrovy/implementation-plan.md`,
+    - `docs/05-delivery/implementation-checklist-m03-akce.md`.
+  - rozšířeno schéma `prisma/schema.prisma` o M03 entity:
+    - `app_school_event_template`,
+    - `app_school_event_series`,
+    - `app_school_event_offer_group`,
+    - `app_school_event_audience_rule`,
+    - `app_school_event_audience_snapshot_batch`,
+    - `app_school_event_audience_snapshot_item`,
+    - `app_school_event_registration_policy`,
+    - `app_school_event_registration`,
+    - `app_school_event_attendance`,
+    - `app_school_event_module_link`,
+    - plus rozšíření `app_school_event` o lifecycle/visibility/lock pole.
+  - přidána migrace `20260405142000_m03_action_engine_core` a aplikována na `svetoplavci_test`.
+  - přidána backend služba pro vyhodnocení dynamického cílení + snapshot:
+    - `src/lib/school-events/lifecycle.ts`.
+  - přidán admin API endpoint lifecycle akce:
+    - `app/api/admin/school-events/[eventId]/lifecycle/route.ts`
+    - podporované akce: `publish`, `close_registration`, `snapshot`.
+  - doplněn A2 registrační backend:
+    - `src/lib/school-events/registration.ts`,
+    - `app/api/admin/school-events/[eventId]/registrations/route.ts`,
+    - výjimky průvodce po uzávěrce s auditem (`is_exception`, `exception_reason`, `changed_by_person_id`, `metadata.history`),
+    - pravidla nabídky akcí `AT_MOST_ONE` / `EXACTLY_ONE` při registraci.
+  - doplněn A3 schedule refresh backend:
+    - `src/lib/school-events/schedule-refresh.ts`,
+    - `app/api/admin/school-events/linked-lesson/refresh/route.ts`,
+    - refresh navázaných hodin aktualizuje snapshot/metadata a respektuje locky:
+      - `time_override_lock`,
+      - `title_override_lock`,
+      - `location_override_lock`.
+  - doplněn A3 kalendářový sync engine + worker:
+    - `src/lib/calendar/school-event-sync.ts`,
+    - `app/api/admin/school-events/[eventId]/calendar-sync/route.ts`,
+    - `app/api/admin/calendar-sync/worker/route.ts`,
+    - enqueue sync jobů podle `calendar_target` + deduplikace pending/running,
+    - zpracování `UPSERT_SCHOOL_EVENT` s retry strategií (exponenciální backoff),
+    - push do Google Calendar přes service account JWT (DWD impersonace),
+    - upsert/cancel `app_calendar_event_link`.
+  - napojení queue triggerů:
+    - publish/close lifecycle (`lifecycle.ts`) enqueueuje kalendářový sync,
+    - změna registrace (`registration.ts`) enqueueuje kalendářový sync,
+    - refresh rozvrhové hodiny (`schedule-refresh.ts`) enqueueuje kalendářový sync.
+
+- Dokumentace:
+  - přidán standard práce s časem: `docs/03-architecture/cas-a-timezone-standard.md`,
+  - doplněny odkazy v:
+    - `docs/03-architecture/datova-architektura.md`,
+    - `docs/README.md`,
+    - `docs/development-workflow.md`.
+  - doplněna architektura M11:
+    - `docs/03-architecture/integrace-edookit.md` (rozvrh, změnový rozvrh, kurzy),
+    - `docs/03-architecture/integrace-google-calendar.md` (Google Calendar sync model),
+    - `docs/04-modules/M11-integrace/README.md`,
+    - `docs/05-delivery/implementation-checklist-m11-kalendar-edookit.md`.
+- M11 Integrace (návrh + datový základ):
+  - rozšířeno schéma `prisma/schema.prisma` o foundation model:
+    - provider config, student/group kalendáře, event link mapping, sync queue/cursor,
+    - číselník typů akcí (`calendar_behavior`, `schedule_link_policy`, `calendar_target`, `group_source`),
+    - školní akce + cílení na osoby/skupiny.
+  - přidána migrace:
+    - `20260405123000_m11_calendar_event_sync_foundation`.
+  - migrace aplikována na `svetoplavci_test` (ověřeno v `_prisma_migrations`).
+  - přidán seed číselníku typů akcí:
+    - `scripts/sql/20260405_seed_school_event_types.sql`,
+    - inicializačně vloženo 5 typů (`EXPEDICE`, `OSTROVY`, `SLAVNOST`, `KROUZEK`, `OBECNA_AKCE`),
+    - `EXPEDICE` a `OSTROVY` mají `schedule_link_policy=REQUIRED` a `calendar_behavior=UPDATE_LINKED_LESSON`.
+- M01 časová vrstva:
+  - přidána migrace `20260405094500_m01_timestamptz_history`,
+  - klíčové sloupce historie lodiček převedeny na `timestamptz`:
+    - `app_m01_osobni_lodicka`: `datum_stavu`, `created_at`, `updated_at`,
+    - `app_m01_osobni_lodicka_event`: `datum_stavu`, `created_at`, `source_created_at`, `source_modified_at`, `invalidated_at`,
+  - převod historických hodnot proveden přes `AT TIME ZONE 'UTC'` (zachování původních instantů).
+- Nasazení:
+  - `svetoplavci_test`: migrace aplikována, ověřeno (`projectionMismatch = 0`),
+  - `svetoplavci` (prod): migrace připravena podmíněně (bez M01 tabulek proběhne bez chyby a bez změny dat).
+- Globální DateTime standardizace:
+  - přidána migrace `20260405095500_datetime_columns_to_timestamptz_utc`,
+  - všechny sloupce `timestamp without time zone` v `public` převedeny na `timestamptz(3)` (USING `AT TIME ZONE 'UTC'`),
+  - opraveny exclusion constrainty:
+    - `app_group_membership_singleton_kinds` (`tstzrange`),
+    - `app_student_state_no_overlap` (`tstzrange`),
+  - aktualizována funkce `fn_validate_membership_policies_for_person` na `TIMESTAMPTZ(3)`.
+- Timezone default v DB:
+  - `ALTER DATABASE svetoplavci SET timezone='UTC'`,
+  - `ALTER DATABASE svetoplavci_test SET timezone='UTC'`,
+  - `ALTER ROLE svetoplavci SET timezone='UTC'`.
+  - Ověřeno: obě DB běží v defaultním UTC; CET/CEST se má řešit na aplikační/query vrstvě nad `timestamptz`.
+- Potvrzení k M01 historii:
+  - pole `datum_stavu`, `source_created_at`, `source_modified_at` zůstávají `datetime`, nebyla provedena změna na `date`.
+
+- M02 (Organizace školního roku):
+  - zavedena tabulka `app_school_period` pro vzdělávací období navázaná na `app_school_year`,
+  - přidány constrainty pro validní rozsah dat a zákaz překryvu období v rámci školního roku,
+  - naplněn školní rok `2025/2026` na 5 období typu `plavba`:
+    - `1. plavba` (`2025-09-01` až `2025-10-31`),
+    - `2. plavba` (`2025-11-01` až `2025-12-31`),
+    - `3. plavba` (`2026-01-01` až `2026-02-28`),
+    - `4. plavba` (`2026-03-01` až `2026-04-30`),
+    - `5. plavba` (`2026-05-01` až `2026-06-30`).
+  - SQL skript v repozitáři: `scripts/sql/20260405_app_school_period_and_plavby_2025_2026.sql`.
+
+- Zaveden mechanismus zneplatnění historických stavů osobních lodiček (audit-safe, bez mazání):
+  - přidána pole `is_invalidated`, `invalidated_at`, `invalidated_reason`, `invalidated_by_event_id`,
+  - migrace `20260405091500_m01_event_invalidation`.
+- Upraveny projekce/importy M01 tak, aby pracovaly jen s nezneplatněnými eventy.
+- Přidán opravný skript:
+  - `scripts/m01-invalidate-backdated-corrections.mjs`,
+  - řeší backdated korekce typu „pozdější oprava se starším datumem stavu“.
+- Oprava spuštěna na `svetoplavci_test`:
+  - nalezeno/zneplatněno `171` konfliktních eventů,
+  - následná verifikace: `projectionMismatch=0`, `candidatesTotal=0`.
+- Zpevněn lokální workflow připojení na test DB (prevence chyb tunel/DB cíl):
+  - `scripts/db/open-test-tunnel.sh`,
+  - `scripts/db/resolve-test-db-url.mjs`,
+  - `scripts/db/check-test-db.mjs`,
+  - `scripts/db/prisma-migrate-test.sh`,
+  - nové npm příkazy: `db:tunnel:test`, `db:url:test`, `db:check:test`, `db:migrate:test`.
+- Aktualizován `docs/development-workflow.md` o doporučený postup připojení na `svetoplavci_test`.
+
+## 2026-04-04
+
+- Upřesněna a schválena pravidla verzování ŠVP/lodiček pro M01:
+  - `MINOR` vs `MAJOR`,
+  - aktivace `MAJOR` pouze k `1. 9.`,
+  - migrace osobních lodiček se zachováním historie.
+- Přidán detailní workflow dokument:
+  - `docs/04-modules/M01-vysledky-vzdelavani/verzovani-svp-a-migrace-osobnich-lodicek.md`.
+- Aktualizovány navazující dokumenty M01 a doménové dokumenty:
+  - požadavky,
+  - doménový model,
+  - implementační plán,
+  - pravidla domény.
+- Potvrzen bootstrap zdrojů M01:
+  - RVP z open dat (`full_mp`, verze 24. 6. 2025),
+  - Coda tabulky `grid-tKkiEMWXEO`, `grid-3m-_XP8oMp`, `grid-nYzDRw4zl3`.
+- Přidány dokumenty pro implementaci bootstrapu dat:
+  - `docs/03-architecture/integrace-coda-migrace-m01.md`,
+  - `docs/05-delivery/implementation-checklist-m01-rvp-coda-bootstrap.md`.
+- Přidány exportní skripty pro bootstrap:
+  - `scripts/export-rvp-open-data-2025-06-24.mjs`,
+  - `scripts/export-m01-coda-raw.mjs`,
+  - `scripts/verify-m01-coda-mapping.mjs`.
+- Ověřena mapovatelnost `Osobní lodičky` + `Historie lodiček` na konkrétní žáky nad CSV exporty:
+  - report: `docs/09-status/m01-csv-mapping-verification-2026-04-04.md`.
+- Ověřena mapovatelnost i přímo nad Coda API:
+  - report: `docs/09-status/m01-coda-mapping-verification-2026-04-04.md`.
+- Rozšířen návrh DB struktury M01 v `prisma/schema.prisma`:
+  - RVP vrstva,
+  - ŠVP/lodičky vrstva,
+  - osobní sady + historie,
+  - migrace `MAJOR` verzí.
+- Přidána AI-ready datová vrstva:
+  - `knowledge item -> chunk -> embedding`,
+  - podklad pro interní i externí vektorovou DB.
+- Přidána a aplikována migrace `20260404123000_m01_rvp_lodicky_ai_structure` na `svetoplavci_test`.
+- Na základě analýzy RVP dat opravena unikátnost uzlových bodů:
+  - přidán `source_path`,
+  - nový unikátní klíč `(rvp_version_id, source_path)`,
+  - migrace `20260404124500_fix_rvp_uzlovy_bod_uniqueness`.
+- Přidán import skript:
+  - `scripts/import-rvp-open-data-2025-06-24.mjs`,
+  - npm script `rvp:import:2025-06-24`.
+- Proveden první import RVP do `svetoplavci_test`:
+  - `app_m01_rvp_version=1`,
+  - `app_m01_rvp_uzlovy_bod=327`,
+  - `app_m01_rvp_ovu=475`.
+- Přidán validační report:
+  - `docs/09-status/m01-rvp-import-2026-04-04.md`.
+- Přidána migrace:
+  - `20260404134000_m01_stage_dimensions_and_lodicka_garanti`.
+- Rozšířen model M01:
+  - `stupen` pro `predmet` / `podpredmet` / `oblast`,
+  - M:N vazba `lodička <-> garant` (`app_m01_lodicka_garant`).
+- Přidán import skript ŠVP lodiček:
+  - `scripts/import-svp-lodicky-2025-from-csv.mjs`,
+  - npm script `svp:import:lodicky:2025`.
+- Proveden import `Lodičky od 1.9.2025.csv` do `svetoplavci_test`:
+  - `lodicka=604`,
+  - `oblast=71`,
+  - `lodicka_ovu_link=744`,
+  - `lodicka_prerequisite=259`,
+  - osobní sady/lodičky nevytvářeny.
+- Upravena logika mapování garantů:
+  - primárně přes `app_person.nickname`,
+  - výsledně `lodicka_garant=1428`,
+  - `unresolvedGarants=0`.
+- Přidán validační report:
+  - `docs/09-status/m01-svp-lodicky-import-2026-04-04.md`.
+- Upraveno kódování lodiček na verzovaný formát:
+  - `2025-SP-CJ-5-001`.
+- Přidán bootstrap/import skript pro osobní lodičky + eventy:
+  - `scripts/import-svp-osobni-lodicky-and-events-2025-from-csv.mjs`,
+  - npm script `svp:bootstrap:osobni-lodicky:2025`.
+- Připraveno mapování historie z aktualizovaného CSV:
+  - `/Users/miroslav/Downloads/Historie lodiček (1).csv`,
+  - pravidlo `Admin Coda -> Miroslav Parvonič`.
+- Přidána migrace:
+  - `20260404162000_m01_events_notes_projection_guard`,
+  - doplňuje `last_event_id` guard u `app_m01_osobni_lodicka`,
+  - source metadata u eventů,
+  - univerzální poznámky `app_note` + `app_note_policy`.
+- Migrace `20260404162000_m01_events_notes_projection_guard` aplikována na `svetoplavci_test`.
+- Reimport `Lodičky od 1.9.2025.csv` spuštěn s novým formátem kódu:
+  - `2025-SP-CJ-5-001` (prefix verze ŠVP),
+  - `lodicka=604`, `garant=1428`, `ovu=744`, `prerekvizita=259`.
+- Spuštěn pouze krok přípravy osobních lodiček (bez historie):
+  - `preparedStudents=106`,
+  - `osobni_sada_lodicek=106`,
+  - `osobni_lodicka=32044`.
+- Import historie zůstává záměrně pozastaven před spuštěním.
+
+## 2026-04-03
+
+- Potvrzen a zdokumentován běh všech 3 prostředí přes Coolify:
+  - `app.svetoplavci.cz`,
+  - `test-app.svetoplavci.cz`,
+  - `proto-app.svetoplavci.cz`.
+- Doplněn checklist realizace o skutečný stav cutoveru (`docs/05-delivery/implementation-checklist-coolify-workflow.md`).
+- Aktualizován aktuální stav projektu po cutoveru (`docs/09-status/current-status.md`).
+- Opraveno interní mapování staging URL v `AGENTS.md` a `CLAUDE.md` na `test-app.svetoplavci.cz`.
+- Zdokumentována oprava auth DB konektivity:
+  - DB proxy mezi `edge_net` a `prod_net`,
+  - oddělená databáze `svetoplavci_test`,
+  - opravené `POSTGRES_PRISMA_URL` pro `prod/test/proto`.
+- Implementováno občerstvování `prod -> test`:
+  - přidán skript `scripts/ops/refresh-test-db-from-prod.sh`,
+  - nasazen VPS wrapper `/usr/local/sbin/svetoplavci-refresh-test-db.sh`,
+  - nastaven cron běh `06:25` a `12:25`,
+  - přidán audit běhů `ops.test_db_refresh_runs`.
+- Přidáno rozhodnutí o scope refresh modelu:
+  - aktuálně zůstáváme na `v1`,
+  - návrat k `v2/v3` je zapsán v ADR-0003.
+- Doplněn alerting pro refresh job:
+  - přidán healthcheck skript `scripts/ops/check-test-db-refresh-status.sh`,
+  - nasazen na VPS jako `/opt/prod/jobs/monitoring/check_test_db_refresh_status.sh`,
+  - cron kontrola `06:35` a `12:35`,
+  - logy do `/var/log/svetoplavci/health.log` a alerty do `/var/log/svetoplavci/alerts.log`.
+- Zaveden migration model pro server deploy:
+  - `docker-entrypoint.sh` spouští `prisma migrate deploy`,
+  - Docker image obsahuje Prisma CLI a migration files,
+  - `prisma db push` není součást runtime deploy flow.
+
+## 2026-04-02
+
+- Založena nová struktura dokumentace `01-product` až `10-templates`.
+- Přidány základní strategické, doménové a architektonické dokumenty.
+- Detailně založeny moduly M01 a M12.
+- Přidány šablony, status dokumenty a ADR baseline.
+- Přidán implementační checklist pro `proto-app` / `test-app` / `app` workflow přes Coolify.
+- Přidány runbooky pro:
+  - setup Coolify,
+  - release/hotfix flow,
+  - občerstvování test DB z produkce.
+- Aktualizován `docs/development-workflow.md` na nový model prostředí (`proto`, `staging`, `main`).
+- Přidány GitHub workflow soubory:
+  - `.github/workflows/docker-build-proto.yml`,
+  - `.github/workflows/ci.yml` (lint změněných JS/TS souborů v PR).
+- Vytvořen pre-cutover snapshot konfigurace na VPS:
+  - `/srv/backups/miroslav/cutover-prep-20260402-235304.tar.gz`.
+- Přidán runbook:
+  - `docs/07-operations/runbooks/coolify-cutover-no-downtime-plan.md`.
+- Přidán a ověřen preflight skript:
+  - `scripts/ops/coolify-cutover-preflight.sh`.

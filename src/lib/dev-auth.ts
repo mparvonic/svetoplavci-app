@@ -7,11 +7,13 @@ import { getConfiguredAppHost, isBypassAllowedForHost, resolveBypassHost } from 
 export const DEV_AUTH_COOKIE_NAME = "svp_dev_user_id";
 
 export type DevAuthUserOption = {
+  selectionId: string;
   personId: string;
   displayName: string;
   email: string;
   role: AppRole;
   roles: AppRole[];
+  mode?: "role" | "person";
 };
 
 type ApprovedEmailLink = {
@@ -27,6 +29,8 @@ const ROLE_LABELS: Partial<Record<AppRole, string>> = {
   tester: "tester",
   proto: "proto",
   garant: "garant",
+  spravce_lodicek: "správce lodiček",
+  spravce_flotily: "správce flotily",
   pruvodce: "průvodce",
   zamestnanec: "zaměstnanec",
   ucitel: "učitel",
@@ -38,6 +42,8 @@ const ROLE_SORT_ORDER: AppRole[] = [
   "admin",
   "tester",
   "proto",
+  "spravce_flotily",
+  "spravce_lodicek",
   "garant",
   "pruvodce",
   "zamestnanec",
@@ -52,55 +58,83 @@ const ROLE_SORT_ORDER: AppRole[] = [
 
 const FALLBACK_DEV_USERS: DevAuthUserOption[] = [
   {
+    selectionId: "local-dev-admin",
     personId: "local-dev-admin",
     displayName: "Lokální admin",
     email: "local-admin@svetoplavci.local",
     role: "admin",
-    roles: ["admin", "tester", "pruvodce", "rodic", "zak"],
+    roles: ["admin", "tester", "pruvodce", "spravce_lodicek", "spravce_flotily", "rodic", "zak"],
+    mode: "person",
   },
   {
+    selectionId: "local-dev-pruvodce",
     personId: "local-dev-pruvodce",
     displayName: "Lokální průvodce",
     email: "local-pruvodce@svetoplavci.local",
     role: "pruvodce",
     roles: ["pruvodce"],
+    mode: "role",
   },
   {
+    selectionId: "local-dev-rodic",
     personId: "local-dev-rodic",
     displayName: "Lokální rodič",
     email: "local-rodic@svetoplavci.local",
     role: "rodic",
     roles: ["rodic"],
+    mode: "role",
   },
   {
+    selectionId: "local-dev-zak",
     personId: "local-dev-zak",
     displayName: "Lokální žák",
     email: "local-zak@svetoplavci.local",
     role: "zak",
     roles: ["zak"],
+    mode: "role",
   },
   {
+    selectionId: "static-garant-cmnix1k9g003d01qeddlfz5eq",
     personId: "cmnix1k9g003d01qeddlfz5eq",
     displayName: "Kateřina Parvonič (test)",
     email: "katerina.parvonic@svetoplavci.cz",
     role: "garant",
-    roles: ["garant", "pruvodce", "rodic"],
+    roles: ["garant", "spravce_lodicek", "pruvodce", "rodic"],
+    mode: "person",
   },
   {
+    selectionId: "static-garant-cmnix8eu500ou01qeff51rxnv",
     personId: "cmnix8eu500ou01qeff51rxnv",
     displayName: "Irma Wichtová (test)",
     email: "irma.wichtova@svetoplavci.cz",
     role: "garant",
-    roles: ["garant", "pruvodce", "rodic"],
+    roles: ["garant", "spravce_lodicek", "pruvodce", "rodic"],
+    mode: "person",
   },
   {
+    selectionId: "static-pruvodce-cmnixcwy801lc01qez4ac1l25",
     personId: "cmnixcwy801lc01qez4ac1l25",
     displayName: "Jiří Kotaška (test rodič/průvodce)",
     email: "kotasky@email.cz",
     role: "pruvodce",
     roles: ["pruvodce", "rodic"],
+    mode: "person",
   },
 ];
+
+const ROLE_ONLY_DEV_USERS: DevAuthUserOption[] = ROLE_SORT_ORDER.map((role) => ({
+  selectionId: `local-role-${role}`,
+  personId: `local-role-${role}`,
+  displayName: `Role: ${getDevAuthRoleLabel(role)}`,
+  email: `local-${role.replaceAll("_", "-")}@svetoplavci.local`,
+  role,
+  roles: [role],
+  mode: "role",
+}));
+
+const REPRESENTATIVE_STUDENT_LIMIT = Number.parseInt(process.env.DEV_AUTH_STUDENT_LIMIT ?? "24", 10);
+const DEV_AUTH_USERS_CACHE_MS = Number.parseInt(process.env.DEV_AUTH_USERS_CACHE_MS ?? "600000", 10);
+const DEV_AUTH_USERS_FALLBACK_CACHE_MS = Number.parseInt(process.env.DEV_AUTH_USERS_FALLBACK_CACHE_MS ?? "30000", 10);
 
 const LEGACY_DEV_ROLE_BY_PERSON_ID = new Map<string, AppRole>([
   ["local-dev-admin", "admin"],
@@ -113,6 +147,7 @@ let devAuthUsersCache: {
   expiresAt: number;
   users: DevAuthUserOption[];
 } | null = null;
+let devAuthUsersInFlight: Promise<DevAuthUserOption[]> | null = null;
 
 export function isProductionApplicationUrl(): boolean {
   const host = getConfiguredAppHost();
@@ -127,7 +162,7 @@ export function isDevAuthBypassEnabled(): boolean {
 }
 
 function getDevAuthUsersSource(): "db" | "representative" | "static" {
-  const source = (process.env.DEV_AUTH_USERS_SOURCE ?? "static").trim().toLowerCase();
+  const source = (process.env.DEV_AUTH_USERS_SOURCE ?? "representative").trim().toLowerCase();
   if (source === "db") return "db";
   if (source === "representative") return "representative";
   return "static";
@@ -147,11 +182,86 @@ function uniqueRoles(roles: string[]): AppRole[] {
 }
 
 function compareDevUsers(a: DevAuthUserOption, b: DevAuthUserOption): number {
+  const modeDiff = (a.mode === "role" ? 0 : 1) - (b.mode === "role" ? 0 : 1);
+  if (modeDiff !== 0) return modeDiff;
   const aRoleIndex = ROLE_SORT_ORDER.indexOf(a.role);
   const bRoleIndex = ROLE_SORT_ORDER.indexOf(b.role);
   const roleDiff = (aRoleIndex >= 0 ? aRoleIndex : 999) - (bRoleIndex >= 0 ? bRoleIndex : 999);
   if (roleDiff !== 0) return roleDiff;
   return a.displayName.localeCompare(b.displayName, "cs");
+}
+
+function parseDirectSelection(selectionId: string): {
+  personId: string | null;
+  role: AppRole | null;
+  mode: "role" | "person";
+} | null {
+  for (const role of ROLE_SORT_ORDER) {
+    if (selectionId === `local-role-${role}`) {
+      return { personId: `local-role-${role}`, role, mode: "role" };
+    }
+    const rolePrefix = `role-${role}-`;
+    if (selectionId.startsWith(rolePrefix)) {
+      return { personId: selectionId.slice(rolePrefix.length), role, mode: "role" };
+    }
+    const personRolePrefix = `person-${role}-`;
+    if (selectionId.startsWith(personRolePrefix)) {
+      return { personId: selectionId.slice(personRolePrefix.length), role, mode: "person" };
+    }
+  }
+
+  if (selectionId.startsWith("person-")) {
+    return { personId: selectionId.slice("person-".length), role: null, mode: "person" };
+  }
+
+  return null;
+}
+
+async function getDirectDevAuthUser(selectionId: string): Promise<DevAuthUserOption | null> {
+  const parsed = parseDirectSelection(selectionId);
+  if (!parsed) return null;
+
+  if (parsed.personId?.startsWith("local-role-") && parsed.role) {
+    return ROLE_ONLY_DEV_USERS.find((user) => user.role === parsed.role) ?? null;
+  }
+
+  if (!parsed.personId) return null;
+
+  const person = await prisma.appPerson.findFirst({
+    where: {
+      id: parsed.personId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      displayName: true,
+      roles: {
+        where: {
+          isActive: true,
+        },
+        select: { role: true },
+      },
+    },
+  });
+  if (!person) return null;
+
+  const roles = parsed.role
+    ? [parsed.role]
+    : uniqueRoles(person.roles.map((item) => item.role));
+  if (roles.length === 0) return null;
+
+  const emailsByPersonId = await getApprovedEmailsByPersonId([person.id]);
+  return {
+    selectionId,
+    personId: person.id,
+    displayName: parsed.mode === "role" && parsed.role
+      ? `Role: ${getDevAuthRoleLabel(parsed.role)} - ${person.displayName}`
+      : person.displayName,
+    email: emailsByPersonId.get(person.id) ?? `local-${(parsed.role ?? roles[0]).replaceAll("_", "-")}@svetoplavci.local`,
+    role: parsed.role ?? selectPrimaryRole(roles),
+    roles,
+    mode: parsed.mode,
+  };
 }
 
 async function getApprovedEmailsByPersonId(personIds: string[]): Promise<Map<string, string>> {
@@ -228,11 +338,13 @@ async function getDbDevAuthUsers(): Promise<DevAuthUserOption[]> {
     if (!email) continue;
 
     const option: DevAuthUserOption = {
+      selectionId: `person-${link.personId}`,
       personId: link.personId,
       displayName: link.person.displayName,
       email,
       roles,
       role: selectPrimaryRole(roles),
+      mode: "person",
     };
 
     const existing = usersByPersonId.get(link.personId);
@@ -242,6 +354,62 @@ async function getDbDevAuthUsers(): Promise<DevAuthUserOption[]> {
   }
 
   return [...usersByPersonId.values()].sort(compareDevUsers);
+}
+
+async function getRoleScopedRepresentativeUsers(): Promise<DevAuthUserOption[]> {
+  const people = await prisma.appPerson.findMany({
+    where: {
+      isActive: true,
+      roles: {
+        some: {
+          role: { in: ROLE_SORT_ORDER },
+          isActive: true,
+        },
+      },
+    },
+    select: {
+      id: true,
+      displayName: true,
+      roles: {
+        where: {
+          role: { in: ROLE_SORT_ORDER },
+          isActive: true,
+        },
+        select: { role: true },
+      },
+    },
+    orderBy: {
+      displayName: "asc",
+    },
+  });
+
+  const representativeByRole = new Map<AppRole, { id: string; displayName: string }>();
+  for (const role of ROLE_SORT_ORDER) {
+    const person = people.find((candidate) => candidate.roles.some((item) => item.role === role));
+    if (person) {
+      representativeByRole.set(role, {
+        id: person.id,
+        displayName: person.displayName,
+      });
+    }
+  }
+
+  const emailsByPersonId = await getApprovedEmailsByPersonId([...representativeByRole.values()].map((person) => person.id));
+
+  return ROLE_SORT_ORDER.map((role) => {
+    const representative = representativeByRole.get(role);
+    if (!representative) return ROLE_ONLY_DEV_USERS.find((user) => user.role === role)!;
+
+    return {
+      selectionId: `role-${role}-${representative.id}`,
+      personId: representative.id,
+      displayName: `Role: ${getDevAuthRoleLabel(role)} - ${representative.displayName}`,
+      email: emailsByPersonId.get(representative.id) ?? `local-${role.replaceAll("_", "-")}@svetoplavci.local`,
+      role,
+      roles: [role],
+      mode: "role" as const,
+    };
+  });
 }
 
 async function getRepresentativeDevAuthUsers(): Promise<DevAuthUserOption[]> {
@@ -335,11 +503,13 @@ async function getRepresentativeDevAuthUsers(): Promise<DevAuthUserOption[]> {
       if (roles.length === 0) continue;
 
       const option: DevAuthUserOption = {
+        selectionId: `person-${person.id}`,
         personId: person.id,
         displayName: `Lokální multi-role - ${person.displayName}`,
         email: emailsByPersonId.get(person.id) ?? `local-${person.id}@svetoplavci.local`,
         role: selectPrimaryRole(roles),
         roles,
+        mode: "person",
       };
 
       const existing = multiRoleByPersonId.get(option.personId);
@@ -352,43 +522,53 @@ async function getRepresentativeDevAuthUsers(): Promise<DevAuthUserOption[]> {
     const seen = new Set<string>();
     const pushUnique = (user: DevAuthUserOption | undefined) => {
       if (!user) return;
-      if (seen.has(user.personId)) return;
-      seen.add(user.personId);
+      if (seen.has(user.selectionId)) return;
+      seen.add(user.selectionId);
       result.push(user);
     };
 
+    (await getRoleScopedRepresentativeUsers()).forEach((user) => pushUnique(user));
     pushUnique(FALLBACK_DEV_USERS[0]);
     [...multiRoleByPersonId.values()].sort(compareDevUsers).forEach((user) => pushUnique(user));
     pushUnique(
       guide
         ? {
+            selectionId: `person-pruvodce-${guide.id}`,
             personId: guide.id,
             displayName: `Lokální průvodce - ${guide.displayName}`,
             email: emailsByPersonId.get(guide.id) ?? "local-pruvodce@svetoplavci.local",
             role: "pruvodce",
             roles: ["pruvodce"],
+            mode: "role",
           }
         : FALLBACK_DEV_USERS.find((user) => user.role === "pruvodce"),
     );
     pushUnique(
       parentLink
         ? {
+            selectionId: `person-rodic-${parentLink.parentPersonId}`,
             personId: parentLink.parentPersonId,
             displayName: `Lokální rodič - ${parentLink.parentPerson.displayName} (${parentLink.childPerson.displayName})`,
             email: emailsByPersonId.get(parentLink.parentPersonId) ?? "local-rodic@svetoplavci.local",
             role: "rodic",
             roles: ["rodic"],
+            mode: "role",
           }
         : FALLBACK_DEV_USERS.find((user) => user.role === "rodic"),
     );
-    if (students.length > 0) {
-      students.forEach((student) =>
+    const visibleStudents = Number.isInteger(REPRESENTATIVE_STUDENT_LIMIT) && REPRESENTATIVE_STUDENT_LIMIT > 0
+      ? students.slice(0, REPRESENTATIVE_STUDENT_LIMIT)
+      : students;
+    if (visibleStudents.length > 0) {
+      visibleStudents.forEach((student) =>
         pushUnique({
+          selectionId: `person-zak-${student.id}`,
           personId: student.id,
           displayName: `Lokální žák - ${student.displayName}`,
           email: emailsByPersonId.get(student.id) ?? "local-zak@svetoplavci.local",
           role: "zak",
           roles: ["zak"],
+          mode: "role",
         }),
       );
     } else {
@@ -410,33 +590,44 @@ export async function getDevAuthUsers(): Promise<DevAuthUserOption[]> {
   if (devAuthUsersCache && devAuthUsersCache.expiresAt > Date.now()) {
     return devAuthUsersCache.users;
   }
-
-  let users: DevAuthUserOption[] = [];
-  const source = getDevAuthUsersSource();
-  if (source === "db") {
-    try {
-      users = await getDbDevAuthUsers();
-    } catch (error) {
-      console.warn(
-        "[dev-auth] DB-backed local users failed; falling back to static users:",
-        error instanceof Error ? error.message : String(error),
-      );
-      users = FALLBACK_DEV_USERS;
-    }
-  } else if (source === "representative") {
-    users = await getRepresentativeDevAuthUsers();
-  } else {
-    users = FALLBACK_DEV_USERS;
+  if (devAuthUsersInFlight) {
+    return devAuthUsersInFlight;
   }
-  const resolved = users.length > 0 ? users : FALLBACK_DEV_USERS;
-  const fallbackOnly =
-    resolved.length === FALLBACK_DEV_USERS.length &&
-    resolved.every((user, index) => user.personId === FALLBACK_DEV_USERS[index]?.personId);
-  devAuthUsersCache = {
-    expiresAt: Date.now() + (fallbackOnly ? 3_000 : 30_000),
-    users: resolved,
-  };
-  return resolved;
+
+  devAuthUsersInFlight = (async () => {
+    let users: DevAuthUserOption[] = [];
+    const source = getDevAuthUsersSource();
+    if (source === "db") {
+      try {
+        users = await getDbDevAuthUsers();
+      } catch (error) {
+        console.warn(
+          "[dev-auth] DB-backed local users failed; falling back to static users:",
+          error instanceof Error ? error.message : String(error),
+        );
+        users = FALLBACK_DEV_USERS;
+      }
+    } else if (source === "representative") {
+      users = await getRepresentativeDevAuthUsers();
+    } else {
+      users = [...ROLE_ONLY_DEV_USERS, ...FALLBACK_DEV_USERS].sort(compareDevUsers);
+    }
+    const resolved = users.length > 0 ? users : FALLBACK_DEV_USERS;
+    const fallbackOnly =
+      resolved.length === FALLBACK_DEV_USERS.length &&
+      resolved.every((user, index) => user.personId === FALLBACK_DEV_USERS[index]?.personId);
+    devAuthUsersCache = {
+      expiresAt: Date.now() + (fallbackOnly ? DEV_AUTH_USERS_FALLBACK_CACHE_MS : DEV_AUTH_USERS_CACHE_MS),
+      users: resolved,
+    };
+    return resolved;
+  })();
+
+  try {
+    return await devAuthUsersInFlight;
+  } finally {
+    devAuthUsersInFlight = null;
+  }
 }
 
 export async function getSelectedDevAuthUser(): Promise<DevAuthUserOption | null> {
@@ -444,10 +635,15 @@ export async function getSelectedDevAuthUser(): Promise<DevAuthUserOption | null
 
   const cookieStore = await cookies();
   const selectedPersonId = cookieStore.get(DEV_AUTH_COOKIE_NAME)?.value ?? null;
+  if (selectedPersonId) {
+    const directUser = await getDirectDevAuthUser(selectedPersonId);
+    if (directUser) return directUser;
+  }
   const users = await getDevAuthUsers();
   if (users.length === 0) return null;
 
   return (
+    users.find((user) => user.selectionId === selectedPersonId) ??
     users.find((user) => user.personId === selectedPersonId) ??
     users.find((user) => selectedPersonId && user.role === LEGACY_DEV_ROLE_BY_PERSON_ID.get(selectedPersonId)) ??
     users.find((user) => user.roles.includes("admin")) ??
@@ -473,15 +669,15 @@ export async function getDevAuthSession() {
   };
 }
 
-export async function setDevAuthSelection(personId: string): Promise<boolean> {
+export async function setDevAuthSelection(selectionId: string): Promise<boolean> {
   if (!isDevAuthBypassEnabled()) return false;
 
   const users = await getDevAuthUsers();
-  const selected = users.find((user) => user.personId === personId);
+  const selected = users.find((user) => user.selectionId === selectionId || user.personId === selectionId);
   if (!selected) return false;
 
   const cookieStore = await cookies();
-  cookieStore.set(DEV_AUTH_COOKIE_NAME, selected.personId, {
+  cookieStore.set(DEV_AUTH_COOKIE_NAME, selected.selectionId, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",

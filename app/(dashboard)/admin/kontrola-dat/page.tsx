@@ -26,6 +26,8 @@ import {
   type DataQualityIssue,
 } from "./data";
 
+export const dynamic = "force-dynamic";
+
 function severityBadge(severity: DataQualityIssue["severity"]) {
   return severity === "error" ? (
     <Badge variant="destructive">kritické</Badge>

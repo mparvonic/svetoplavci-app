@@ -1,128 +1,72 @@
-## Autentizace a přihlášení
+# Autentizace a přihlášení
 
-Tento dokument shrnuje aktuální stav přihlašování a práce se session.
+## Základní pravidlo
 
-### Login identity a osoba
+Autentizace a autorizace běží výhradně přes interní aplikační model v PostgreSQL.
 
-Přihlášení přes e-mail je v aplikaci oddělené od osoby:
+Coda se pro přihlášení, určení role ani ověření rodiče nepoužívá.
+
+## Login identity a osoba
+
+Přihlášení přes e-mail je oddělené od osoby:
 
 - `AppLoginIdentity` reprezentuje login e-mail,
 - `AppLoginPersonLink` reprezentuje vazbu loginu na konkrétní `AppPerson`,
 - přístup je povolen jen přes vazbu se stavem `approved`.
 
-Jedna login identita smí mít nejvýše jednu schválenou osobu. Rodinný přístup se neřeší tím, že se stejný e-mail schválí rodiči i dítěti; schválí se rodič a přístup k dítěti vzniká přes `AppPersonRelation`. Pokud jeden e-mail ukazuje na dvě osoby, je to konflikt k rozhodnutí v adminu. Pokud jde o duplicitu osoby, má se opravit/sloučit osoba.
+Jedna login identita smí mít nejvýše jednu schválenou osobu. Rodinný přístup se neřeší tím, že se stejný e-mail schválí rodiči i dítěti; schválí se rodič a přístup k dítěti vzniká přes `AppPersonRelation`.
 
 Pravidlo je vynucené:
 
-- v admin UI radio výběrem jedné osoby při řešení login konfliktu,
+- v admin UI výběrem jedné osoby při řešení login konfliktu,
 - v API validací, že konflikt schvaluje přesně jednu osobu,
-- v databázi částečným unikátním indexem `app_login_person_link_single_approved_identity_idx` pro `status = 'approved'`.
+- v databázi částečným unikátním indexem pro `status = 'approved'`,
+- v auth vrstvě defensivním odmítnutím více schválených osob pro jednu login identitu.
 
-Auth vrstva navíc defensivně odmítne přihlášení, pokud by v datech našla více schválených osob pro jednu login identitu.
+## Providers
 
-### 1. Providers
+- **Google OAuth**
+  - nakonfigurovaný v `src/lib/auth.config.ts`,
+  - používá ověřený Google účet jako identitu.
 
-- **Google (OAuth 2.0)**
-  - Nastavený v `auth.config.ts` (`Google({ clientId, clientSecret })`).
-  - Používá se na přihlašovací stránce jako první volba („Přihlásit se přes Google“).
+- **E-mail magic link**
+  - nakonfigurovaný v `src/lib/auth.ts`,
+  - vytváří `VerificationToken` v DB,
+  - po použití token smaže.
 
-- **E‑mail (magic link, provider `nodemailer`)**
-  - Konfigurován v `src/lib/auth.ts` pomocí `Nodemailer({ server, from, sendVerificationRequest })`.
-  - E‑mail se odesílá přes SMTP server nastavený v `EMAIL_SERVER` / `SMTP_URL`.
-  - Text e‑mailu je plně česky (předmět, text, HTML s tlačítkem „Přihlásit se“).
+## Flow přihlášení
 
-### 2. Flow přihlášení e‑mailem (magic link)
+1. Uživatel zadá e-mail nebo použije Google login.
+2. Auth.js ověří identitu.
+3. `signIn` callback zavolá interní lookup uživatele podle e-mailu.
+4. Lookup vrátí profil pouze pokud existuje aktivní login identita a schválená vazba na osobu.
+5. Do JWT se uloží primární role, seznam rolí a zobrazované jméno.
+6. `session` callback předá role do `session.user`.
 
-1. Na `/auth/signin` rodič zadá svůj e‑mail a odešle formulář.
-2. Serverová akce:
-   - throttluje požadavky (pro stejný e‑mail max. jednou za 30 sekund),
-   - volá `await signIn("nodemailer", { email, redirectTo: callbackUrl })`.
-3. Auth.js:
-   - vytvoří `VerificationToken` v DB,
-   - zavolá `sendVerificationRequest`, který odešle e‑mail.
-4. Po kliknutí na odkaz:
-   - endpoint `/api/auth/callback/nodemailer` ověří a smaže token,
-   - spustí `signIn` callback (viz níže),
-   - vytvoří session (`JWT` cookie).
+Pokud interní profil neexistuje nebo je nejednoznačný, přihlášení se odmítne.
 
-### 3. `signIn` callback – napojení na Codu
+## Role v session
 
-Implementace v `src/lib/auth.config.ts`:
+Role se berou z `AppRoleAssignment`. Primární role je vybraná podle priority v `src/lib/user-directory.ts`, session zároveň nese celé pole rolí.
 
-```ts
-async signIn({ user }) {
-  const email = user?.email;
-  if (!email) return false;
+Aktuální role zahrnují mimo jiné:
 
-  const parent = await findParentByEmail(email);
-  if (parent) return true;
+- `rodic`,
+- `zak`,
+- `pruvodce`,
+- `garant`,
+- `spravce_lodicek`,
+- `spravce_flotily`,
+- `admin`,
+- `tester`,
+- `proto`.
 
-  return "/auth/signin?error=NoRole";
-}
-```
+## Odhlášení
 
-- `findParentByEmail`:
-  - hledá rodiče v Codě (Seznam osob),
-  - kontroluje roli „Rodič“, aktivitu a kontaktní e‑maily.
-- Pokud rodič nenalezen:
-  - vrací se URL `/auth/signin?error=NoRole`,
-  - na přihlášení se zobrazí červená hláška s vysvětlením a kontaktem na kancelář školy.
+Manuální odhlášení volá Auth.js `signOut`.
 
-### 4. JWT a session callback
+Automatické odhlášení po 30 minutách nečinnosti zajišťuje komponenta `InactivitySignOut`.
 
-V `auth.config.ts`:
+## Coda
 
-- `jwt` callback:
-
-```ts
-if (user?.email) {
-  const parent = await findParentByEmail(user.email);
-  if (parent) {
-    token.role = "rodic";
-    token.jmeno = parent.name;
-  }
-}
-```
-
-- `session` callback:
-
-```ts
-if (session.user) {
-  const role = token.role ?? "zak";
-  session.user.role = role as "admin" | "ucitel" | "rodic" | "zak";
-  session.user.jmeno =
-    (typeof token.jmeno === "string" ? token.jmeno : undefined) ??
-    session.user.name ??
-    undefined;
-}
-```
-
-### 5. Odhlášení a automatické odhlášení
-
-- **Manuální odhlášení**
-  - Tlačítko „Odhlásit se“ v headeru volá serverovou akci `signOutAction`:
-
-    ```ts
-    await signOut({ redirectTo: "/" });
-    ```
-
-  - Auth.js smaže session cookie, uživatel je odhlášen.
-
-- **Automatické odhlášení po 30 minutách nečinnosti**
-  - Komponenta `InactivitySignOut` sleduje:
-    - `mousedown`, `mousemove`, `keydown`, `scroll`, `touchstart`, `click`.
-  - Při nečinnosti 30 minut:
-
-    ```ts
-    signOut({ redirectTo: "/auth/signin?reason=inactivity" });
-    ```
-
-  - Přihlášení pak opět vyžaduje magic link nebo Google účet.
-
-### 6. Vlastní stránky Auth.js
-
-- `pages.signIn = "/auth/signin"` – vlastní přihlašovací UI.
-- `pages.verifyRequest = "/auth/verify-request"` – česky lokalizovaná stránka „Zkontrolujte e‑mail“.
-- `pages.error = "/auth/error"` – vlastní stránka pro chybové stavy:
-  - `error=Verification` – vypršel / znovu použitý odkaz,
-  - `error=NoRole` – e‑mail není evidován jako rodič v Codě.
+Starší dokumentace popisovala ověřování přes Coda `Seznam osob`. To je historický relikt a nesmí se znovu použít. Aktuální aplikace ověřuje uživatele pouze přes interní DB.

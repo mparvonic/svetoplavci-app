@@ -1,0 +1,9 @@
+[Unit]
+Description=Svetoplavci PostgreSQL restore drill on GX10
+After=default.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/projects/svetoplavci-app
+ExecStart=/srv/projects/svetoplavci-app/ops/scripts/restore_drill_postgres_gx10.sh
+NoNewPrivileges=true

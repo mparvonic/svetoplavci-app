@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { Session } from "next-auth";
 import { UserRound } from "lucide-react";
 
@@ -15,6 +14,7 @@ import {
 const CHILD_VIEW_ROLES = new Set(["admin", "tester", "rodic", "zak"]);
 const REPORT_ROLES = new Set(["admin", "tester", "rodic"]);
 const GUIDE_ROLES = new Set(["admin", "tester", "ucitel", "zamestnanec", "pruvodce", "garant"]);
+const LODICKY_MANAGEMENT_ROLES = new Set(["admin", "spravce_lodicek", "spravce_flotily"]);
 const LODICKY_ROLES = new Set([...CHILD_VIEW_ROLES, ...GUIDE_ROLES]);
 const ISLAND_ROLES = new Set([...CHILD_VIEW_ROLES, ...GUIDE_ROLES]);
 const ADMIN_ROLES = new Set(["admin"]);
@@ -31,6 +31,11 @@ const DEV_NAV_ITEMS: DevNavItem[] = [
     href: "/portal/lodicky",
     label: "Lodičky",
     roles: LODICKY_ROLES,
+  },
+  {
+    href: "/portal/lodicky/sprava",
+    label: "Správa lodiček",
+    roles: LODICKY_MANAGEMENT_ROLES,
   },
   {
     href: "/vysvedceni",
@@ -121,12 +126,10 @@ export async function DevAppMenu() {
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:gap-7">
             <Link href={homeHref} className="group flex w-fit shrink-0 items-center">
-              <Image
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src="/svetoplavci_logo.png"
                 alt="Světoplavci"
-                width={260}
-                height={92}
-                priority
                 className="h-auto w-[10.5rem] transition duration-200 ease-[var(--sv-ease)] group-hover:-translate-y-px sm:w-[12.5rem]"
               />
               {isDevMenu && <span className="sr-only">Testovací přístup</span>}
@@ -160,12 +163,12 @@ export async function DevAppMenu() {
                   </span>
                   <span className="sr-only">Dočasný uživatel</span>
                   <select
-                    name="personId"
-                    defaultValue={selectedUser?.personId ?? devUsers[0]?.personId}
+                    name="selectionId"
+                    defaultValue={selectedUser?.selectionId ?? devUsers[0]?.selectionId}
                     className="h-8 max-w-[calc(100vw-7rem)] rounded-full border border-[#D6DFF0] bg-white px-3 text-xs font-medium text-[#0E2A5C] outline-none focus:border-[#C8372D] focus:ring-2 focus:ring-[#C8372D]/20 sm:max-w-[20rem]"
                   >
                     {devUsers.map((user) => (
-                      <option key={user.personId} value={user.personId}>
+                      <option key={user.selectionId} value={user.selectionId}>
                         {user.displayName} | {user.roles.map((role) => getDevAuthRoleLabel(role)).join(", ")}
                       </option>
                     ))}

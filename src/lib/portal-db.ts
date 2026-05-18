@@ -560,9 +560,12 @@ export async function filterChildrenByGarant(children: PortalChild[], garantPers
     JOIN app_m01_lodicka l
       ON l.id = ol.lodicka_id
       AND l.is_deleted = false
+    LEFT JOIN app_m01_lodicka_stav_garant sg
+      ON sg.lodicka_id = l.id
+      AND sg.person_id = ${trimmedGarantId}
     WHERE os.status = 'ACTIVE'
       AND os.person_id IN (${Prisma.join(childIds)})
-      AND l.garant_person_id = ${trimmedGarantId}
+      AND (sg.person_id IS NOT NULL OR l.garant_person_id = ${trimmedGarantId})
   `);
 
   const allowed = new Set(rows.map((row) => row.child_id));
@@ -783,7 +786,15 @@ async function getPortalChildLodickyFromContext(
     `
     : Prisma.empty;
   const garantFilter = garantPersonId
-    ? Prisma.sql`AND l.garant_person_id = ${garantPersonId}`
+    ? Prisma.sql`AND (
+        EXISTS (
+          SELECT 1
+          FROM app_m01_lodicka_stav_garant gf
+          WHERE gf.lodicka_id = l.id
+            AND gf.person_id = ${garantPersonId}
+        )
+        OR l.garant_person_id = ${garantPersonId}
+      )`
     : Prisma.empty;
 
   const rows = await prisma.$queryRaw<LodickaQueryRow[]>`
@@ -947,7 +958,15 @@ export async function getPortalLodickyByActor(
     `
     : Prisma.empty;
   const garantFilter = garantPersonId
-    ? Prisma.sql`AND l.garant_person_id = ${garantPersonId}`
+    ? Prisma.sql`AND (
+        EXISTS (
+          SELECT 1
+          FROM app_m01_lodicka_stav_garant gf
+          WHERE gf.lodicka_id = l.id
+            AND gf.person_id = ${garantPersonId}
+        )
+        OR l.garant_person_id = ${garantPersonId}
+      )`
     : Prisma.empty;
 
   const rows = await prisma.$queryRaw<LodickaQueryRow[]>(Prisma.sql`
@@ -1105,7 +1124,15 @@ export async function getPortalLodickyCompactByActor(
     `
     : Prisma.empty;
   const garantFilter = garantPersonId
-    ? Prisma.sql`AND lf.garant_person_id = ${garantPersonId}`
+    ? Prisma.sql`AND (
+        EXISTS (
+          SELECT 1
+          FROM app_m01_lodicka_stav_garant gf
+          WHERE gf.lodicka_id = lf.id
+            AND gf.person_id = ${garantPersonId}
+        )
+        OR lf.garant_person_id = ${garantPersonId}
+      )`
     : Prisma.empty;
   const personalTuple = includeHistory
     ? Prisma.sql`
@@ -1409,11 +1436,13 @@ export async function savePortalLodickaStatusForActor(
   const targetRows = await prisma.$queryRaw<Array<{
     personal_id: string;
     child_id: string;
+    lodicka_id: string;
     garant_person_id: string | null;
   }>>(Prisma.sql`
     SELECT
       ol.id AS personal_id,
       os.person_id AS child_id,
+      l.id AS lodicka_id,
       l.garant_person_id AS garant_person_id
     FROM app_m01_osobni_lodicka ol
     JOIN app_m01_osobni_sada_lodicek os
@@ -1440,8 +1469,19 @@ export async function savePortalLodickaStatusForActor(
   const actorPersonIds = new Set(
     [...actor.personIds, input.actorPersonId ?? ""].map((id) => id.trim()).filter(Boolean),
   );
+  const actorPersonIdList = [...actorPersonIds];
+  const newGarantRows = actorPersonIdList.length > 0
+    ? await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT count(*)::int AS count
+        FROM app_m01_lodicka_stav_garant sg
+        WHERE sg.lodicka_id = ${target.lodicka_id}
+          AND sg.person_id IN (${Prisma.join(actorPersonIdList)})
+      `)
+    : [];
   const targetGarantId = target.garant_person_id?.trim() ?? "";
-  if (!targetGarantId || !actorPersonIds.has(targetGarantId)) {
+  const hasLegacyGarant = Boolean(targetGarantId && actorPersonIds.has(targetGarantId));
+  const hasNewGarant = (newGarantRows[0]?.count ?? 0) > 0;
+  if (!hasLegacyGarant && !hasNewGarant) {
     return { ok: false, code: "FORBIDDEN", message: "Stav této lodičky smí měnit pouze její garant." };
   }
 
