@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Pencil, ShieldCheck, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,15 +18,36 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { APP_ROLES } from "@/src/lib/user-directory";
 
 import { getAdminPersonMergeOptions, getAdminUserDetail } from "../data";
 import { formatDate, formatDateTime, formatPersonDisplayName } from "../format";
+import { updateAdminUserRolesAction } from "./actions";
 import { PersonMergeDialog } from "./person-merge-dialog";
 
 export const dynamic = "force-dynamic";
 
 type AdminUserDetailPageProps = {
   params: Promise<{ personId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  zamestnanec: "Zaměstnanec",
+  ucitel: "Učitel",
+  pruvodce: "Průvodce",
+  garant: "Garant stavu lodiček",
+  spravce_lodicek: "Správce lodiček",
+  spravce_flotily: "Správce flotily",
+  patron: "Patron",
+  druzinar: "Družinář",
+  editor_hodnoceni: "Editor hodnocení",
+  schvalovatel_hodnoceni: "Schvalovatel hodnocení",
+  rodic: "Rodič",
+  zak: "Žák",
+  tester: "Tester",
+  proto: "Proto",
 };
 
 function StatusBadge({ active }: { active: boolean }) {
@@ -88,8 +109,10 @@ function roleValidityLabel(role: {
 
 export default async function AdminUserDetailPage({
   params,
+  searchParams,
 }: AdminUserDetailPageProps) {
   const { personId } = await params;
+  const query = await searchParams;
   const [person, mergeOptions] = await Promise.all([
     getAdminUserDetail(personId),
     getAdminPersonMergeOptions(),
@@ -108,6 +131,11 @@ export default async function AdminUserDetailPage({
   const primaryLoginEmail = person.loginLinks.find(
     (link) => link.status === "approved",
   )?.identity.normalizedValue;
+  const roleUpdateState =
+    typeof query.roleUpdate === "string" ? query.roleUpdate : null;
+  const roleUpdateMessage =
+    typeof query.message === "string" ? query.message : null;
+  const roleEditMode = query.roleEdit === "1";
 
   return (
     <div className="space-y-6">
@@ -217,33 +245,135 @@ export default async function AdminUserDetailPage({
         <Card>
           <CardHeader>
             <CardTitle>Role</CardTitle>
-            <CardDescription>Aktivní i historické role osoby.</CardDescription>
+            <CardDescription>
+              Přehled aktuálně přiřazených rolí osoby.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            {visibleRoles.length === 0 ? (
-              <EmptyText>Bez rolí</EmptyText>
-            ) : (
-              <div className="space-y-2">
-                {visibleRoles.map((role) => (
-                  <div
-                    key={role.id}
-                    className="rounded-[12px] border border-[#D6DFF0] bg-white p-3 text-sm"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-semibold text-[#0E2A5C]">
-                        {role.role}
-                      </span>
-                      <StatusBadge active={role.isActive} />
-                    </div>
-                    <div className="mt-2 text-xs text-[#7F88A0]">
-                      Zdroj {role.source} · {roleValidityLabel(role)}
-                    </div>
+          <CardContent className="space-y-4">
+            {roleUpdateState === "saved" && (
+              <div className="rounded-[12px] border border-[#B8D9C6] bg-[#F0FAF3] p-3 text-sm font-medium text-[#1F7A4D]">
+                Role byly uloženy.
+              </div>
+            )}
+            {roleUpdateState === "error" && (
+              <div className="rounded-[12px] border border-[#F0B8B6] bg-[#FFF4F3] p-3 text-sm font-medium text-[#C8372D]">
+                {roleUpdateMessage ?? "Role se nepodařilo uložit."}
+              </div>
+            )}
+
+            {roleEditMode ? (
+              <form action={updateAdminUserRolesAction} className="space-y-3">
+                <input type="hidden" name="personId" value={person.id} />
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {APP_ROLES.map((role) => {
+                    const checked = activeRoleCodes.has(role);
+                    return (
+                      <label
+                        key={role}
+                        className={[
+                          "flex min-h-11 cursor-pointer items-center gap-3 rounded-[12px] border px-3 py-2 text-sm transition",
+                          checked
+                            ? "border-[#0E2A5C] bg-[#F7FAFF] text-[#0E2A5C]"
+                            : "border-[#D6DFF0] bg-white text-[#4A5A7C] hover:bg-[#EEF2F7]",
+                        ].join(" ")}
+                      >
+                        <input
+                          name="role"
+                          value={role}
+                          type="checkbox"
+                          defaultChecked={checked}
+                          className="size-4 rounded border-[#D6DFF0] text-[#0E2A5C]"
+                        />
+                        <span className="min-w-0">
+                          <span className="block font-semibold">
+                            {ROLE_LABELS[role] ?? role}
+                          </span>
+                          <span className="block text-xs text-[#7F88A0]">
+                            {role}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] bg-[#F7FAFF] p-3 text-xs text-[#4A5A7C]">
+                  <span className="inline-flex items-center gap-2">
+                    <ShieldCheck className="size-4" aria-hidden={true} />
+                    Odebrání posledního admina je blokované.
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline">
+                      <Link href={`/admin/uzivatele/${person.id}`}>
+                        <X className="size-4" aria-hidden={true} />
+                        Storno
+                      </Link>
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="bg-[#002060] text-white hover:bg-[#001540]"
+                    >
+                      Uložit role
+                    </Button>
                   </div>
-                ))}
-                {hiddenDuplicateHistoricalRolesCount > 0 && (
-                  <div className="rounded-[12px] border border-[#D6DFF0] bg-[#F7FAFF] p-3 text-xs text-[#7F88A0]">
-                    Skryto {hiddenDuplicateHistoricalRolesCount} duplicitních
-                    historických rolí, které mají stejný kód jako aktivní role.
+                </div>
+              </form>
+            ) : (
+              <div className="space-y-3">
+                {activeRoles.length === 0 ? (
+                  <EmptyText>Bez aktivních rolí</EmptyText>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {activeRoles.map((role) => (
+                      <Badge
+                        key={`${role.role}:${role.source}`}
+                        variant="outline"
+                        className="px-3 py-1"
+                      >
+                        {ROLE_LABELS[role.role] ?? role.role}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <Button asChild variant="outline">
+                  <Link href={`/admin/uzivatele/${person.id}?roleEdit=1`}>
+                    <Pencil className="size-4" aria-hidden={true} />
+                    Upravit role
+                  </Link>
+                </Button>
+              </div>
+            )}
+
+            {roleEditMode && (
+              <div className="space-y-2 border-t border-[#EEF2F7] pt-4">
+                <h3 className="text-sm font-semibold text-[#0E2A5C]">
+                  Záznamy rolí
+                </h3>
+                {visibleRoles.length === 0 ? (
+                  <EmptyText>Bez rolí</EmptyText>
+                ) : (
+                  <div className="space-y-2">
+                    {visibleRoles.map((role) => (
+                      <div
+                        key={role.id}
+                        className="rounded-[12px] border border-[#D6DFF0] bg-white p-3 text-sm"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-[#0E2A5C]">
+                            {role.role}
+                          </span>
+                          <StatusBadge active={role.isActive} />
+                        </div>
+                        <div className="mt-2 text-xs text-[#7F88A0]">
+                          Zdroj {role.source} · {roleValidityLabel(role)}
+                        </div>
+                      </div>
+                    ))}
+                    {hiddenDuplicateHistoricalRolesCount > 0 && (
+                      <div className="rounded-[12px] border border-[#D6DFF0] bg-[#F7FAFF] p-3 text-xs text-[#7F88A0]">
+                        Skryto {hiddenDuplicateHistoricalRolesCount} duplicitních
+                        historických rolí, které mají stejný kód jako aktivní role.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
