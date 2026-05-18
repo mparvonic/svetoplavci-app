@@ -7,6 +7,10 @@ import {
   provisionM01LodickyForSyncedStudents,
   type ProvisionM01LodickyResult,
 } from "@/src/lib/m01-lodicky-provisioning";
+import {
+  removeM01AssignmentsForPersons,
+  syncM01DerivedRolesForPersons,
+} from "@/src/lib/m01-lodicky-role-sync";
 import { normalizeEmail } from "@/src/lib/user-directory";
 
 const DEFAULT_INITIAL_SYNC_DATE = "2021-09-01";
@@ -1075,6 +1079,22 @@ async function recomputePersonRolesAndActivity(personId: string): Promise<void> 
     data: {
       isActive: activeSourceRecords.length > 0,
     },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    const activePruvodce = await tx.appRoleAssignment.findFirst({
+      where: {
+        personId,
+        role: "pruvodce",
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (activePruvodce) {
+      await syncM01DerivedRolesForPersons(tx, [personId]);
+    } else {
+      await removeM01AssignmentsForPersons(tx, [personId]);
+    }
   });
 }
 

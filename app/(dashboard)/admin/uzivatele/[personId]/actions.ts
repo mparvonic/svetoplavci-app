@@ -4,6 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/src/lib/auth";
+import {
+  isM01DerivedRole,
+  removeM01AssignmentsForPersons,
+  syncM01DerivedRolesForPersons,
+} from "@/src/lib/m01-lodicky-role-sync";
 import { prisma } from "@/src/lib/prisma";
 import { APP_ROLES, type AppRole } from "@/src/lib/user-directory";
 
@@ -54,8 +59,13 @@ export async function updateAdminUserRolesAction(formData: FormData) {
   if (!personId) redirect("/admin/uzivatele?roleUpdate=error");
 
   const selectedRoles = Array.from(
-    new Set(formData.getAll("role").map(normalizeRole).filter(Boolean)),
-  ) as AppRole[];
+    new Set(
+      formData
+        .getAll("role")
+        .map(normalizeRole)
+        .filter((role): role is AppRole => Boolean(role)),
+    ),
+  ).filter((role) => !isM01DerivedRole(role));
   const selectedRoleSet = new Set<string>(selectedRoles);
 
   try {
@@ -98,7 +108,12 @@ export async function updateAdminUserRolesAction(formData: FormData) {
         }
       }
 
+      const pruvodceWillBeRemoved =
+        activeRoleSet.has("pruvodce") && !selectedRoleSet.has("pruvodce");
+
       for (const role of APP_ROLES) {
+        if (isM01DerivedRole(role)) continue;
+
         const shouldBeActive = selectedRoleSet.has(role);
         const isActive = activeRoleSet.has(role);
 
@@ -143,6 +158,12 @@ export async function updateAdminUserRolesAction(formData: FormData) {
           });
         }
       }
+
+      if (pruvodceWillBeRemoved) {
+        await removeM01AssignmentsForPersons(tx, [personId]);
+      } else {
+        await syncM01DerivedRolesForPersons(tx, [personId]);
+      }
     });
 
   } catch (error) {
@@ -153,5 +174,6 @@ export async function updateAdminUserRolesAction(formData: FormData) {
 
   revalidatePath(`/admin/uzivatele/${personId}`);
   revalidatePath("/admin/uzivatele");
+  revalidatePath("/portal/lodicky/sprava");
   redirectWithMessage(personId, "saved");
 }

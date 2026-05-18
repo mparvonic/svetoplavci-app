@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { isM01DerivedRole } from "@/src/lib/m01-lodicky-role-sync";
 import { APP_ROLES } from "@/src/lib/user-directory";
 
 import { getAdminPersonMergeOptions, getAdminUserDetail } from "../data";
@@ -267,32 +268,50 @@ export default async function AdminUserDetailPage({
                 <div className="grid gap-2 sm:grid-cols-2">
                   {APP_ROLES.map((role) => {
                     const checked = activeRoleCodes.has(role);
+                    const managedByLodicky = isM01DerivedRole(role);
                     return (
-                      <label
+                      <div
                         key={role}
                         className={[
-                          "flex min-h-11 cursor-pointer items-center gap-3 rounded-[12px] border px-3 py-2 text-sm transition",
+                          "flex min-h-11 items-center gap-3 rounded-[12px] border px-3 py-2 text-sm transition",
                           checked
                             ? "border-[#0E2A5C] bg-[#F7FAFF] text-[#0E2A5C]"
                             : "border-[#D6DFF0] bg-white text-[#4A5A7C] hover:bg-[#EEF2F7]",
+                          managedByLodicky
+                            ? "cursor-not-allowed opacity-70 hover:bg-white"
+                            : "cursor-pointer",
                         ].join(" ")}
                       >
-                        <input
-                          name="role"
-                          value={role}
-                          type="checkbox"
-                          defaultChecked={checked}
-                          className="size-4 rounded border-[#D6DFF0] text-[#0E2A5C]"
-                        />
+                        {managedByLodicky ? (
+                          <span
+                            className={[
+                              "size-4 rounded border",
+                              checked
+                                ? "border-[#0E2A5C] bg-[#0E2A5C]"
+                                : "border-[#D6DFF0] bg-white",
+                            ].join(" ")}
+                            aria-hidden={true}
+                          />
+                        ) : (
+                          <input
+                            name="role"
+                            value={role}
+                            type="checkbox"
+                            defaultChecked={checked}
+                            className="size-4 rounded border-[#D6DFF0] text-[#0E2A5C]"
+                          />
+                        )}
                         <span className="min-w-0">
                           <span className="block font-semibold">
                             {ROLE_LABELS[role] ?? role}
                           </span>
                           <span className="block text-xs text-[#7F88A0]">
-                            {role}
+                            {managedByLodicky
+                              ? "řízeno správou lodiček"
+                              : role}
                           </span>
                         </span>
-                      </label>
+                      </div>
                     );
                   })}
                 </div>

@@ -886,7 +886,7 @@ async function getSpravceOptions(): Promise<LodickyManagementPersonOption[]> {
     FROM app_person p
     JOIN app_role_assignment ra
       ON ra.person_id = p.id
-      AND ra.role = 'spravce_lodicek'
+      AND ra.role = 'pruvodce'
       AND ra.is_active = true
     LEFT JOIN LATERAL (
       SELECT i.normalized_value
@@ -922,7 +922,7 @@ async function getGarantOptions(): Promise<LodickyManagementPersonOption[]> {
     FROM app_person p
     JOIN app_role_assignment ra
       ON ra.person_id = p.id
-      AND ra.role = 'garant'
+      AND ra.role = 'pruvodce'
       AND ra.is_active = true
     LEFT JOIN LATERAL (
       SELECT i.normalized_value
