@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/src/lib/auth";
 import { collectSessionRoles, isLocalDevAuthBypass, LOCAL_DEV_ROLES } from "@/src/lib/api/session";
 import { getSelectedDevAuthUser } from "@/src/lib/dev-auth";
+import { syncM01DerivedRolesForPersons } from "@/src/lib/m01-lodicky-role-sync";
 import { prisma } from "@/src/lib/prisma";
 import { getApprovedLoginProfileByEmail } from "@/src/lib/user-directory";
 
@@ -586,19 +587,63 @@ async function validOvuIds(lodickaId: string, ovuIds: string[], stupen: "I_STUPE
   return new Set(rows.map((row) => row.id));
 }
 
-async function validPersonIds(personIds: string[], role: "garant" | "spravce_lodicek"): Promise<Set<string>> {
+async function validPruvodcePersonIds(personIds: string[]): Promise<Set<string>> {
   if (personIds.length === 0) return new Set();
   const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
     SELECT DISTINCT p.id
     FROM app_person p
     JOIN app_role_assignment ra
       ON ra.person_id = p.id
-      AND ra.role = ${role}
+      AND ra.role = 'pruvodce'
       AND ra.is_active = true
     WHERE p.is_active = true
       AND p.id IN (${Prisma.join([...new Set(personIds)])})
   `);
   return new Set(rows.map((row) => row.id));
+}
+
+async function getM01AssignmentPersonIds(
+  tx: Prisma.TransactionClient,
+  input: {
+    oblastIds?: string[];
+    lodickaIds?: string[];
+  },
+): Promise<string[]> {
+  const oblastIds = [...new Set(input.oblastIds?.filter(Boolean) ?? [])];
+  const lodickaIds = [...new Set(input.lodickaIds?.filter(Boolean) ?? [])];
+  const personIds = new Set<string>();
+
+  if (oblastIds.length > 0) {
+    const rows = await tx.$queryRaw<Array<{ personId: string }>>(Prisma.sql`
+      SELECT DISTINCT person_id AS "personId"
+      FROM app_m01_oblast_spravce
+      WHERE oblast_id IN (${Prisma.join(oblastIds)})
+    `);
+    for (const row of rows) personIds.add(row.personId);
+  }
+
+  if (lodickaIds.length > 0) {
+    const rows = await tx.$queryRaw<Array<{ personId: string }>>(Prisma.sql`
+      SELECT DISTINCT person_id AS "personId"
+      FROM (
+        SELECT person_id
+        FROM app_m01_lodicka_stav_garant
+        WHERE lodicka_id IN (${Prisma.join(lodickaIds)})
+        UNION
+        SELECT person_id
+        FROM app_m01_lodicka_garant
+        WHERE lodicka_id IN (${Prisma.join(lodickaIds)})
+        UNION
+        SELECT garant_person_id AS person_id
+        FROM app_m01_lodicka
+        WHERE id IN (${Prisma.join(lodickaIds)})
+          AND garant_person_id IS NOT NULL
+      ) people
+    `);
+    for (const row of rows) personIds.add(row.personId);
+  }
+
+  return [...personIds];
 }
 
 async function validateClassification(input: {
@@ -833,7 +878,7 @@ export async function updateOblastSpravciManagementAction(formData: FormData) {
         AND is_active = true
     `),
     requestedSpravceIds.length > 0
-      ? validPersonIds(requestedSpravceIds, "spravce_lodicek")
+      ? validPruvodcePersonIds(requestedSpravceIds)
       : Promise.resolve(new Set<string>()),
   ]);
 
@@ -846,6 +891,10 @@ export async function updateOblastSpravciManagementAction(formData: FormData) {
   }
 
   await prisma.$transaction(async (tx) => {
+    const affectedPersonIds = new Set<string>([
+      ...requestedSpravceIds,
+      ...(await getM01AssignmentPersonIds(tx, { oblastIds })),
+    ]);
     const preservedOwnRows = mode === "replace" && ownPersonIds.length > 0
       ? await tx.$queryRaw<Array<{ oblastId: string; personId: string; isPrimary: boolean }>>(Prisma.sql`
           SELECT oblast_id AS "oblastId", person_id AS "personId", is_primary AS "isPrimary"
@@ -876,6 +925,7 @@ export async function updateOblastSpravciManagementAction(formData: FormData) {
         const finalSpravceIds = mode === "replace"
           ? [...new Set([...requestedSpravceIds, ...preservedForOblast.map((row) => row.personId)])]
           : requestedSpravceIds;
+        for (const personId of finalSpravceIds) affectedPersonIds.add(personId);
         for (const [index, personId] of finalSpravceIds.entries()) {
           const preservedOwnRow = preservedForOblast.find((row) => row.personId === personId);
           await tx.$executeRaw(Prisma.sql`
@@ -887,6 +937,8 @@ export async function updateOblastSpravciManagementAction(formData: FormData) {
         }
       }
     }
+
+    await syncM01DerivedRolesForPersons(tx, [...affectedPersonIds]);
   });
 
   revalidatePath("/portal/lodicky/sprava");
@@ -1518,14 +1570,19 @@ export async function updateTaxonomyOblastPeopleAction(formData: FormData) {
         AND is_active = true
       LIMIT 1
     `),
-    requestedSpravceIds.length > 0 ? validPersonIds(requestedSpravceIds, "spravce_lodicek") : Promise.resolve(new Set<string>()),
-    requestedGarantIds.length > 0 ? validPersonIds(requestedGarantIds, "garant") : Promise.resolve(new Set<string>()),
+    requestedSpravceIds.length > 0 ? validPruvodcePersonIds(requestedSpravceIds) : Promise.resolve(new Set<string>()),
+    requestedGarantIds.length > 0 ? validPruvodcePersonIds(requestedGarantIds) : Promise.resolve(new Set<string>()),
   ]);
   if (!svpVersionId || !oblastId || oblastRows.length === 0 || validSpravci.size !== requestedSpravceIds.length || validGaranti.size !== requestedGarantIds.length) {
     redirect(appendStatusParam(returnTo, "error", "invalid-oblast-spravci"));
   }
 
   await prisma.$transaction(async (tx) => {
+    const affectedPersonIds = new Set<string>([
+      ...requestedSpravceIds,
+      ...requestedGarantIds,
+      ...(await getM01AssignmentPersonIds(tx, { oblastIds: [oblastId] })),
+    ]);
     await tx.$executeRaw(Prisma.sql`
       DELETE FROM app_m01_oblast_spravce
       WHERE oblast_id = ${oblastId}
@@ -1548,6 +1605,9 @@ export async function updateTaxonomyOblastPeopleAction(formData: FormData) {
     `);
     const lodickaIds = lodicky.map((lodicka) => lodicka.id);
     if (lodickaIds.length > 0) {
+      for (const personId of await getM01AssignmentPersonIds(tx, { lodickaIds })) {
+        affectedPersonIds.add(personId);
+      }
       await tx.$executeRaw(Prisma.sql`
         DELETE FROM app_m01_lodicka_stav_garant
         WHERE lodicka_id IN (${Prisma.join(lodickaIds)})
@@ -1568,6 +1628,8 @@ export async function updateTaxonomyOblastPeopleAction(formData: FormData) {
         WHERE id IN (${Prisma.join(lodickaIds)})
       `);
     }
+
+    await syncM01DerivedRolesForPersons(tx, [...affectedPersonIds]);
   });
 
   revalidatePath("/portal/lodicky/sprava");
@@ -1613,7 +1675,7 @@ export async function createLodickaManagementAction(formData: FormData) {
     `),
     validateClassification({ svpVersionId, stupen, predmetId, podpredmetId, oblastId }),
     getClassificationInfo({ svpVersionId, stupen, predmetId, podpredmetId, oblastId }),
-    validPersonIds(requestedSpravceIds, "spravce_lodicek"),
+    validPruvodcePersonIds(requestedSpravceIds),
   ]);
 
   if (svpRows.length === 0 || !classificationIsValid || !classification) {
@@ -1625,7 +1687,7 @@ export async function createLodickaManagementAction(formData: FormData) {
   }
 
   if (requestedGarantIds.length > 0) {
-    const validGaranti = await validPersonIds(requestedGarantIds, "garant");
+    const validGaranti = await validPruvodcePersonIds(requestedGarantIds);
     if (validGaranti.size !== requestedGarantIds.length) {
       redirect(appendStatusParam(returnTo, "error", "invalid-garant"));
     }
@@ -1714,6 +1776,11 @@ export async function createLodickaManagementAction(formData: FormData) {
         SET is_primary = EXCLUDED.is_primary
       `);
     }
+
+    await syncM01DerivedRolesForPersons(tx, [
+      ...requestedSpravceIds,
+      ...requestedGarantIds,
+    ]);
   });
 
   revalidatePath("/portal/lodicky/sprava");
@@ -1789,7 +1856,7 @@ export async function updateLodickaManagementAction(formData: FormData) {
 
   if (wholeFleet) {
     const [validSpravci, classificationIsValid] = await Promise.all([
-      validPersonIds(requestedSpravceIds, "spravce_lodicek"),
+      validPruvodcePersonIds(requestedSpravceIds),
       validateClassification({
         svpVersionId: context.svpVersionId,
         stupen: requestedStupen,
@@ -1809,13 +1876,22 @@ export async function updateLodickaManagementAction(formData: FormData) {
   }
 
   if (requestedGarantIds.length > 0) {
-    const validGaranti = await validPersonIds(requestedGarantIds, "garant");
+    const validGaranti = await validPruvodcePersonIds(requestedGarantIds);
     if (validGaranti.size !== requestedGarantIds.length) {
       redirect(appendStatusParam(returnTo, "error", "invalid-garant"));
     }
   }
 
   await prisma.$transaction(async (tx) => {
+    const affectedPersonIds = new Set<string>([
+      ...requestedSpravceIds,
+      ...requestedGarantIds,
+      ...(await getM01AssignmentPersonIds(tx, {
+        oblastIds: wholeFleet && requestedOblastId ? [requestedOblastId] : [],
+        lodickaIds: [lodickaId],
+      })),
+    ]);
+
     if (wholeFleet) {
       await tx.$executeRaw(Prisma.sql`
         UPDATE app_m01_lodicka
@@ -1872,6 +1948,7 @@ export async function updateLodickaManagementAction(formData: FormData) {
           `)
         : [];
       const finalSpravceIds = [...new Set([...requestedSpravceIds, ...preservedOwnRows.map((row) => row.personId)])];
+      for (const personId of finalSpravceIds) affectedPersonIds.add(personId);
 
       await tx.$executeRaw(Prisma.sql`
         DELETE FROM app_m01_oblast_spravce
@@ -1902,6 +1979,8 @@ export async function updateLodickaManagementAction(formData: FormData) {
         SET is_primary = EXCLUDED.is_primary
       `);
     }
+
+    await syncM01DerivedRolesForPersons(tx, [...affectedPersonIds]);
   });
 
   revalidatePath("/portal/lodicky/sprava");
@@ -2030,7 +2109,7 @@ export async function bulkUpdateLodickyManagementAction(formData: FormData) {
       redirect(appendStatusParam(returnTo, "error", "invalid-spravce"));
     }
     if (requestedSpravceIds.length > 0) {
-      const validSpravci = await validPersonIds(requestedSpravceIds, "spravce_lodicek");
+      const validSpravci = await validPruvodcePersonIds(requestedSpravceIds);
       if (validSpravci.size !== requestedSpravceIds.length) {
         redirect(appendStatusParam(returnTo, "error", "invalid-spravce"));
       }
@@ -2050,7 +2129,7 @@ export async function bulkUpdateLodickyManagementAction(formData: FormData) {
       redirect(appendStatusParam(returnTo, "error", "invalid-garant"));
     }
     if (requestedGarantIds.length > 0) {
-      const validGaranti = await validPersonIds(requestedGarantIds, "garant");
+      const validGaranti = await validPruvodcePersonIds(requestedGarantIds);
       if (validGaranti.size !== requestedGarantIds.length) {
         redirect(appendStatusParam(returnTo, "error", "invalid-garant"));
       }
@@ -2058,6 +2137,15 @@ export async function bulkUpdateLodickyManagementAction(formData: FormData) {
   }
 
   await prisma.$transaction(async (tx) => {
+    const affectedPersonIds = new Set<string>([
+      ...requestedSpravceIds,
+      ...requestedGarantIds,
+      ...(await getM01AssignmentPersonIds(tx, {
+        oblastIds: affectedOblastIdsForSpravci,
+        lodickaIds,
+      })),
+    ]);
+
     if (applyClassification && requestedStupen && requestedRocnikOd !== null && requestedRocnikDo !== null) {
       await tx.$executeRaw(Prisma.sql`
         UPDATE app_m01_lodicka
@@ -2114,6 +2202,7 @@ export async function bulkUpdateLodickyManagementAction(formData: FormData) {
           const finalSpravceIds = spravceMode === "replace"
             ? [...new Set([...requestedSpravceIds, ...preservedForOblast.map((row) => row.personId)])]
             : requestedSpravceIds;
+          for (const personId of finalSpravceIds) affectedPersonIds.add(personId);
           for (const [index, personId] of finalSpravceIds.entries()) {
             const preservedOwnRow = preservedForOblast.find((row) => row.personId === personId);
             await tx.$executeRaw(Prisma.sql`
@@ -2170,6 +2259,8 @@ export async function bulkUpdateLodickyManagementAction(formData: FormData) {
         WHERE l.id IN (${Prisma.join(lodickaIds)})
       `);
     }
+
+    await syncM01DerivedRolesForPersons(tx, [...affectedPersonIds]);
   });
 
   revalidatePath("/portal/lodicky/sprava");
