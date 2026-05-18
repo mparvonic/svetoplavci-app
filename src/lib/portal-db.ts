@@ -1433,17 +1433,17 @@ export async function savePortalLodickaStatusForActor(
     return { ok: false, code: "FORBIDDEN", message: "Přístup zamítnut." };
   }
 
-	  const targetRows = await prisma.$queryRaw<Array<{
-	    personal_id: string;
-	    child_id: string;
-	    lodicka_id: string;
-	    garant_person_id: string | null;
-	  }>>(Prisma.sql`
-	    SELECT
-	      ol.id AS personal_id,
-	      os.person_id AS child_id,
-	      l.id AS lodicka_id,
-	      l.garant_person_id AS garant_person_id
+  const targetRows = await prisma.$queryRaw<Array<{
+    personal_id: string;
+    child_id: string;
+    lodicka_id: string;
+    garant_person_id: string | null;
+  }>>(Prisma.sql`
+    SELECT
+      ol.id AS personal_id,
+      os.person_id AS child_id,
+      l.id AS lodicka_id,
+      l.garant_person_id AS garant_person_id
     FROM app_m01_osobni_lodicka ol
     JOIN app_m01_osobni_sada_lodicek os
       ON os.id = ol.osobni_sada_id
@@ -1466,24 +1466,24 @@ export async function savePortalLodickaStatusForActor(
     return { ok: false, code: "FORBIDDEN", message: "Tato osobní lodička vám není přiřazena." };
   }
 
-	  const actorPersonIds = new Set(
-	    [...actor.personIds, input.actorPersonId ?? ""].map((id) => id.trim()).filter(Boolean),
-	  );
-	  const actorPersonIdList = [...actorPersonIds];
-	  const newGarantRows = actorPersonIdList.length > 0
-	    ? await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
-	        SELECT count(*)::int AS count
-	        FROM app_m01_lodicka_stav_garant sg
-	        WHERE sg.lodicka_id = ${target.lodicka_id}
-	          AND sg.person_id IN (${Prisma.join(actorPersonIdList)})
-	      `)
-	    : [];
-	  const targetGarantId = target.garant_person_id?.trim() ?? "";
-	  const hasLegacyGarant = Boolean(targetGarantId && actorPersonIds.has(targetGarantId));
-	  const hasNewGarant = (newGarantRows[0]?.count ?? 0) > 0;
-	  if (!hasLegacyGarant && !hasNewGarant) {
-	    return { ok: false, code: "FORBIDDEN", message: "Stav této lodičky smí měnit pouze její garant." };
-	  }
+  const actorPersonIds = new Set(
+    [...actor.personIds, input.actorPersonId ?? ""].map((id) => id.trim()).filter(Boolean),
+  );
+  const actorPersonIdList = [...actorPersonIds];
+  const newGarantRows = actorPersonIdList.length > 0
+    ? await prisma.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+        SELECT count(*)::int AS count
+        FROM app_m01_lodicka_stav_garant sg
+        WHERE sg.lodicka_id = ${target.lodicka_id}
+          AND sg.person_id IN (${Prisma.join(actorPersonIdList)})
+      `)
+    : [];
+  const targetGarantId = target.garant_person_id?.trim() ?? "";
+  const hasLegacyGarant = Boolean(targetGarantId && actorPersonIds.has(targetGarantId));
+  const hasNewGarant = (newGarantRows[0]?.count ?? 0) > 0;
+  if (!hasLegacyGarant && !hasNewGarant) {
+    return { ok: false, code: "FORBIDDEN", message: "Stav této lodičky smí měnit pouze její garant." };
+  }
 
   const sameDayRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
     SELECT id
