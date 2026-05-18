@@ -10,7 +10,8 @@ function createPrisma(): PrismaClient {
   if (!connectionString) {
     throw new Error("POSTGRES_PRISMA_URL is not set");
   }
-  const adapter = new PrismaPg({ connectionString, max: 2 });
+  const poolMax = Number.parseInt(process.env.POSTGRES_POOL_MAX ?? "10", 10);
+  const adapter = new PrismaPg({ connectionString, max: Number.isInteger(poolMax) && poolMax > 0 ? poolMax : 10 });
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],

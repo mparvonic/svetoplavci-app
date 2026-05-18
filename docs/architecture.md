@@ -1,66 +1,64 @@
-## Architektura aplikace
+# Architektura aplikace
 
-### Přehled
+## Přehled
 
-- **Framework:** Next.js 16 (app router, Turbopack).
+- **Framework:** Next.js App Router.
 - **Jazyk:** TypeScript.
-- **UI knihovna:** shadcn/ui + Tailwind CSS, vlastní „metro“ design (modrá `#002060`, červená `#DA0100`, bílá).
-- **Autentizace:** Auth.js / NextAuth (Google OAuth + e‑mailový magic link).
-- **Datové úložiště výsledků:** Coda (REST API v1).
-- **Databáze pro Auth:** PostgreSQL (Neon), spravovaná přes Prisma.
+- **UI knihovna:** shadcn/ui + Tailwind CSS, barvy modrá `#002060` a červená `#DA0100`.
+- **Autentizace:** Auth.js / NextAuth, Google OAuth + e-mailový magic link.
+- **Datové úložiště aplikace:** PostgreSQL + Prisma.
+- **Historický zdroj:** Coda je pouze archivní/migrační stopa. Runtime aplikace nesmí pro rozhodování ani zobrazení číst z Coda API.
 
-### Vrstevnaté členění
+## Zdroje pravdy
 
-1. **Frontend (app router)**
-   - `/auth/*` – přihlášení, verify-request, error (vše česky, metro design).
-   - `/` (dashboard) – přehled dětí rodiče a jejich výsledků.
-   - `/portal/dite/[childId]` – detail dítěte se 4 záložkami (na mobilu 3; „Vysvědčení – grafy“ je skrytá).
+PostgreSQL je zdroj pravdy pro provozní data aplikace:
 
-2. **API vrstva (Next.js app routes)**
-   - `/api/coda/my-children` – seznam dětí přihlášeného rodiče.
-   - `/api/coda/child/[childId]` – základní info o dítěti (kontrola „patří rodiči?“).
-   - `/api/coda/child/[childId]/data` – Lodičky (tabulky).
-   - `/api/coda/child/[childId]/vysvedceni` – data pro záložku „Vysvědčení – data“.
-   - `/api/coda/child/[childId]/vysvedceni-grafy` – data pro záložku „Vysvědčení – grafy“ (curve + report).
-   - `/api/coda/child/[childId]/[table]` – parametrizovaný přístup k vybraným tabulkám (whitelist).
+- osoby, login identity, rodinné vazby, role a školní členství,
+- M01 RVP/ŠVP/lodičky, osobní sady lodiček a historie stavů,
+- M03 Ostrovy a návazné školní události,
+- auditní a provozní metadata.
 
-3. **Integrace s Coda (`src/lib/coda.ts`)**
-   - helpery `getTableRowsAll`, `getChildTableData`, `findParentByEmail`, `getChildrenOfParent`, `getCurveData`, atd.
-   - interní cache sloupců a některých výsledků (kromě seznamu dětí, kde je cache vypnutá).
+Coda metadata se mohou uchovávat pouze kvůli zpětnému ověření migrace, například jako `source_coda_row_id`, `source_ref`, raw snapshot nebo importní report. Nový aplikační tok nesmí být navržený tak, že se obrací na Coda jako na živý zdroj.
 
-4. **Auth vrstva (`src/lib/auth.ts`, `src/lib/auth.config.ts`)**
-   - konfigurace Auth.js (providers, callbacks),
-   - Nodemailer Email provider s českým textem e‑mailu,
-   - Prisma adapter pro PostgreSQL.
+## Vrstevnaté členění
 
-### Hlavní datové toky
+1. **Frontend**
+   - `/portal/lodicky` - osobní lodičky a role-dependent pohledy.
+   - `/portal/lodicky/sprava` - správa sad/katalogu lodiček podle role.
+   - `/portal/dite/[childId]` - starší detail dítěte, postupně nahrazovaný M01/M03 pohledy.
+   - `/admin/*` - systémová a provozní správa, nikoli běžná správa lodiček.
 
-#### 1. Přihlášení rodiče
+2. **API vrstva**
+   - `/api/m01/*` - lodičky, osobní sady, zápis stavů a role-dependent čtení.
+   - `/api/ostrovy/*` - Ostrovy a přihlášky.
+   - `/api/admin/*` - systémová správa osob, vazeb, synců a provozních akcí.
+   - `/api/coda/*` je relikt staršího portálu; nové funkcionality ho nesmí používat.
 
-1. Uživatel zadá e‑mail nebo použije Google login na `/auth/signin`.
-2. Auth.js ověří Google / e‑mailový magic link.
-3. V `signIn` callbacku:
-   - zavolá `findParentByEmail(email)` v Codě,
-   - pokud rodič neexistuje, vrací `/auth/signin?error=NoRole`.
-4. V `jwt` callbacku se ukládá role `"rodic"` a jméno rodiče.
-5. Dashboard čte `session` přes `auth()` a podle role zobrazuje obsah.
+3. **Datová vrstva**
+   - Prisma schema v `prisma/schema.prisma`.
+   - Doménové helpery a servisní funkce v `src/lib`.
+   - M01 model odděluje katalogové lodičky (`app_m01_lodicka`) od osobních lodiček žáků (`app_m01_osobni_lodicka`) a append-only historie (`app_m01_osobni_lodicka_event`).
 
-#### 2. Načtení dětí rodiče
+4. **Auth vrstva**
+   - Auth.js providers jsou v `src/lib/auth.ts` a `src/lib/auth.config.ts`.
+   - Oprávnění se odvozují z interního user directory modelu (`AppLoginIdentity`, `AppLoginPersonLink`, `AppRoleAssignment`).
+   - Ověření přes Coda se nepoužívá.
 
-1. Stránka `/` volá `/api/coda/my-children`.
-2. API:
-   - ověří session (`auth()`),
-   - najde rodiče v Codě (`findParentByEmail`),
-   - zavolá `getChildrenOfParent(parent.rowId)`,
-   - vrací `children` (použito pro metro dlaždice dětí).
+## M01 Lodičky
 
-#### 3. Načtení dat pro jedno dítě
+Sada lodiček je modelovaná jako `M01SvpVersion`. Určuje:
 
-- Při přepnutí na dítě se ve `HomeContent` volá `/api/coda/child/[childId]/data`.
-- API:
-  - ověří session,
-  - znovu najde rodiče,
-  - z `getChildrenOfParent` vezme **jen děti tohoto rodiče** a ověří `childId`,
-  - vrátí tabulková data pro Lodičky.
-- Ostatní záložky (`vysvedceni`, `vysvedceni-grafy`) používají podobný pattern s příslušnými Coda tabulkami.
+- verzi a stav sady (`DRAFT`, `APPROVED`, `ACTIVE`, `ARCHIVED`),
+- platnost (`effective_from`, `effective_to`),
+- vazbu na RVP (`based_on_rvp_version_id`),
+- vazbu na předchozí sadu (`parent_svp_version_id`).
 
+Jednotlivé lodičky patří do konkrétní sady přes `svp_version_id`. Vazby na RVP/OVU jsou uloženy přes `app_m01_lodicka_ovu_link`.
+
+## Role v M01
+
+- `garant` - osoba oprávněná měnit stav osobních lodiček.
+- `spravce_lodicek` - spravuje přidělené katalogové lodičky, včetně názvu, popisu, ročníku a vazby na OVU/RVP.
+- `spravce_flotily` - spravuje celou sadu lodiček, platnost sady, vazbu na RVP a správce lodiček.
+
+Správa lodiček je portálový workflow, ne administrace v `/admin`.

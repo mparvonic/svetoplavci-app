@@ -4,6 +4,8 @@ export const GUIDE_ACCESS_ROLES = new Set([
   "zamestnanec",
   "pruvodce",
   "garant",
+  "spravce_lodicek",
+  "spravce_flotily",
 ]);
 
 export const CHILD_ACCESS_ROLES = new Set(["tester", "rodic", "zak"]);
@@ -11,6 +13,8 @@ export const M01_ACCESS_ROLES = new Set([
   "rodic",
   "zak",
   "garant",
+  "spravce_lodicek",
+  "spravce_flotily",
   "pruvodce",
   "ucitel",
   "zamestnanec",
@@ -25,6 +29,8 @@ export const AUTHENTICATED_APP_ROLES = new Set([
   "ucitel",
   "pruvodce",
   "garant",
+  "spravce_lodicek",
+  "spravce_flotily",
   "patron",
   "druzinar",
   "editor_hodnoceni",

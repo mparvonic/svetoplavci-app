@@ -13,13 +13,18 @@
     "db:tunnel:watch": "node scripts/db-tunnel-watch.mjs",
     "dev:db:tunnel:up": "./scripts/dev-db-tunnel-up.sh",
     "dev:db:up": "./scripts/dev-db-up.sh",
-    "db:push": "sh -c 'set -a; . ./.env.local; set +a; prisma db push'",
-    "db:check:schema": "sh -c 'set -a; . ./.env.local; set +a; node scripts/check-schema-drift.mjs'",
-    "m01:lodicky:dry-run": "sh -c 'set -a; . ./.env.local; set +a; node scripts/dry-run-m01-lodicky-provisioning.mjs'",
-    "ostrovy:non-daily:dry-run": "sh -c 'set -a; . ./.env.local; set +a; node scripts/dry-run-ostrovy-non-daily-registrations.mjs'",
+    "db:push": "scripts/with-runtime-env.sh prisma db push",
+    "db:check:schema": "scripts/with-runtime-env.sh node scripts/check-schema-drift.mjs",
+    "m01:lodicky:dry-run": "scripts/with-runtime-env.sh node scripts/dry-run-m01-lodicky-provisioning.mjs",
+    "ostrovy:non-daily:dry-run": "scripts/with-runtime-env.sh node scripts/dry-run-ostrovy-non-daily-registrations.mjs",
     "db:refresh:dev": "./scripts/db-refresh-dev.sh",
     "db:refresh:staging": "./scripts/db-refresh-staging.sh",
-    "ci:security": "node scripts/ci/security-checks.mjs"
+    "ci:security": "node scripts/ci/security-checks.mjs",
+    "rvp:normalize": "node scripts/normalize-rvp-open-data.mjs",
+    "rvp:diff": "node scripts/diff-rvp-normalized.mjs",
+    "rvp:graph:backfill": "sh -c 'scripts/with-runtime-env.sh node scripts/backfill-rvp-graph-projection.mjs \"$@\"' --",
+    "m01:knowledge:build": "sh -c 'scripts/with-runtime-env.sh node scripts/build-m01-knowledge-corpus.mjs \"$@\"' --",
+    "m01:vector:build": "sh -c 'scripts/with-runtime-env.sh node scripts/build-m01-vector-index.mjs \"$@\"' --"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
@@ -39,6 +44,7 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-force-graph-2d": "^1.29.1",
     "tailwind-merge": "^3.4.0"
   },
   "engines": {

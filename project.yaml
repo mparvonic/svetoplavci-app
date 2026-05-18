@@ -1,0 +1,116 @@
+schema_version: 1
+project:
+  id: svetoplavci-app
+  name: svetoplavci-app
+  owner: miroslav
+  status: migration-to-gx10
+  role: school-portal-and-lodicky-application
+  description: Next.js application for Svetoplavci portal, school operations, lodičky and related PostgreSQL data.
+
+contract:
+  name: gx10-managed-project
+  version: 1
+  status: applied
+  notes: Canonical project source lives under /srv/projects on GX10; runtime data and backups live under /data.
+
+lifecycle:
+  state: migrate
+  entered_at: 2026-05-14
+  next_gate: gx10_backup_and_restore_operational
+  notes: Move project source and operational DB backup/restore workflow from the Mac workspace to GX10.
+
+source:
+  path: /srv/projects/svetoplavci-app
+  git:
+    mode: standalone-repository
+    repository_root: /srv/projects/svetoplavci-app
+    default_branch: main
+    remote: https://github.com/mparvonic/svetoplavci-app.git
+  source_of_truth:
+    - app/
+    - components/
+    - docs/
+    - lib/
+    - prisma/
+    - scripts/
+    - src/
+    - ops/
+    - README.md
+    - package.json
+    - project.yaml
+  forbidden_runtime_paths:
+    - /srv/projects/svetoplavci-app/.env.local
+    - /srv/projects/svetoplavci-app/node_modules
+    - /srv/projects/svetoplavci-app/.next
+
+runtime:
+  environment: vps-production-gx10-ops
+  production:
+    app_host: app.svetoplavci.cz
+    vps_host_alias: vps
+    postgres_container: svetoplavci-app-postgres
+    production_database: svetoplavci
+  gx10:
+    source_path: /srv/projects/svetoplavci-app
+    artifacts_root: /data/projects/svetoplavci-app/artifacts
+    secrets_root: /data/projects/svetoplavci-app/secrets
+    backup_root: /data/backups/svetoplavci/postgres
+    tmp_root: /data/tmp/svetoplavci
+
+backup:
+  required: true
+  current_phase: logical_pg_dump
+  backup_root: /data/backups/svetoplavci/postgres
+  restore_drill_root: /data/projects/svetoplavci-app/artifacts/restore-drills
+  next_phase: evaluate_pgbackrest_or_wal_g_for_pitr
+  current_state:
+    gx10_backup_server: implemented
+    production_db_source: implemented
+    source_host_alias: vps
+    source_postgres_container: svetoplavci-app-postgres
+    logical_backup: implemented
+    logical_backup_schedule: daily
+    restore_drill: implemented
+    restore_drill_schedule: weekly
+    pitr_tooling: not_implemented
+    wal_archiving: not_implemented
+    retention_policy: not_implemented
+  future_plan:
+    status: planned
+    objective: Add point-in-time recovery for production PostgreSQL while keeping GX10 as the backup server.
+    target_tooling:
+      candidates:
+        - pgBackRest
+        - WAL-G
+      decision_needed: Choose one tool after checking Coolify/VPS PostgreSQL container constraints and restore ergonomics on GX10.
+    target_topology:
+      backup_server: gx10
+      source: production PostgreSQL on VPS/Coolify
+      repository_root: /data/backups/svetoplavci/postgres
+      restore_drill_root: /data/projects/svetoplavci-app/artifacts/restore-drills
+    target_schedule:
+      base_backup: daily_or_weekly
+      wal_archiving: continuous_or_every_few_minutes
+      restore_drill: regular_temporary_database_restore
+    target_retention:
+      daily: 14
+      weekly: 8
+    implementation_steps:
+      - Validate whether pgBackRest or WAL-G fits the current VPS/Coolify deployment best.
+      - Configure production PostgreSQL WAL archiving to write safely to GX10.
+      - Add scheduled base backups and retention enforcement.
+      - Keep restore drills isolated from production and record reports under /data.
+      - Document recovery procedure and perform a manual restore rehearsal before marking PITR operational.
+    acceptance_criteria:
+      - A verified base backup exists on GX10.
+      - WAL segments are archived from production without gaps.
+      - Retention keeps 14 daily and 8 weekly recovery points or the chosen equivalent.
+      - A restore drill can recover into a temporary DB and verify application-critical tables.
+      - Recovery to a selected timestamp is tested before this phase is considered done.
+
+operational_rules:
+  - Do not store runtime secrets in the source tree.
+  - Do not store node_modules, .next, database dumps or restore artifacts in Git.
+  - Treat production DB and staging DB data as sensitive.
+  - Verify restore before treating a backup as operational.
+  - Do not expose GX10 directly to the public internet.

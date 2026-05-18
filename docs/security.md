@@ -1,57 +1,41 @@
-## Bezpečnostní model (shrnutí)
+# Bezpečnostní model
 
-> Detailní technický popis bezpečnosti a GDPR je v kořenovém souboru `GDPR.md`.  
-> Tento dokument slouží jako stručný „mapový list“ k bezpečnosti.
+## Ověření identity
 
-### 1. Ověření identity a role
+Přihlášení je možné přes:
 
-- Přihlášení je možné pouze přes:
-  - Google OAuth (ověřený účet),
-  - e‑mailový magic link (ověřený e‑mail).
-- Po ověření účtu e‑mailu Auth.js:
-  - systém **vždy** ověřuje, že e‑mail patří rodiči v tabulce „Seznam osob“ v Codě (`findParentByEmail`),
-  - pokud ne, přihlášení je odmítnuto (NoRole).
+- Google OAuth,
+- e-mailový magic link.
 
-### 2. Přístup jen ke „svým“ dětem
+Po ověření e-mailu aplikace dohledá interní login identitu v PostgreSQL. Přístup je povolen pouze pokud existuje aktivní `AppLoginIdentity` a právě jedna schválená vazba `AppLoginPersonLink` na aktivní osobu.
 
-- Každé API, které pracuje s `childId` (`/api/coda/child/...`):
-  - načte session přes `auth()` a získá `session.user.email`,
-  - najde odpovídajícího rodiče v Codě,
-  - získá seznam dětí daného rodiče (`getChildrenOfParent`),
-  - **ověří, že požadované `childId` je v tomto seznamu**,
-  - pouze v tom případě načítá data z Cody.
-- Pokud `childId` rodiči nepatří, vrací **403 „Toto dítě vám není přiřazeno“**.
+Ověření přes Coda se nepoužívá.
 
-### 3. Magic linky a session
+## Role a oprávnění
 
-- Magic link (e‑mailový odkaz):
-  - je reprezentován `VerificationToken` v DB,
-  - po použití je token smazán → odkaz nejde použít znovu,
-  - má omezenou časovou platnost (spravuje Auth.js).
-- Session:
-  - JWT cookie podepsané tajemstvím serveru (`AUTH_SECRET` / `NEXTAUTH_SECRET`),
-  - role `rodic` je nastavena pouze při úspěšném nálezu rodiče v Codě.
+Role se čtou z interních `AppRoleAssignment` záznamů. Route guardy používají centrální role matrix v aplikaci.
 
-### 4. Odhlášení a ochrana před „visící“ session
+Základní pravidla:
 
-- Manuální odhlášení:
-  - tlačítko „Odhlásit se“ volá `signOut` a smaže session cookie.
-- Automatické odhlášení:
-  - komponenta `InactivitySignOut` provede `signOut` po 30 minutách nečinnosti.
+- jedna login identita může mít nejvýše jednu schválenou osobu,
+- přístup k dítěti se řeší přes rodinné nebo školní vazby v DB, ne přes duplicitní login link,
+- změny oprávnění a citlivé ruční zásahy musí být dohledatelné.
 
-Tím je minimalizováno riziko, že by někdo na sdíleném zařízení zneužil zapomenutou session.
+## Přístup k dětem a M01
 
-### 5. Omezení přístupu k Codě
+API pracující s dítětem vždy ověřuje session a kontext přístupu v interní DB:
 
-- Aplikace nikdy nepoužívá e‑maily/ID dětí přímo z URL bez ověření v Codě.
-- Všechny přístupy na Coda API (`getChildTableData`, `getCurveData`) jsou:
-  - za obaleným Auth.js,
-  - a filtrují data vždy přes `parent.rowId` + `getChildrenOfParent`.
+- rodič vidí děti přes aktivní rodinnou vazbu,
+- žák vidí vlastní data,
+- průvodce/garant/správci vidí data podle role a kontextu,
+- `spravce_lodicek` a `spravce_flotily` mají rozšířený katalogový přístup podle pravidel M01.
 
-### 6. Data a logování
+## Magic linky a session
 
-- Aplikace **neukládá žákovská data** do vlastní DB – pouze Auth metadata (uživatelé, session, tokeny).
-- Logy:
-  - v produkci neobsahují citlivé osobní údaje (jména dětí atd.),
-  - detailní ladicí logy (`AUTH_DEBUG=1`) jsou určeny jen pro vývojové prostředí.
+Magic link je reprezentovaný `VerificationToken` v DB. Po použití se token smaže a odkaz nejde použít znovu.
 
+Session je JWT cookie podepsaná `AUTH_SECRET` / `NEXTAUTH_SECRET`. Automatické odhlášení po 30 minutách nečinnosti zajišťuje `InactivitySignOut`.
+
+## Coda
+
+Coda je pouze archivní stopa. Aplikace nesmí pro bezpečnostní rozhodnutí, autorizaci ani zobrazení dat volat Coda API.

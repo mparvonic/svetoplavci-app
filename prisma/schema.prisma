@@ -34,6 +34,90 @@ enum AppPolicyScope {
   role
 }
 
+enum M01SvpZmenaType {
+  PATCH
+  MINOR
+  MAJOR
+}
+
+enum M01SvpVersionStatus {
+  DRAFT
+  APPROVED
+  ACTIVE
+  ARCHIVED
+}
+
+enum M01LodickaTyp {
+  INDIVIDUALNI
+  HROMADNA
+}
+
+enum M01Stupen {
+  I_STUPEN
+  II_STUPEN
+}
+
+enum M01OsobniSadaStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum M01MigraceRuleTyp {
+  AUTO_1_1
+  AUTO_N_1
+  AUTO_1_N
+  MANUAL
+  NOVA
+}
+
+enum M01MigracePlanStatus {
+  DRAFT
+  APPROVED
+  SCHEDULED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum M01MigraceRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum AiKnowledgeDomain {
+  M01_RVP_OVU
+  M01_LODICKA
+  M01_OSOBNI_LODICKA
+  M01_OSOBNI_LODICKA_EVENT
+}
+
+enum AiEmbeddingStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+enum AppNoteTargetType {
+  M01_LODICKA
+  M01_OSOBNI_LODICKA
+  M01_OSOBNI_LODICKA_EVENT
+}
+
+enum AppNoteType {
+  INTERNI_POZNAMKA
+  KOMENTAR_GARANTU
+  ZPRAVA_DITETI
+}
+
+enum AppNoteVisibility {
+  INTERNAL
+  GUIDE_TEAM
+  PARENT_CHILD
+}
+
 enum AppCalendarProvider {
   GOOGLE_WORKSPACE
 }
@@ -175,7 +259,7 @@ model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
   userId       String
-  expires      DateTime
+  expires      DateTime @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -184,7 +268,7 @@ model User {
   id            String    @id @default(cuid())
   name          String?
   email         String?   @unique
-  emailVerified DateTime?
+  emailVerified DateTime? @db.Timestamptz(3)
   image         String?
 
   accounts Account[]
@@ -194,7 +278,7 @@ model User {
 model VerificationToken {
   identifier String
   token      String
-  expires    DateTime
+  expires    DateTime @db.Timestamptz(3)
 
   @@unique([identifier, token])
 }
@@ -203,9 +287,9 @@ model VerificationToken {
 
 model MirrorSeznamOsob {
   codaRowId     String    @id @map("coda_row_id")
-  codaCreatedAt DateTime? @map("coda_created_at")
-  codaUpdatedAt DateTime? @map("coda_updated_at")
-  syncedAt      DateTime  @default(now()) @map("synced_at")
+  codaCreatedAt DateTime? @map("coda_created_at") @db.Timestamptz(3)
+  codaUpdatedAt DateTime? @map("coda_updated_at") @db.Timestamptz(3)
+  syncedAt      DateTime  @default(now()) @map("synced_at") @db.Timestamptz(3)
   data          Json
 
   @@map("mirror_seznam_osob")
@@ -213,9 +297,9 @@ model MirrorSeznamOsob {
 
 model MirrorOsobniLodicky {
   codaRowId     String    @id @map("coda_row_id")
-  codaCreatedAt DateTime? @map("coda_created_at")
-  codaUpdatedAt DateTime? @map("coda_updated_at")
-  syncedAt      DateTime  @default(now()) @map("synced_at")
+  codaCreatedAt DateTime? @map("coda_created_at") @db.Timestamptz(3)
+  codaUpdatedAt DateTime? @map("coda_updated_at") @db.Timestamptz(3)
+  syncedAt      DateTime  @default(now()) @map("synced_at") @db.Timestamptz(3)
   data          Json
 
   @@map("mirror_osobni_lodicky")
@@ -223,9 +307,9 @@ model MirrorOsobniLodicky {
 
 model MirrorLodickyPoPlavbach {
   codaRowId     String    @id @map("coda_row_id")
-  codaCreatedAt DateTime? @map("coda_created_at")
-  codaUpdatedAt DateTime? @map("coda_updated_at")
-  syncedAt      DateTime  @default(now()) @map("synced_at")
+  codaCreatedAt DateTime? @map("coda_created_at") @db.Timestamptz(3)
+  codaUpdatedAt DateTime? @map("coda_updated_at") @db.Timestamptz(3)
+  syncedAt      DateTime  @default(now()) @map("synced_at") @db.Timestamptz(3)
   data          Json
 
   @@map("mirror_lodicky_po_plavbach")
@@ -233,9 +317,9 @@ model MirrorLodickyPoPlavbach {
 
 model MirrorHodnoceniPredmetu {
   codaRowId     String    @id @map("coda_row_id")
-  codaCreatedAt DateTime? @map("coda_created_at")
-  codaUpdatedAt DateTime? @map("coda_updated_at")
-  syncedAt      DateTime  @default(now()) @map("synced_at")
+  codaCreatedAt DateTime? @map("coda_created_at") @db.Timestamptz(3)
+  codaUpdatedAt DateTime? @map("coda_updated_at") @db.Timestamptz(3)
+  syncedAt      DateTime  @default(now()) @map("synced_at") @db.Timestamptz(3)
   data          Json
 
   @@map("mirror_hodnoceni_predmetu")
@@ -243,9 +327,9 @@ model MirrorHodnoceniPredmetu {
 
 model MirrorHodnoceniOblasti {
   codaRowId     String    @id @map("coda_row_id")
-  codaCreatedAt DateTime? @map("coda_created_at")
-  codaUpdatedAt DateTime? @map("coda_updated_at")
-  syncedAt      DateTime  @default(now()) @map("synced_at")
+  codaCreatedAt DateTime? @map("coda_created_at") @db.Timestamptz(3)
+  codaUpdatedAt DateTime? @map("coda_updated_at") @db.Timestamptz(3)
+  syncedAt      DateTime  @default(now()) @map("synced_at") @db.Timestamptz(3)
   data          Json
 
   @@map("mirror_hodnoceni_oblasti")
@@ -253,9 +337,9 @@ model MirrorHodnoceniOblasti {
 
 model MirrorKrivka {
   codaRowId     String    @id @map("coda_row_id")
-  codaCreatedAt DateTime? @map("coda_created_at")
-  codaUpdatedAt DateTime? @map("coda_updated_at")
-  syncedAt      DateTime  @default(now()) @map("synced_at")
+  codaCreatedAt DateTime? @map("coda_created_at") @db.Timestamptz(3)
+  codaUpdatedAt DateTime? @map("coda_updated_at") @db.Timestamptz(3)
+  syncedAt      DateTime  @default(now()) @map("synced_at") @db.Timestamptz(3)
   data          Json
 
   @@map("mirror_krivka")
@@ -264,11 +348,11 @@ model MirrorKrivka {
 model CodaSyncLog {
   tableId      String    @id @map("table_id")
   tableName    String    @map("table_name")
-  lastSyncedAt DateTime? @map("last_synced_at")
+  lastSyncedAt DateTime? @map("last_synced_at") @db.Timestamptz(3)
   rowsSynced   Int       @default(0) @map("rows_synced")
   durationMs   Int?      @map("duration_ms")
   lastError    String?   @map("last_error")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("coda_sync_log")
 }
@@ -291,24 +375,38 @@ model AppPerson {
   mergedAt           DateTime? @map("merged_at")
   mergedBy           String?   @map("merged_by")
   mergeReason        String?   @map("merge_reason")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  sourceRecords       AppPersonSourceRecord[]
-  loginLinks          AppLoginPersonLink[]
-  roles               AppRoleAssignment[]
-  parentLinks         AppPersonRelation[]      @relation("ParentPerson")
-  childLinks          AppPersonRelation[]      @relation("ChildPerson")
-  studentStates       AppStudentState[]
-  memberships         AppGroupMembership[]
-  violations          AppMembershipViolation[]
-  photoFile           AppPersonPhoto?
-  studentCalendars    AppStudentCalendar[]
-  schoolEventsCreated AppSchoolEvent[]         @relation("AppSchoolEventCreatedBy")
-  schoolEventsUpdated AppSchoolEvent[]         @relation("AppSchoolEventUpdatedBy")
-  schoolEventTargets  AppSchoolEventTarget[]
-  mergedIntoPerson    AppPerson?               @relation("MergedPersons", fields: [mergedIntoPersonId], references: [id], onDelete: SetNull)
-  mergedPersons       AppPerson[]              @relation("MergedPersons")
+  sourceRecords           AppPersonSourceRecord[]
+  loginLinks              AppLoginPersonLink[]
+  roles                   AppRoleAssignment[]
+  parentLinks             AppPersonRelation[]      @relation("ParentPerson")
+  childLinks              AppPersonRelation[]      @relation("ChildPerson")
+  studentStates           AppStudentState[]
+  memberships             AppGroupMembership[]
+  violations              AppMembershipViolation[]
+  photoFile               AppPersonPhoto?
+  m01PredmetyGarant       M01Predmet[]             @relation("M01PredmetGarant")
+  m01PodpredmetyGarant    M01Podpredmet[]          @relation("M01PodpredmetGarant")
+  m01LodickyGarant        M01Lodicka[]             @relation("M01LodickaGarant")
+  m01LodickaGarantLinks   M01LodickaGarant[]
+  m01OblastSpravceLinks   M01OblastSpravce[]
+  m01LodickaStavGaranti   M01LodickaStavGarant[]
+  m01SadyLodicek          M01OsobniSadaLodicek[]   @relation("M01SadaZaka")
+  m01EventChanges         M01OsobniLodickaEvent[]  @relation("M01EventChangedBy")
+  m01EventSourceCreated   M01OsobniLodickaEvent[]  @relation("M01EventSourceCreatedBy")
+  m01EventSourceModified  M01OsobniLodickaEvent[]  @relation("M01EventSourceModifiedBy")
+  m01ApprovedSvpVersions  M01SvpVersion[]          @relation("M01SvpVersionApprovedBy")
+  m01SvpVersionChanges    M01SvpVersionChange[]    @relation("M01SvpVersionChangedBy")
+  m01ApprovedMigracePlans M01SvpMigracePlan[]      @relation("M01MigracePlanApprovedBy")
+  notesAuthored           AppNote[]                @relation("AppNoteAuthor")
+  studentCalendars        AppStudentCalendar[]
+  schoolEventsCreated     AppSchoolEvent[]         @relation("AppSchoolEventCreatedBy")
+  schoolEventsUpdated     AppSchoolEvent[]         @relation("AppSchoolEventUpdatedBy")
+  schoolEventTargets      AppSchoolEventTarget[]
+  mergedIntoPerson        AppPerson?               @relation("MergedPersons", fields: [mergedIntoPersonId], references: [id], onDelete: SetNull)
+  mergedPersons           AppPerson[]              @relation("MergedPersons")
 
   @@index([mergedIntoPersonId], map: "app_person_merged_into_person_id_idx")
   @@index([identifier], map: "app_person_identifier_idx")
@@ -325,9 +423,9 @@ model AppPersonPhoto {
   sizeBytes  Int      @map("size_bytes")
   sourceUrl  String?  @map("source_url")
   sourceHash String?  @map("source_hash")
-  fetchedAt  DateTime @default(now()) @map("fetched_at")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  fetchedAt  DateTime @default(now()) @map("fetched_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
 
@@ -348,9 +446,9 @@ model AppPersonSourceRecord {
   derivedRoles      String[] @default([]) @map("derived_roles")
   payload           Json
   sourceHash        String?  @map("source_hash")
-  syncedAt          DateTime @default(now()) @map("synced_at")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  syncedAt          DateTime @default(now()) @map("synced_at") @db.Timestamptz(3)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
 
@@ -366,8 +464,8 @@ model AppLoginIdentity {
   identityValue   String   @map("identity_value")
   normalizedValue String   @map("normalized_value")
   isActive        Boolean  @default(true) @map("is_active")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   personLinks AppLoginPersonLink[]
   conflicts   AppIdentityConflict[]
@@ -383,10 +481,10 @@ model AppLoginPersonLink {
   personId   String    @map("person_id")
   status     String    @default("pending")
   approvedBy String?   @map("approved_by")
-  approvedAt DateTime? @map("approved_at")
+  approvedAt DateTime? @map("approved_at") @db.Timestamptz(3)
   reason     String?
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   identity AppLoginIdentity @relation(fields: [identityId], references: [id], onDelete: Cascade)
   person   AppPerson        @relation(fields: [personId], references: [id], onDelete: Cascade)
@@ -406,10 +504,10 @@ model AppRoleAssignment {
   role      String
   source    String    @default("auto")
   isActive  Boolean   @default(true) @map("is_active")
-  validFrom DateTime? @map("valid_from")
-  validTo   DateTime? @map("valid_to")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  validFrom DateTime? @map("valid_from") @db.Timestamptz(3)
+  validTo   DateTime? @map("valid_to") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
 
@@ -429,8 +527,8 @@ model AppPersonRelation {
   createdBy      String?  @map("created_by")
   updatedBy      String?  @map("updated_by")
   changeReason   String?  @map("change_reason")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   parentPerson AppPerson @relation("ParentPerson", fields: [parentPersonId], references: [id], onDelete: Cascade)
   childPerson  AppPerson @relation("ChildPerson", fields: [childPersonId], references: [id], onDelete: Cascade)
@@ -450,9 +548,9 @@ model AppIdentityConflict {
   reason          String
   details         Json?
   resolvedBy      String?   @map("resolved_by")
-  resolvedAt      DateTime? @map("resolved_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   identity AppLoginIdentity? @relation(fields: [identityId], references: [id], onDelete: SetNull)
 
@@ -473,8 +571,8 @@ model AppUserSyncRun {
   csvCount             Int       @default(0) @map("csv_count")
   personsTouched       Int       @default(0) @map("persons_touched")
   error                String?
-  startedAt            DateTime  @default(now()) @map("started_at")
-  finishedAt           DateTime? @map("finished_at")
+  startedAt            DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt           DateTime? @map("finished_at") @db.Timestamptz(3)
 
   studentStatesChanged AppStudentState[] @relation("SyncRunStudentState")
 
@@ -483,13 +581,631 @@ model AppUserSyncRun {
   @@map("app_user_sync_run")
 }
 
+model M01RvpVersion {
+  id             String   @id @default(cuid())
+  sourceUrl      String   @map("source_url")
+  sourceFormat   String   @default("full_mp") @map("source_format")
+  datasetVersion String   @map("dataset_version")
+  sourceHash     String?  @map("source_hash")
+  importedAt     DateTime @default(now()) @map("imported_at") @db.Timestamptz(3)
+  importedBy     String?  @map("imported_by")
+  isActive       Boolean  @default(false) @map("is_active")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  uzloveBody  M01RvpUzlovyBod[]
+  ovu         M01RvpOvu[]
+  svpVersions M01SvpVersion[]
+
+  @@unique([datasetVersion, sourceFormat], map: "app_m01_rvp_version_dataset_format_key")
+  @@index([isActive], map: "app_m01_rvp_version_is_active_idx")
+  @@map("app_m01_rvp_version")
+}
+
+model M01RvpUzlovyBod {
+  id           String   @id @default(cuid())
+  rvpVersionId String   @map("rvp_version_id")
+  kod          String
+  nazev        String
+  gradeNum     Int?     @map("grade_num")
+  stageCode    String?  @map("stage_code")
+  sourcePath   String   @map("source_path")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  rvpVersion M01RvpVersion @relation(fields: [rvpVersionId], references: [id], onDelete: Cascade)
+  ovu        M01RvpOvu[]
+
+  @@unique([rvpVersionId, sourcePath], map: "app_m01_rvp_uzlovy_bod_version_path_key")
+  @@index([kod], map: "app_m01_rvp_uzlovy_bod_kod_idx")
+  @@map("app_m01_rvp_uzlovy_bod")
+}
+
+model M01RvpOvu {
+  id                String   @id @default(cuid())
+  rvpVersionId      String   @map("rvp_version_id")
+  uzlovyBodId       String?  @map("uzlovy_bod_id")
+  kod               String
+  zneni             String
+  popisAZduvodneni  String?  @map("popis_a_zduvodneni")
+  hodnoty           Json?
+  predchazejiciKody String[] @default([]) @map("predchazejici_kody")
+  souvisejiciKody   String[] @default([]) @map("souvisejici_kody")
+  nasledujiciKody   String[] @default([]) @map("nasledujici_kody")
+  metodickaPodpora  Json?    @map("metodicka_podpora")
+  sourceBranch      String?  @map("source_branch")
+  sourcePath        String?  @map("source_path")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  rvpVersion   M01RvpVersion       @relation(fields: [rvpVersionId], references: [id], onDelete: Cascade)
+  uzlovyBod    M01RvpUzlovyBod?    @relation(fields: [uzlovyBodId], references: [id], onDelete: SetNull)
+  lodickaLinks M01LodickaOvuLink[]
+
+  @@unique([rvpVersionId, kod], map: "app_m01_rvp_ovu_version_kod_key")
+  @@index([kod], map: "app_m01_rvp_ovu_kod_idx")
+  @@index([uzlovyBodId], map: "app_m01_rvp_ovu_uzlovy_bod_id_idx")
+  @@map("app_m01_rvp_ovu")
+}
+
+model M01SvpVersion {
+  id                  String              @id @default(cuid())
+  label               String
+  versionLabel        String              @default("1") @map("version_label")
+  major               Int
+  minor               Int
+  patch               Int                 @default(0)
+  zmenaType           M01SvpZmenaType     @map("zmena_type")
+  status              M01SvpVersionStatus @default(DRAFT)
+  basedOnRvpVersionId String              @map("based_on_rvp_version_id")
+  parentSvpVersionId  String?             @map("parent_svp_version_id")
+  effectiveFrom       DateTime            @map("effective_from") @db.Timestamptz(3)
+  effectiveTo         DateTime?           @map("effective_to") @db.Timestamptz(3)
+  approvedAt          DateTime?           @map("approved_at") @db.Timestamptz(3)
+  approvedByPersonId  String?             @map("approved_by_person_id")
+  isCurrent           Boolean             @default(false) @map("is_current")
+  notes               String?
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  basedOnRvpVersion M01RvpVersion          @relation(fields: [basedOnRvpVersionId], references: [id], onDelete: Restrict)
+  parentSvpVersion  M01SvpVersion?         @relation("M01SvpVersionParent", fields: [parentSvpVersionId], references: [id], onDelete: SetNull)
+  childSvpVersions  M01SvpVersion[]        @relation("M01SvpVersionParent")
+  approvedByPerson  AppPerson?             @relation("M01SvpVersionApprovedBy", fields: [approvedByPersonId], references: [id], onDelete: SetNull)
+  changes           M01SvpVersionChange[]  @relation("M01SvpVersionChanges")
+  sourceChanges     M01SvpVersionChange[]  @relation("M01SvpVersionChangeParent")
+  predmety          M01Predmet[]
+  podpredmety       M01Podpredmet[]
+  oblasti           M01Oblast[]
+  lodicky           M01Lodicka[]
+  osobniSady        M01OsobniSadaLodicek[]
+  migracePlansFrom  M01SvpMigracePlan[]    @relation("M01MigraceFrom")
+  migracePlansTo    M01SvpMigracePlan[]    @relation("M01MigraceTo")
+
+  @@unique([major, minor, patch], map: "app_m01_svp_version_major_minor_patch_key")
+  @@unique([label], map: "app_m01_svp_version_label_key")
+  @@index([status], map: "app_m01_svp_version_status_idx")
+  @@index([isCurrent], map: "app_m01_svp_version_is_current_idx")
+  @@index([effectiveFrom], map: "app_m01_svp_version_effective_from_idx")
+  @@map("app_m01_svp_version")
+}
+
+model M01SvpVersionChange {
+  id                 String          @id @default(cuid())
+  svpVersionId       String          @map("svp_version_id")
+  parentSvpVersionId String?         @map("parent_svp_version_id")
+  changeType         M01SvpZmenaType @map("change_type")
+  versionLabel       String          @map("version_label")
+  effectiveFrom      DateTime        @map("effective_from") @db.Timestamptz(3)
+  changedByPersonId  String?         @map("changed_by_person_id")
+  summary            Json?
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  svpVersion       M01SvpVersion  @relation("M01SvpVersionChanges", fields: [svpVersionId], references: [id], onDelete: Cascade)
+  parentSvpVersion M01SvpVersion? @relation("M01SvpVersionChangeParent", fields: [parentSvpVersionId], references: [id], onDelete: SetNull)
+  changedByPerson  AppPerson?     @relation("M01SvpVersionChangedBy", fields: [changedByPersonId], references: [id], onDelete: SetNull)
+
+  @@index([svpVersionId], map: "app_m01_svp_version_change_svp_idx")
+  @@index([parentSvpVersionId], map: "app_m01_svp_version_change_parent_idx")
+  @@index([createdAt], map: "app_m01_svp_version_change_created_at_idx")
+  @@map("app_m01_svp_version_change")
+}
+
+model M01Predmet {
+  id             String    @id @default(cuid())
+  svpVersionId   String    @map("svp_version_id")
+  kod            String?
+  nazev          String
+  stupen         M01Stupen @default(I_STUPEN)
+  garantPersonId String?   @map("garant_person_id")
+  poradi         Int?
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  svpVersion   M01SvpVersion   @relation(fields: [svpVersionId], references: [id], onDelete: Cascade)
+  garantPerson AppPerson?      @relation("M01PredmetGarant", fields: [garantPersonId], references: [id], onDelete: SetNull)
+  podpredmety  M01Podpredmet[]
+  oblasti      M01Oblast[]
+  lodicky      M01Lodicka[]
+
+  @@unique([svpVersionId, nazev, stupen], map: "app_m01_predmet_version_nazev_stupen_key")
+  @@unique([svpVersionId, kod, stupen], map: "app_m01_predmet_version_kod_stupen_key")
+  @@index([garantPersonId], map: "app_m01_predmet_garant_person_id_idx")
+  @@map("app_m01_predmet")
+}
+
+model M01Podpredmet {
+  id             String    @id @default(cuid())
+  svpVersionId   String    @map("svp_version_id")
+  predmetId      String    @map("predmet_id")
+  kod            String?
+  nazev          String
+  stupen         M01Stupen @default(I_STUPEN)
+  garantPersonId String?   @map("garant_person_id")
+  poradi         Int?
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  svpVersion   M01SvpVersion @relation(fields: [svpVersionId], references: [id], onDelete: Cascade)
+  predmet      M01Predmet    @relation(fields: [predmetId], references: [id], onDelete: Cascade)
+  garantPerson AppPerson?    @relation("M01PodpredmetGarant", fields: [garantPersonId], references: [id], onDelete: SetNull)
+  oblasti      M01Oblast[]
+  lodicky      M01Lodicka[]
+
+  @@unique([predmetId, nazev], map: "app_m01_podpredmet_predmet_nazev_key")
+  @@unique([svpVersionId, kod, stupen], map: "app_m01_podpredmet_version_kod_stupen_key")
+  @@index([svpVersionId, stupen, predmetId], map: "app_m01_podpredmet_version_stupen_predmet_idx")
+  @@index([garantPersonId], map: "app_m01_podpredmet_garant_person_id_idx")
+  @@map("app_m01_podpredmet")
+}
+
+model M01Oblast {
+  id           String    @id @default(cuid())
+  svpVersionId String    @map("svp_version_id")
+  predmetId    String    @map("predmet_id")
+  podpredmetId String?   @map("podpredmet_id")
+  kod          String?
+  nazev        String
+  stupen       M01Stupen @default(I_STUPEN)
+  poradi       Int?
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  svpVersion M01SvpVersion      @relation(fields: [svpVersionId], references: [id], onDelete: Cascade)
+  predmet    M01Predmet         @relation(fields: [predmetId], references: [id], onDelete: Cascade)
+  podpredmet M01Podpredmet?     @relation(fields: [podpredmetId], references: [id], onDelete: SetNull)
+  lodicky    M01Lodicka[]
+  spravci    M01OblastSpravce[]
+
+  @@unique([svpVersionId, kod, stupen], map: "app_m01_oblast_version_kod_stupen_key")
+  @@unique([svpVersionId, predmetId, podpredmetId, nazev], map: "app_m01_oblast_version_predmet_podpredmet_nazev_key")
+  @@index([svpVersionId, stupen, predmetId, podpredmetId], map: "app_m01_oblast_version_stupen_tree_idx")
+  @@index([predmetId], map: "app_m01_oblast_predmet_id_idx")
+  @@index([podpredmetId], map: "app_m01_oblast_podpredmet_id_idx")
+  @@map("app_m01_oblast")
+}
+
+model M01Lodicka {
+  id               String        @id @default(cuid())
+  svpVersionId     String        @map("svp_version_id")
+  predmetId        String        @map("predmet_id")
+  podpredmetId     String?       @map("podpredmet_id")
+  oblastId         String        @map("oblast_id")
+  kod              String
+  nazev            String
+  popis            String?
+  typ              M01LodickaTyp
+  rocnikOd         Int           @map("rocnik_od")
+  rocnikDo         Int           @map("rocnik_do")
+  stupen           M01Stupen
+  garantPersonId   String?       @map("garant_person_id")
+  ovuNotApplicable Boolean       @default(false) @map("ovu_not_applicable")
+  isDeleted        Boolean       @default(false) @map("is_deleted")
+  sourceCodaRowId  String?       @map("source_coda_row_id")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  svpVersion         M01SvpVersion             @relation(fields: [svpVersionId], references: [id], onDelete: Cascade)
+  predmet            M01Predmet                @relation(fields: [predmetId], references: [id], onDelete: Restrict)
+  podpredmet         M01Podpredmet?            @relation(fields: [podpredmetId], references: [id], onDelete: SetNull)
+  oblast             M01Oblast                 @relation(fields: [oblastId], references: [id], onDelete: Restrict)
+  garantPerson       AppPerson?                @relation("M01LodickaGarant", fields: [garantPersonId], references: [id], onDelete: SetNull)
+  garanti            M01LodickaGarant[]
+  stavGaranti        M01LodickaStavGarant[]
+  ovuLinks           M01LodickaOvuLink[]
+  prerequisites      M01LodickaPrerequisite[]  @relation("M01LodickaRequires")
+  requiredBy         M01LodickaPrerequisite[]  @relation("M01LodickaRequiredBy")
+  osobniLodicky      M01OsobniLodicka[]
+  notes              AppNote[]
+  migraceRulesTo     M01SvpMigraceRule[]       @relation("M01RuleToLodicka")
+  migraceRuleSources M01SvpMigraceRuleSource[] @relation("M01RuleFromLodicka")
+
+  @@unique([svpVersionId, kod], map: "app_m01_lodicka_version_kod_key")
+  @@index([svpVersionId, oblastId], map: "app_m01_lodicka_version_oblast_idx")
+  @@index([stupen], map: "app_m01_lodicka_stupen_idx")
+  @@index([rocnikOd, rocnikDo], map: "app_m01_lodicka_rocnik_range_idx")
+  @@index([garantPersonId], map: "app_m01_lodicka_garant_person_id_idx")
+  @@index([sourceCodaRowId], map: "app_m01_lodicka_source_coda_row_id_idx")
+  @@map("app_m01_lodicka")
+}
+
+model M01OblastSpravce {
+  id        String   @id @default(cuid())
+  oblastId  String   @map("oblast_id")
+  personId  String   @map("person_id")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  oblast M01Oblast @relation(fields: [oblastId], references: [id], onDelete: Cascade)
+  person AppPerson @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@unique([oblastId, personId], map: "app_m01_oblast_spravce_oblast_person_key")
+  @@index([personId], map: "app_m01_oblast_spravce_person_id_idx")
+  @@map("app_m01_oblast_spravce")
+}
+
+model M01LodickaGarant {
+  id        String   @id @default(cuid())
+  lodickaId String   @map("lodicka_id")
+  personId  String   @map("person_id")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lodicka M01Lodicka @relation(fields: [lodickaId], references: [id], onDelete: Cascade)
+  person  AppPerson  @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@unique([lodickaId, personId], map: "app_m01_lodicka_garant_lodicka_person_key")
+  @@index([personId], map: "app_m01_lodicka_garant_link_person_id_idx")
+  @@map("app_m01_lodicka_garant")
+}
+
+model M01LodickaStavGarant {
+  id        String   @id @default(cuid())
+  lodickaId String   @map("lodicka_id")
+  personId  String   @map("person_id")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lodicka M01Lodicka @relation(fields: [lodickaId], references: [id], onDelete: Cascade)
+  person  AppPerson  @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@unique([lodickaId, personId], map: "app_m01_lodicka_stav_garant_lodicka_person_key")
+  @@index([personId], map: "app_m01_lodicka_stav_garant_person_id_idx")
+  @@map("app_m01_lodicka_stav_garant")
+}
+
+model M01LodickaOvuLink {
+  id            String   @id @default(cuid())
+  lodickaId     String   @map("lodicka_id")
+  rvpOvuId      String   @map("rvp_ovu_id")
+  sourceOvuCode String?  @map("source_ovu_code")
+  isPrimary     Boolean  @default(true) @map("is_primary")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lodicka M01Lodicka @relation(fields: [lodickaId], references: [id], onDelete: Cascade)
+  rvpOvu  M01RvpOvu  @relation(fields: [rvpOvuId], references: [id], onDelete: Restrict)
+
+  @@unique([lodickaId, rvpOvuId], map: "app_m01_lodicka_ovu_link_lodicka_ovu_key")
+  @@index([rvpOvuId], map: "app_m01_lodicka_ovu_link_rvp_ovu_id_idx")
+  @@map("app_m01_lodicka_ovu_link")
+}
+
+model M01LodickaPrerequisite {
+  id                String   @id @default(cuid())
+  lodickaId         String   @map("lodicka_id")
+  requiredLodickaId String   @map("required_lodicka_id")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lodicka         M01Lodicka @relation("M01LodickaRequires", fields: [lodickaId], references: [id], onDelete: Cascade)
+  requiredLodicka M01Lodicka @relation("M01LodickaRequiredBy", fields: [requiredLodickaId], references: [id], onDelete: Cascade)
+
+  @@unique([lodickaId, requiredLodickaId], map: "app_m01_lodicka_prereq_lodicka_required_key")
+  @@index([requiredLodickaId], map: "app_m01_lodicka_prereq_required_lodicka_id_idx")
+  @@map("app_m01_lodicka_prerequisite")
+}
+
+model M01OsobniSadaLodicek {
+  id           String              @id @default(cuid())
+  personId     String              @map("person_id")
+  svpVersionId String              @map("svp_version_id")
+  stupen       M01Stupen
+  status       M01OsobniSadaStatus @default(ACTIVE)
+  activatedAt  DateTime            @default(now()) @map("activated_at") @db.Timestamptz(3)
+  archivedAt   DateTime?           @map("archived_at") @db.Timestamptz(3)
+  source       String              @default("import")
+  sourceRef    String?             @map("source_ref")
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  person        AppPerson          @relation("M01SadaZaka", fields: [personId], references: [id], onDelete: Cascade)
+  svpVersion    M01SvpVersion      @relation(fields: [svpVersionId], references: [id], onDelete: Restrict)
+  osobniLodicky M01OsobniLodicka[]
+
+  @@unique([personId, svpVersionId, stupen], map: "app_m01_osobni_sada_person_version_stupen_key")
+  @@index([personId, status], map: "app_m01_osobni_sada_person_status_idx")
+  @@index([svpVersionId, stupen], map: "app_m01_osobni_sada_version_stupen_idx")
+  @@map("app_m01_osobni_sada_lodicek")
+}
+
+model M01OsobniLodicka {
+  id                String    @id @default(cuid())
+  osobniSadaId      String    @map("osobni_sada_id")
+  lodickaId         String    @map("lodicka_id")
+  kodOsobniLodicky  String    @map("kod_osobni_lodicky")
+  lastEventId       String?   @unique @map("last_event_id")
+  studentExternalId Int?      @map("student_external_id")
+  currentStupen     Int       @default(0) @map("current_stupen")
+  currentStavLabel  String?   @map("current_stav_label")
+  currentHodnota    Int?      @map("current_hodnota")
+  datumStavu        DateTime? @map("datum_stavu") @db.Timestamptz(3)
+  uspech            String?
+  poznamka          String?
+  sourceCodaRowId   String?   @map("source_coda_row_id")
+  isDeleted         Boolean   @default(false) @map("is_deleted")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  osobniSada M01OsobniSadaLodicek    @relation(fields: [osobniSadaId], references: [id], onDelete: Cascade)
+  lodicka    M01Lodicka              @relation(fields: [lodickaId], references: [id], onDelete: Restrict)
+  events     M01OsobniLodickaEvent[] @relation("M01OsobniLodickaEvents")
+  lastEvent  M01OsobniLodickaEvent?  @relation("M01OsobniLodickaLastEvent", fields: [lastEventId], references: [id], onDelete: SetNull)
+  notes      AppNote[]
+
+  @@unique([kodOsobniLodicky], map: "app_m01_osobni_lodicka_kod_key")
+  @@unique([osobniSadaId, lodickaId], map: "app_m01_osobni_lodicka_sada_lodicka_key")
+  @@index([studentExternalId], map: "app_m01_osobni_lodicka_student_external_id_idx")
+  @@index([sourceCodaRowId], map: "app_m01_osobni_lodicka_source_coda_row_id_idx")
+  @@map("app_m01_osobni_lodicka")
+}
+
+model M01OsobniLodickaEvent {
+  id                       String    @id @default(cuid())
+  osobniLodickaId          String    @map("osobni_lodicka_id")
+  stupen                   Int
+  stavLabel                String?   @map("stav_label")
+  hodnota                  Int?
+  datumStavu               DateTime  @map("datum_stavu") @db.Timestamptz(3)
+  poznamka                 String?
+  uspech                   String?
+  isInvalidated            Boolean   @default(false) @map("is_invalidated")
+  invalidatedAt            DateTime? @map("invalidated_at") @db.Timestamptz(3)
+  invalidatedReason        String?   @map("invalidated_reason")
+  invalidatedByEventId     String?   @map("invalidated_by_event_id")
+  changedByPersonId        String?   @map("changed_by_person_id")
+  changedByLabel           String?   @map("changed_by_label")
+  sourceCreatedByPersonId  String?   @map("source_created_by_person_id")
+  sourceCreatedByLabel     String?   @map("source_created_by_label")
+  sourceCreatedAt          DateTime? @map("source_created_at") @db.Timestamptz(3)
+  sourceModifiedByPersonId String?   @map("source_modified_by_person_id")
+  sourceModifiedByLabel    String?   @map("source_modified_by_label")
+  sourceModifiedAt         DateTime? @map("source_modified_at") @db.Timestamptz(3)
+  source                   String    @default("import")
+  sourceRowId              String?   @unique @map("source_row_id")
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  osobniLodicka          M01OsobniLodicka        @relation("M01OsobniLodickaEvents", fields: [osobniLodickaId], references: [id], onDelete: Cascade)
+  lastFor                M01OsobniLodicka?       @relation("M01OsobniLodickaLastEvent")
+  changedByPerson        AppPerson?              @relation("M01EventChangedBy", fields: [changedByPersonId], references: [id], onDelete: SetNull)
+  sourceCreatedByPerson  AppPerson?              @relation("M01EventSourceCreatedBy", fields: [sourceCreatedByPersonId], references: [id], onDelete: SetNull)
+  sourceModifiedByPerson AppPerson?              @relation("M01EventSourceModifiedBy", fields: [sourceModifiedByPersonId], references: [id], onDelete: SetNull)
+  invalidatedByEvent     M01OsobniLodickaEvent?  @relation("M01EventInvalidatedByEvent", fields: [invalidatedByEventId], references: [id], onDelete: SetNull)
+  invalidatesEvents      M01OsobniLodickaEvent[] @relation("M01EventInvalidatedByEvent")
+  notes                  AppNote[]
+
+  @@index([osobniLodickaId, datumStavu], map: "app_m01_osobni_lodicka_event_lodicka_datum_idx")
+  @@index([osobniLodickaId, isInvalidated, datumStavu], map: "app_m01_osobni_lodicka_event_lodicka_invalidated_datum_idx")
+  @@index([isInvalidated], map: "app_m01_osobni_lodicka_event_is_invalidated_idx")
+  @@index([invalidatedByEventId], map: "app_m01_osobni_lodicka_event_invalidated_by_event_id_idx")
+  @@index([changedByPersonId], map: "app_m01_osobni_lodicka_event_changed_by_idx")
+  @@index([sourceCreatedByPersonId], map: "app_m01_osobni_lodicka_event_source_created_by_idx")
+  @@index([sourceModifiedByPersonId], map: "app_m01_osobni_lodicka_event_source_modified_by_idx")
+  @@index([sourceModifiedAt], map: "app_m01_osobni_lodicka_event_source_modified_at_idx")
+  @@index([osobniLodickaId, datumStavu(sort: Desc), sourceModifiedAt(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "app_m01_osobni_lodicka_event_latest_lookup_idx")
+  @@map("app_m01_osobni_lodicka_event")
+}
+
+model M01SvpMigracePlan {
+  id                 String               @id @default(cuid())
+  fromSvpVersionId   String               @map("from_svp_version_id")
+  toSvpVersionId     String               @map("to_svp_version_id")
+  status             M01MigracePlanStatus @default(DRAFT)
+  scheduledFor       DateTime             @map("scheduled_for") @db.Timestamptz(3)
+  approvedAt         DateTime?            @map("approved_at") @db.Timestamptz(3)
+  approvedByPersonId String?              @map("approved_by_person_id")
+  notes              String?
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  fromSvpVersion   M01SvpVersion       @relation("M01MigraceFrom", fields: [fromSvpVersionId], references: [id], onDelete: Restrict)
+  toSvpVersion     M01SvpVersion       @relation("M01MigraceTo", fields: [toSvpVersionId], references: [id], onDelete: Restrict)
+  approvedByPerson AppPerson?          @relation("M01MigracePlanApprovedBy", fields: [approvedByPersonId], references: [id], onDelete: SetNull)
+  rules            M01SvpMigraceRule[]
+  runs             M01SvpMigraceRun[]
+
+  @@unique([fromSvpVersionId, toSvpVersionId], map: "app_m01_svp_migrace_plan_from_to_key")
+  @@index([status, scheduledFor], map: "app_m01_svp_migrace_plan_status_scheduled_idx")
+  @@map("app_m01_svp_migrace_plan")
+}
+
+model M01SvpMigraceRule {
+  id          String            @id @default(cuid())
+  planId      String            @map("plan_id")
+  toLodickaId String            @map("to_lodicka_id")
+  ruleType    M01MigraceRuleTyp @map("rule_type")
+  params      Json?
+  isReady     Boolean           @default(false) @map("is_ready")
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  plan      M01SvpMigracePlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  toLodicka M01Lodicka                @relation("M01RuleToLodicka", fields: [toLodickaId], references: [id], onDelete: Cascade)
+  sources   M01SvpMigraceRuleSource[]
+
+  @@unique([planId, toLodickaId], map: "app_m01_svp_migrace_rule_plan_to_lodicka_key")
+  @@index([ruleType], map: "app_m01_svp_migrace_rule_type_idx")
+  @@map("app_m01_svp_migrace_rule")
+}
+
+model M01SvpMigraceRuleSource {
+  id            String   @id @default(cuid())
+  ruleId        String   @map("rule_id")
+  fromLodickaId String   @map("from_lodicka_id")
+  weight        Decimal? @db.Decimal(5, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  rule        M01SvpMigraceRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  fromLodicka M01Lodicka        @relation("M01RuleFromLodicka", fields: [fromLodickaId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, fromLodickaId], map: "app_m01_svp_migrace_rule_source_rule_from_key")
+  @@index([fromLodickaId], map: "app_m01_svp_migrace_rule_source_from_lodicka_idx")
+  @@map("app_m01_svp_migrace_rule_source")
+}
+
+model M01SvpMigraceRun {
+  id               String              @id @default(cuid())
+  planId           String              @map("plan_id")
+  status           M01MigraceRunStatus @default(RUNNING)
+  startedAt        DateTime            @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt       DateTime?           @map("finished_at") @db.Timestamptz(3)
+  affectedStudents Int                 @default(0) @map("affected_students")
+  affectedLodicky  Int                 @default(0) @map("affected_lodicky")
+  error            String?
+  report           Json?
+  createdAt        DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  plan M01SvpMigracePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([status], map: "app_m01_svp_migrace_run_status_idx")
+  @@index([planId], map: "app_m01_svp_migrace_run_plan_id_idx")
+  @@map("app_m01_svp_migrace_run")
+}
+
+model AppAiKnowledgeItem {
+  id                String            @id @default(cuid())
+  domain            AiKnowledgeDomain
+  sourceTable       String            @map("source_table")
+  sourceId          String            @map("source_id")
+  sourceCode        String?           @map("source_code")
+  sourceVersion     String?           @map("source_version")
+  language          String            @default("cs")
+  title             String?
+  bodyText          String            @map("body_text")
+  structuredPayload Json?             @map("structured_payload")
+  metadata          Json?
+  validFrom         DateTime?         @map("valid_from") @db.Timestamptz(3)
+  validTo           DateTime?         @map("valid_to") @db.Timestamptz(3)
+  isActive          Boolean           @default(true) @map("is_active")
+  contentHash       String?           @map("content_hash")
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chunks AppAiKnowledgeChunk[]
+
+  @@unique([sourceTable, sourceId], map: "app_ai_knowledge_item_source_table_source_id_key")
+  @@index([domain], map: "app_ai_knowledge_item_domain_idx")
+  @@index([isActive], map: "app_ai_knowledge_item_is_active_idx")
+  @@map("app_ai_knowledge_item")
+}
+
+model AppAiKnowledgeChunk {
+  id            String   @id @default(cuid())
+  itemId        String   @map("item_id")
+  chunkIndex    Int      @map("chunk_index")
+  chunkText     String   @map("chunk_text")
+  tokenEstimate Int?     @map("token_estimate")
+  metadata      Json?
+  contentHash   String?  @map("content_hash")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  item       AppAiKnowledgeItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  embeddings AppAiEmbedding[]
+
+  @@unique([itemId, chunkIndex], map: "app_ai_knowledge_chunk_item_chunk_index_key")
+  @@index([itemId], map: "app_ai_knowledge_chunk_item_id_idx")
+  @@map("app_ai_knowledge_chunk")
+}
+
+model AppAiEmbedding {
+  id               String            @id @default(cuid())
+  chunkId          String            @map("chunk_id")
+  provider         String
+  model            String
+  dimensions       Int
+  embeddingValues  Float[]           @map("embedding_values")
+  embeddingNorm    Float?            @map("embedding_norm")
+  status           AiEmbeddingStatus @default(PENDING)
+  externalVectorId String?           @map("external_vector_id")
+  error            String?
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  chunk AppAiKnowledgeChunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@index([chunkId], map: "app_ai_embedding_chunk_id_idx")
+  @@index([status], map: "app_ai_embedding_status_idx")
+  @@index([provider, model], map: "app_ai_embedding_provider_model_idx")
+  @@map("app_ai_embedding")
+}
+
+model AppNotePolicy {
+  id         String            @id @default(cuid())
+  targetType AppNoteTargetType @map("target_type")
+  noteType   AppNoteType       @map("note_type")
+  visibility AppNoteVisibility @default(INTERNAL)
+  readRoles  String[]          @default([]) @map("read_roles")
+  writeRoles String[]          @default([]) @map("write_roles")
+  isEnabled  Boolean           @default(true) @map("is_enabled")
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([targetType, noteType], map: "app_note_policy_target_type_note_type_key")
+  @@index([isEnabled], map: "app_note_policy_is_enabled_idx")
+  @@map("app_note_policy")
+}
+
+model AppNote {
+  id                      String            @id @default(cuid())
+  targetType              AppNoteTargetType @map("target_type")
+  targetId                String            @map("target_id")
+  noteType                AppNoteType       @map("note_type")
+  visibility              AppNoteVisibility @default(INTERNAL)
+  body                    String
+  authorPersonId          String?           @map("author_person_id")
+  m01LodickaId            String?           @map("m01_lodicka_id")
+  m01OsobniLodickaId      String?           @map("m01_osobni_lodicka_id")
+  m01OsobniLodickaEventId String?           @map("m01_osobni_lodicka_event_id")
+  source                  String            @default("app")
+  sourceRef               String?           @map("source_ref")
+  deletedAt               DateTime?         @map("deleted_at") @db.Timestamptz(3)
+  createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  author                AppPerson?             @relation("AppNoteAuthor", fields: [authorPersonId], references: [id], onDelete: SetNull)
+  m01Lodicka            M01Lodicka?            @relation(fields: [m01LodickaId], references: [id], onDelete: SetNull)
+  m01OsobniLodicka      M01OsobniLodicka?      @relation(fields: [m01OsobniLodickaId], references: [id], onDelete: SetNull)
+  m01OsobniLodickaEvent M01OsobniLodickaEvent? @relation(fields: [m01OsobniLodickaEventId], references: [id], onDelete: SetNull)
+
+  @@index([targetType, targetId], map: "app_note_target_idx")
+  @@index([noteType], map: "app_note_note_type_idx")
+  @@index([authorPersonId], map: "app_note_author_person_id_idx")
+  @@index([m01LodickaId], map: "app_note_m01_lodicka_id_idx")
+  @@index([m01OsobniLodickaId], map: "app_note_m01_osobni_lodicka_id_idx")
+  @@index([m01OsobniLodickaEventId], map: "app_note_m01_osobni_lodicka_event_id_idx")
+  @@map("app_note")
+}
+
 model AppStudyModeMap {
   code      String          @id
   modeKey   AppStudyModeKey @map("mode_key")
   label     String
   isActive  Boolean         @default(true) @map("is_active")
-  createdAt DateTime        @default(now()) @map("created_at")
-  updatedAt DateTime        @updatedAt @map("updated_at")
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@index([modeKey], map: "app_study_mode_map_mode_key_idx")
   @@map("app_study_mode_map")
@@ -505,13 +1221,37 @@ model AppSchoolYear {
   term1EndDate      DateTime @map("term1_end_date") @db.Date
   term2StartDate    DateTime @map("term2_start_date") @db.Date
   isActive          Boolean  @default(false) @map("is_active")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   groups        AppGroup[]
+  periods       AppSchoolPeriod[]
   studentStates AppStudentState[]
 
   @@map("app_school_year")
+}
+
+model AppSchoolPeriod {
+  id           String   @id @default(cuid())
+  schoolYearId String   @map("school_year_id")
+  kind         String   @default("plavba")
+  code         String
+  name         String
+  periodOrder  Int      @map("period_order")
+  startDate    DateTime @map("start_date") @db.Date
+  endDate      DateTime @map("end_date") @db.Date
+  isActive     Boolean  @default(true) @map("is_active")
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  schoolYear AppSchoolYear @relation(fields: [schoolYearId], references: [id], onDelete: Cascade)
+
+  @@unique([schoolYearId, code], map: "app_school_period_school_year_code_key")
+  @@unique([schoolYearId, periodOrder], map: "app_school_period_school_year_order_key")
+  @@index([schoolYearId, kind], map: "app_school_period_school_year_kind_idx")
+  @@index([schoolYearId, startDate, endDate], map: "app_school_period_school_year_range_idx")
+  @@map("app_school_period")
 }
 
 model AppGroup {
@@ -520,14 +1260,14 @@ model AppGroup {
   code         String
   name         String
   schoolYearId String?      @map("school_year_id")
-  validFrom    DateTime     @default(now()) @map("valid_from")
-  validTo      DateTime?    @map("valid_to")
+  validFrom    DateTime     @default(now()) @map("valid_from") @db.Timestamptz(3)
+  validTo      DateTime?    @map("valid_to") @db.Timestamptz(3)
   isActive     Boolean      @default(true) @map("is_active")
-  metadata     Json         @default(dbgenerated("'{}'::jsonb"))
+  metadata     Json         @default("{}")
   createdBy    String?      @map("created_by")
   updatedBy    String?      @map("updated_by")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   schoolYear      AppSchoolYear?       @relation(fields: [schoolYearId], references: [id], onDelete: SetNull)
   parentGroupRows AppGroupLink[]       @relation("GroupLinkParent")
@@ -545,10 +1285,10 @@ model AppGroupLink {
   parentGroupId String    @map("parent_group_id")
   childGroupId  String    @map("child_group_id")
   relationType  String    @map("relation_type")
-  validFrom     DateTime  @default(now()) @map("valid_from")
-  validTo       DateTime? @map("valid_to")
+  validFrom     DateTime  @default(now()) @map("valid_from") @db.Timestamptz(3)
+  validTo       DateTime? @map("valid_to") @db.Timestamptz(3)
   createdBy     String?   @map("created_by")
-  createdAt     DateTime  @default(now()) @map("created_at")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   parentGroup AppGroup @relation("GroupLinkParent", fields: [parentGroupId], references: [id], onDelete: Cascade)
   childGroup  AppGroup @relation("GroupLinkChild", fields: [childGroupId], references: [id], onDelete: Cascade)
@@ -563,8 +1303,8 @@ model AppStudentState {
   personId           String          @map("person_id")
   sourceType         String          @default("edookit") @map("source_type")
   sourceKey          String          @map("source_key")
-  effectiveFrom      DateTime        @map("effective_from")
-  effectiveTo        DateTime?       @map("effective_to")
+  effectiveFrom      DateTime        @map("effective_from") @db.Timestamptz(3)
+  effectiveTo        DateTime?       @map("effective_to") @db.Timestamptz(3)
   schoolYearId       String?         @map("school_year_id")
   currentGradeNum    Int?            @map("current_grade_num")
   initialGradeNum    Int?            @map("initial_grade_num")
@@ -572,8 +1312,8 @@ model AppStudentState {
   studyModeKey       AppStudyModeKey @default(unknown) @map("study_mode_key")
   changedBySyncRunId String?         @map("changed_by_sync_run_id")
   rawHash            String          @map("raw_hash")
-  createdAt          DateTime        @default(now()) @map("created_at")
-  updatedAt          DateTime        @updatedAt @map("updated_at")
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   person           AppPerson       @relation(fields: [personId], references: [id], onDelete: Cascade)
   schoolYear       AppSchoolYear?  @relation(fields: [schoolYearId], references: [id], onDelete: SetNull)
@@ -591,10 +1331,10 @@ model AppMembershipPolicy {
   scopeValue String?        @map("scope_value")
   priority   Int            @default(100)
   isActive   Boolean        @default(true) @map("is_active")
-  validFrom  DateTime       @default(now()) @map("valid_from")
-  validTo    DateTime?      @map("valid_to")
-  createdAt  DateTime       @default(now()) @map("created_at")
-  updatedAt  DateTime       @updatedAt @map("updated_at")
+  validFrom  DateTime       @default(now()) @map("valid_from") @db.Timestamptz(3)
+  validTo    DateTime?      @map("valid_to") @db.Timestamptz(3)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   rules AppMembershipPolicyRule[]
 
@@ -610,8 +1350,8 @@ model AppMembershipPolicyRule {
   minCount    Int          @default(0) @map("min_count")
   maxCount    Int?         @map("max_count")
   enforcement String       @default("strict")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   policy AppMembershipPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
@@ -626,14 +1366,14 @@ model AppGroupMembership {
   groupId        String       @map("group_id")
   groupKind      AppGroupKind @default(studijni_skupina) @map("group_kind")
   membershipRole String?      @map("membership_role")
-  validFrom      DateTime     @map("valid_from")
-  validTo        DateTime?    @map("valid_to")
+  validFrom      DateTime     @map("valid_from") @db.Timestamptz(3)
+  validTo        DateTime?    @map("valid_to") @db.Timestamptz(3)
   source         String
   reason         String?
   createdBy      String?      @map("created_by")
   updatedBy      String?      @map("updated_by")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   person AppPerson                 @relation(fields: [personId], references: [id], onDelete: Cascade)
   group  AppGroup                  @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -649,7 +1389,7 @@ model AppGroupMembershipEvent {
   id           String   @id @default(cuid())
   membershipId String   @map("membership_id")
   action       String
-  changedAt    DateTime @default(now()) @map("changed_at")
+  changedAt    DateTime @default(now()) @map("changed_at") @db.Timestamptz(3)
   changedBy    String?  @map("changed_by")
   source       String
   oldData      Json?    @map("old_data")
@@ -664,9 +1404,9 @@ model AppGroupMembershipEvent {
 model AppMembershipViolation {
   id             String       @id @default(cuid())
   personId       String       @map("person_id")
-  occurredAt     DateTime     @default(now()) @map("occurred_at")
-  intervalFrom   DateTime     @map("interval_from")
-  intervalTo     DateTime?    @map("interval_to")
+  occurredAt     DateTime     @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  intervalFrom   DateTime     @map("interval_from") @db.Timestamptz(3)
+  intervalTo     DateTime?    @map("interval_to") @db.Timestamptz(3)
   ruleScope      String       @map("rule_scope")
   ruleScopeValue String?      @map("rule_scope_value")
   groupKind      AppGroupKind @map("group_kind")
@@ -675,8 +1415,8 @@ model AppMembershipViolation {
   actualCount    Int          @map("actual_count")
   severity       String       @default("error")
   source         String
-  context        Json         @default(dbgenerated("'{}'::jsonb"))
-  resolvedAt     DateTime?    @map("resolved_at")
+  context        Json         @default("{}")
+  resolvedAt     DateTime?    @map("resolved_at") @db.Timestamptz(3)
   resolvedBy     String?      @map("resolved_by")
 
   person AppPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
@@ -696,7 +1436,7 @@ model AppCalendarProviderConfig {
   isActive              Boolean             @default(true) @map("is_active")
   metadata              Json?
   createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   studentCalendars AppStudentCalendar[]
   groupCalendars   AppGroupCalendar[]
@@ -722,7 +1462,7 @@ model AppStudentCalendar {
   lastSyncError     String?   @map("last_sync_error")
   metadata          Json?
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   providerConfig AppCalendarProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
   person         AppPerson                 @relation(fields: [personId], references: [id], onDelete: Cascade)
@@ -749,7 +1489,7 @@ model AppGroupCalendar {
   isActive         Boolean  @default(true) @map("is_active")
   metadata         Json?
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   providerConfig AppCalendarProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
   eventLinks     AppCalendarEventLink[]
@@ -774,7 +1514,7 @@ model AppSchoolEventType {
   isActive           Boolean               @default(true) @map("is_active")
   metadata           Json?
   createdAt          DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt          DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   events    AppSchoolEvent[]
   templates AppSchoolEventTemplate[]
@@ -799,7 +1539,7 @@ model AppSchoolEventTemplate {
   defaultMetadata         Json?                    @map("default_metadata")
   isActive                Boolean                  @default(true) @map("is_active")
   createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt               DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   eventType AppSchoolEventType? @relation(fields: [eventTypeId], references: [id], onDelete: SetNull)
   events    AppSchoolEvent[]
@@ -825,7 +1565,7 @@ model AppSchoolEventSeries {
   createdByPersonId String?   @map("created_by_person_id")
   updatedByPersonId String?   @map("updated_by_person_id")
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   eventType AppSchoolEventType? @relation(fields: [eventTypeId], references: [id], onDelete: SetNull)
   events    AppSchoolEvent[]
@@ -850,7 +1590,7 @@ model AppSchoolEventOfferGroup {
   isActive               Boolean                          @default(true) @map("is_active")
   metadata               Json?
   createdAt              DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt              DateTime                         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   events AppSchoolEvent[]
 
@@ -902,14 +1642,14 @@ model AppSchoolEvent {
   createdByPersonId       String?                       @map("created_by_person_id")
   updatedByPersonId       String?                       @map("updated_by_person_id")
   createdAt               DateTime                      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime                      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt               DateTime                      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  eventType               AppSchoolEventType                    @relation(fields: [eventTypeId], references: [id], onDelete: Restrict)
+  eventType               AppSchoolEventType                    @relation(fields: [eventTypeId], references: [id], onDelete: Restrict, map: "app_school_event_type_fkey")
   template                AppSchoolEventTemplate?               @relation(fields: [templateId], references: [id], onDelete: SetNull)
   series                  AppSchoolEventSeries?                 @relation(fields: [seriesId], references: [id], onDelete: SetNull)
   offerGroup              AppSchoolEventOfferGroup?             @relation(fields: [offerGroupId], references: [id], onDelete: SetNull)
-  createdByPerson         AppPerson?                            @relation("AppSchoolEventCreatedBy", fields: [createdByPersonId], references: [id], onDelete: SetNull)
-  updatedByPerson         AppPerson?                            @relation("AppSchoolEventUpdatedBy", fields: [updatedByPersonId], references: [id], onDelete: SetNull)
+  createdByPerson         AppPerson?                            @relation("AppSchoolEventCreatedBy", fields: [createdByPersonId], references: [id], onDelete: SetNull, map: "app_school_event_created_by_fkey")
+  updatedByPerson         AppPerson?                            @relation("AppSchoolEventUpdatedBy", fields: [updatedByPersonId], references: [id], onDelete: SetNull, map: "app_school_event_updated_by_fkey")
   targets                 AppSchoolEventTarget[]
   audienceRules           AppSchoolEventAudienceRule[]
   audienceSnapshotBatches AppSchoolEventAudienceSnapshotBatch[]
@@ -939,8 +1679,8 @@ model AppSchoolEventTarget {
   metadata      Json?
   createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
-  person      AppPerson?     @relation(fields: [personId], references: [id], onDelete: SetNull)
+  schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade, map: "app_school_event_target_school_event_fkey")
+  person      AppPerson?     @relation(fields: [personId], references: [id], onDelete: SetNull, map: "app_school_event_target_person_fkey")
 
   @@index([schoolEventId], map: "app_school_event_target_school_event_id_idx")
   @@index([personId], map: "app_school_event_target_person_id_idx")
@@ -960,7 +1700,7 @@ model AppSchoolEventAudienceRule {
   isActive      Boolean                        @default(true) @map("is_active")
   metadata      Json?
   createdAt     DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt     DateTime                       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   schoolEvent   AppSchoolEvent                       @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
   snapshotItems AppSchoolEventAudienceSnapshotItem[]
@@ -997,8 +1737,8 @@ model AppSchoolEventAudienceSnapshotItem {
   sourceRuleId String?  @map("source_rule_id")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  batch      AppSchoolEventAudienceSnapshotBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  sourceRule AppSchoolEventAudienceRule?         @relation(fields: [sourceRuleId], references: [id], onDelete: SetNull)
+  batch      AppSchoolEventAudienceSnapshotBatch @relation(fields: [batchId], references: [id], onDelete: Cascade, map: "app_school_event_snapshot_item_batch_id_fkey")
+  sourceRule AppSchoolEventAudienceRule?         @relation(fields: [sourceRuleId], references: [id], onDelete: SetNull, map: "app_school_event_snapshot_item_source_rule_id_fkey")
 
   @@unique([batchId, personId], map: "app_school_event_snapshot_item_batch_person_key")
   @@index([personId], map: "app_school_event_snapshot_item_person_id_idx")
@@ -1023,7 +1763,7 @@ model AppSchoolEventRegistrationPolicy {
   allowGuideException     Boolean                              @default(true) @map("allow_guide_exception")
   metadata                Json?
   createdAt               DateTime                             @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime                             @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt               DateTime                             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
 
@@ -1042,7 +1782,7 @@ model AppSchoolEventRegistration {
   changedAt         DateTime                         @default(now()) @map("changed_at") @db.Timestamptz(3)
   metadata          Json?
   createdAt         DateTime                         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime                         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt         DateTime                         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
 
@@ -1062,7 +1802,7 @@ model AppSchoolEventAttendance {
   recordedAt         DateTime                       @default(now()) @map("recorded_at") @db.Timestamptz(3)
   metadata           Json?
   createdAt          DateTime                       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime                       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt          DateTime                       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
 
@@ -1081,7 +1821,7 @@ model AppSchoolEventModuleLink {
   linkConfig    Json?                              @map("link_config")
   isActive      Boolean                            @default(true) @map("is_active")
   createdAt     DateTime                           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime                           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt     DateTime                           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   schoolEvent AppSchoolEvent @relation(fields: [schoolEventId], references: [id], onDelete: Cascade)
 
@@ -1110,11 +1850,11 @@ model AppCalendarEventLink {
   lastSyncedAt      DateTime?                  @map("last_synced_at") @db.Timestamptz(3)
   metadata          Json?
   createdAt         DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt         DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  studentCalendar AppStudentCalendar? @relation(fields: [studentCalendarId], references: [id], onDelete: Cascade)
-  groupCalendar   AppGroupCalendar?   @relation(fields: [groupCalendarId], references: [id], onDelete: Cascade)
-  schoolEvent     AppSchoolEvent?     @relation(fields: [schoolEventId], references: [id], onDelete: SetNull)
+  studentCalendar AppStudentCalendar? @relation(fields: [studentCalendarId], references: [id], onDelete: Cascade, map: "app_calendar_event_link_student_calendar_fkey")
+  groupCalendar   AppGroupCalendar?   @relation(fields: [groupCalendarId], references: [id], onDelete: Cascade, map: "app_calendar_event_link_group_calendar_fkey")
+  schoolEvent     AppSchoolEvent?     @relation(fields: [schoolEventId], references: [id], onDelete: SetNull, map: "app_calendar_event_link_school_event_fkey")
 
   @@unique([studentCalendarId, sourceType, sourceKey], map: "app_calendar_event_link_student_source_key")
   @@unique([groupCalendarId, sourceType, sourceKey], map: "app_calendar_event_link_group_source_key")
@@ -1132,7 +1872,7 @@ model AppCalendarSyncCursor {
   windowTo    DateTime? @map("window_to") @db.Timestamptz(3)
   metadata    Json?
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("app_calendar_sync_cursor")
 }
@@ -1155,11 +1895,11 @@ model AppCalendarSyncJob {
   payload           Json
   lastError         String?                  @map("last_error")
   createdAt         DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt         DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  updatedAt         DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  providerConfig  AppCalendarProviderConfig? @relation(fields: [providerConfigId], references: [id], onDelete: SetNull)
-  studentCalendar AppStudentCalendar?        @relation(fields: [studentCalendarId], references: [id], onDelete: SetNull)
-  groupCalendar   AppGroupCalendar?          @relation(fields: [groupCalendarId], references: [id], onDelete: SetNull)
+  providerConfig  AppCalendarProviderConfig? @relation(fields: [providerConfigId], references: [id], onDelete: SetNull, map: "app_calendar_sync_job_provider_fkey")
+  studentCalendar AppStudentCalendar?        @relation(fields: [studentCalendarId], references: [id], onDelete: SetNull, map: "app_calendar_sync_job_student_calendar_fkey")
+  groupCalendar   AppGroupCalendar?          @relation(fields: [groupCalendarId], references: [id], onDelete: SetNull, map: "app_calendar_sync_job_group_calendar_fkey")
 
   @@index([status, runAfter], map: "app_calendar_sync_job_status_run_after_idx")
   @@index([jobType], map: "app_calendar_sync_job_job_type_idx")

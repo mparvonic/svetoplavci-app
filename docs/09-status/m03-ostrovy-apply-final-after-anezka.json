@@ -1,0 +1,53 @@
+{
+  "apply": true,
+  "source": {
+    "docId": "Qt8oQFVMSJ",
+    "tableOstrovy": "grid-RPOzBx6_z5",
+    "tableZapisy": "grid-uxFgm5-EmQ",
+    "tableTerminy": "grid-2joE22w348",
+    "fromDate": "2025-09-01",
+    "toDate": "2026-08-31"
+  },
+  "config": {
+    "schoolYearCode": "2025/2026",
+    "eventTypeCode": "OSTROVY",
+    "mediaRoot": "/data/svetoplavci/media/school-events",
+    "includeInactiveZak": false,
+    "includeNonZak": false,
+    "skipImageDownload": true,
+    "importSource": "coda_ostrovy_import_2025_2026"
+  },
+  "fetched": {
+    "terminyRows": 162,
+    "ostrovyRows": 384,
+    "zapisyRows": 18314
+  },
+  "filtered": {
+    "ostrovyInRange": 139,
+    "zapisyInRangeWithEvent": 1412
+  },
+  "mapping": {
+    "uniqueParticipantNames": 98,
+    "resolvedActiveZak": 98,
+    "resolvedInactiveZak": 0,
+    "resolvedNonZak": 0,
+    "unresolved": {},
+    "unresolvedItems": []
+  },
+  "applied": {
+    "offerGroupsInserted": 0,
+    "offerGroupsUpdated": 139,
+    "eventsInserted": 0,
+    "eventsUpdated": 139,
+    "policiesInserted": 0,
+    "policiesUpdated": 139,
+    "registrationsInserted": 1,
+    "registrationsUpdated": 1410,
+    "registrationsMarkedUnregistered": 0
+  },
+  "imagesDownloaded": 0,
+  "imagesFailed": 0,
+  "notes": [
+    "Import byl spusten v apply rezimu."
+  ]
+}

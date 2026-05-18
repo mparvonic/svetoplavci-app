@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Svetoplavci DB backup daily on GX10
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+Persistent=true
+RandomizedDelaySec=15min
+Unit=svetoplavci-db-backup-gx10.service
+
+[Install]
+WantedBy=timers.target

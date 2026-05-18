@@ -110,14 +110,13 @@ Před mergem do main:
 Soubor `.env.local` (není v gitu) obsahuje:
 ```
 POSTGRES_PRISMA_URL=...       # Neon production DB (nebo staging branch)
-CODA_API_KEY=...
 AUTH_SECRET=...
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 # ...ostatní proměnné
 ```
 
-> Na lokále lze bezpečně používat produkční Coda API (jen čtení). Pro Postgres doporučuji Neon staging branch (viz níže).
+> Coda je pouze archivní zdroj. Nový lokální vývoj ani náhledy nemají číst z Coda API.
 
 ### Staging (app-test.svetoplavci.cz)
 
@@ -130,7 +129,7 @@ Staging běží na stejném VPS v Coolify jako produkce, ale jako oddělená apl
 
 - Docker image tag `:latest`
 - Produkční Neon database
-- Produkční Coda tabulky
+- Historické Coda snapshoty a importní reporty, pokud jsou potřeba k auditu
 
 ### Produkční user sync z Edookit (závazné)
 
@@ -236,7 +235,7 @@ Nastavení pro budoucí konzistenci:
 
 ## Správa dat pro staging
 
-Auth data (uživatelé, sessions) jsou v **Neon PostgreSQL**. Coda data jsou read-only.
+Auth i provozní aplikační data jsou v **PostgreSQL**. Coda data jsou pouze archivní stopa migrací.
 
 ### Neon database branching
 
@@ -365,7 +364,7 @@ app/(prototype)/
 Claude bude znát:
 - Existující komponenty a jejich API
 - Design systém (barvy, typography, spacing)
-- Datový model (struktury z `src/types/coda.ts`)
+- Datový model (Prisma schema a doménové typy)
 - Existující vzory (tabulky, tabledety, karty)
 
 ---
@@ -392,8 +391,8 @@ Aby celá aplikace vypadala jednotně, všechny nové stránky a komponenty mus�
 
 ### Konvence pojmenování souborů
 - Komponenty: `kebab-case.tsx` (např. `child-detail-tabs.tsx`)
-- Typy: `src/types/coda.ts`, `src/types/auth.ts`
-- API helpery: `src/lib/coda.ts`, `src/lib/auth.ts`
+- Typy a schema: `prisma/schema.prisma`, `src/types/auth.ts`
+- API/helpery: `src/lib/auth.ts`, `src/lib/user-directory.ts`, relevantní doménové helpery v `src/lib`
 
 ---
 
