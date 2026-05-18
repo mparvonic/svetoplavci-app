@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Svetoplavci DB restore drill weekly on GX10
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=30min
+Unit=svetoplavci-db-restore-drill-gx10.service
+
+[Install]
+WantedBy=timers.target

@@ -14,6 +14,8 @@ import {
 } from "./data";
 import { formatDateTime, formatPersonDisplayName, uniqueText } from "./format";
 
+export const dynamic = "force-dynamic";
+
 type AdminUsersPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };

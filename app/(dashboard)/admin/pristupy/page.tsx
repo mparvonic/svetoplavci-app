@@ -11,6 +11,8 @@ import { formatDateTime, formatPersonDisplayName } from "../uzivatele/format";
 import { ConflictResolutionDialog } from "./conflict-resolution-dialog";
 import { ADMIN_ACCESS_PAGE_SIZE, getAdminAccessPage, parseAdminAccessSearchParams } from "./data";
 
+export const dynamic = "force-dynamic";
+
 type AdminAccessPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };

@@ -23,6 +23,8 @@ import { getAdminPersonMergeOptions, getAdminUserDetail } from "../data";
 import { formatDate, formatDateTime, formatPersonDisplayName } from "../format";
 import { PersonMergeDialog } from "./person-merge-dialog";
 
+export const dynamic = "force-dynamic";
+
 type AdminUserDetailPageProps = {
   params: Promise<{ personId: string }>;
 };

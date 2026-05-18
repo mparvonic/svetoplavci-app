@@ -25,22 +25,22 @@ export async function POST(req: NextRequest) {
   }
 
   const formData = await req.formData();
-  const personId = String(formData.get("personId") ?? "").trim();
+  const selectionId = String(formData.get("selectionId") ?? formData.get("personId") ?? "").trim();
   const redirectTo = getDevAuthRedirect(req);
 
   const response = NextResponse.redirect(redirectTo, { status: 303 });
-  if (!personId) {
+  if (!selectionId) {
     response.cookies.delete(DEV_AUTH_COOKIE_NAME);
     return response;
   }
 
   const users = await getDevAuthUsers();
-  const selected = users.find((user) => user.personId === personId);
+  const selected = users.find((user) => user.selectionId === selectionId || user.personId === selectionId);
   if (!selected) {
     return NextResponse.json({ error: "Unknown dev user." }, { status: 400 });
   }
 
-  response.cookies.set(DEV_AUTH_COOKIE_NAME, selected.personId, {
+  response.cookies.set(DEV_AUTH_COOKIE_NAME, selected.selectionId, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",

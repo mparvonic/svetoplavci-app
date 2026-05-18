@@ -6,6 +6,8 @@ type UserRole =
   | "ucitel"
   | "pruvodce"
   | "garant"
+  | "spravce_lodicek"
+  | "spravce_flotily"
   | "patron"
   | "druzinar"
   | "editor_hodnoceni"

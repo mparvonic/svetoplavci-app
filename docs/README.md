@@ -1,25 +1,42 @@
-## Dokumentace – školní aplikace Světoplavci
+# Dokumentace Světoplavci
 
-Tato složka obsahuje technickou dokumentaci k aktuálnímu stavu aplikace.  
-Primární účel je **referenční bod pro AI asistenta** (a vývojáře) – aby bylo možné:
+Tato složka obsahuje aktuální technickou dokumentaci i obnovenou historickou dokumentaci projektu.
 
-- rychle pochopit architekturu,
-- ověřit stávající chování bez potřeby znovu číst celý kód,
-- a v případě potřeby se **vracet k původnímu stavu řešení**.
+## Závazné aktuální principy
 
-> ⚠ **Důležité:** Dokumentaci nikdy neupravuji samostatně – pouze na výslovný pokyn uživatele.
+- PostgreSQL je zdroj pravdy pro provozní data aplikace.
+- Coda je pouze archivní/migrační stopa a aplikace ji nesmí používat jako runtime zdroj.
+- Auth a role běží přes interní aplikační model, ne přes Coda.
+- Správa lodiček je portálové workflow, ne `/admin`.
+- Sada lodiček je reprezentovaná jako `M01SvpVersion`.
 
-### Struktura
+## Struktura
 
-- `architecture.md` – přehled architektury aplikace (frontend, backend, integrace).
-- `auth.md` – přihlášení, session, magic link, vazba na Codu.
-- `coda-integration.md` – detaily integrace s Coda API, tabulky, mapování, cache.
-- `api-endpoints.md` – hlavní API routy Next.js používané frontendem.
-- `ui-ux.md` – hlavní obrazovky, metro design, mobilní vs. desktop layout.
-- `security.md` – shrnutí bezpečnostního modelu a odkaz na `GDPR.md`.
-- `admin-roadmap.md` – plán admin sekce, synchronizací, kontrol dat a správy školního roku.
-- `school-year-groups.md` – datový model školního roku, skupin, členství a změnové historie stavu dítěte.
-- `dev-database-refresh.md` – standardní refresh TEST/DEV databází z produkce (v DEV s anonymizací).
-- `schema-rollout.md` – mini-playbook pro pořadí schema rolloutu a data refresh (prevence DB driftu).
+- `architecture.md` - aktuální architektura aplikace.
+- `auth.md` - aktuální autentizace a session.
+- `security.md` - aktuální bezpečnostní model.
+- `data-structures.md` - aktuální datové struktury.
+- `coda-integration.md` - pravidla pro Coda jako archivní zdroj.
+- `admin-roadmap.md` - provozní správa aplikace.
+- `dev-database-refresh.md` - refresh DEV/TEST databází.
+- `schema-rollout.md` - schema rollout a prevence DB driftu.
+- `school-year-groups.md` - školní rok, skupiny a členství.
 
-Stav odpovídá commitům kolem nasazení verze s metro dlaždicemi, českými texty přihlášení a doplněnou ochranou rodič/dítě přes Codu.
+Obnovené historické složky:
+
+- `01-product` - produktový kontext a role.
+- `02-domain` - doménový model a pravidla.
+- `03-architecture` - širší architektonické návrhy.
+- `04-modules` - modulová dokumentace.
+- `05-delivery` - checklisty a roadmapy.
+- `06-quality` - testovací a kvalitativní dokumenty.
+- `07-operations` - runbooky.
+- `08-decisions` - ADR.
+- `09-status` - datované stavové reporty.
+- `10-templates` - šablony.
+
+## Historické dokumenty
+
+Soubory v `09-status` a některé runbooky zachycují stav v konkrétním datu. Mohou zmiňovat Coda jako tehdejší zdroj migrace. Tyto zmínky jsou historický kontext, ne aktuální návrhové pravidlo.
+
+Při konfliktu mezi historickým reportem a aktuálními principy výše platí aktuální principy a současný kód.

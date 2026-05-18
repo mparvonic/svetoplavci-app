@@ -6,6 +6,8 @@ export const APP_ROLES = [
   "ucitel",
   "pruvodce",
   "garant",
+  "spravce_lodicek",
+  "spravce_flotily",
   "patron",
   "druzinar",
   "editor_hodnoceni",
@@ -31,6 +33,8 @@ const PRIMARY_ROLE_ORDER: AppRole[] = [
   "admin",
   "tester",
   "proto",
+  "spravce_flotily",
+  "spravce_lodicek",
   "garant",
   "pruvodce",
   "zamestnanec",
@@ -64,36 +68,57 @@ export function selectPrimaryRole(roles: AppRole[]): AppRole {
   return "zak";
 }
 
+function canIgnoreDirectoryLookupError(error: unknown): boolean {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+  const message = error instanceof Error ? error.message : String(error);
+  const isDevRuntime = process.env.NODE_ENV === "development" || process.env.AUTH_BYPASS === "1";
+
+  return (
+    isDevRuntime
+    && (code === "P2021"
+      || code === "P2022"
+      || message.includes("app_login_identity")
+      || message.includes("appLoginIdentity"))
+  );
+}
+
 export async function getApprovedLoginProfileByEmail(email: string): Promise<LoginProfile | null> {
   const normalized = normalizeEmail(email);
-  const identity = await prisma.appLoginIdentity.findFirst({
-    where: {
-      identityType: "email",
-      normalizedValue: normalized,
-      isActive: true,
-    },
-    include: {
-      personLinks: {
-        where: {
-          status: "approved",
-          person: {
-            isActive: true,
+  let identity;
+  try {
+    identity = await prisma.appLoginIdentity.findFirst({
+      where: {
+        identityType: "email",
+        normalizedValue: normalized,
+        isActive: true,
+      },
+      include: {
+        personLinks: {
+          where: {
+            status: "approved",
+            person: {
+              isActive: true,
+            },
           },
-        },
-        include: {
-          person: {
-            include: {
-              roles: {
-                where: {
-                  isActive: true,
+          include: {
+            person: {
+              include: {
+                roles: {
+                  where: {
+                    isActive: true,
+                  },
                 },
               },
             },
           },
         },
       },
-    },
-  });
+    });
+  } catch (error) {
+    if (!canIgnoreDirectoryLookupError(error)) throw error;
+    console.error("[user-directory] login directory lookup unavailable in dev; continuing without profile", error);
+    return null;
+  }
 
   if (!identity) return null;
   if (identity.personLinks.length === 0) return null;
