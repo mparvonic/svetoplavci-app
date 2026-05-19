@@ -22,7 +22,7 @@
 - `spravce_lodicek` - spravuje přidělené katalogové lodičky a jejich OVU/RVP vazby.
 - `spravce_flotily` - spravuje celou sadu lodiček.
 
-Tabulka `M01LodickaGarant` pochází ze starého importního pojmenování, ale v aktuálním modelu reprezentuje M:N přiřazení správců ke katalogové lodičce. Aktuální runtime vazba pro garanty stavu je `M01LodickaStavGarant`. Správci oblasti/sady se nastavují přes `M01OblastSpravce`, tedy vazbou osoby na oblast.
+Tabulka `M01LodickaGarant` pochází ze starého importního pojmenování, ale v aktuálním modelu reprezentuje M:N přiřazení správců ke konkrétní katalogové lodičce. Aktuální runtime vazba pro garanty stavu je `M01LodickaStavGarant`. Vazba `M01OblastSpravce` reprezentuje tým nastavený na úrovni oblasti; používá se jako vyšší úroveň pro hromadnou správu/default při práci se strukturou oblasti a pro odvození skupiny garantů stavu v importovaných sadách.
 
 ## Klíčové vazby
 
