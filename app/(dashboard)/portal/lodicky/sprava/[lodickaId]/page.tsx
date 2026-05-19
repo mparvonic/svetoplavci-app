@@ -239,6 +239,27 @@ export default async function LodickaSpravaDetailPage({ params, searchParams }: 
                 />
               </label>
 
+              {canEditFleetFields ? (
+                <label className="flex items-start gap-3 rounded-[12px] border border-[#D6DFF0] bg-[#F8FBFF] p-3">
+                  <input type="hidden" name="jeVMape" value="0" />
+                  <input
+                    type="checkbox"
+                    name="jeVMape"
+                    value="1"
+                    defaultChecked={page.lodicka.jeVMape}
+                    className="mt-1 size-4 rounded border-[#D6DFF0] text-[#0E2A5C] focus:ring-[#C8372D]"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-[#0E2A5C]">Zobrazovat v mapě rozvoje</span>
+                    <span className="block text-xs text-[#4A5A7C]">
+                      Lodička se bude zobrazovat v mapě a započítá se do souhrnných kostiček.
+                    </span>
+                  </span>
+                </label>
+              ) : (
+                <input type="hidden" name="jeVMape" value={page.lodicka.jeVMape ? "1" : "0"} />
+              )}
+
             </CardContent>
           </Card>
 

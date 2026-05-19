@@ -1716,13 +1716,49 @@
       "predmet": "Ponorka",
       "oblast": "Práce se zdroji"
     },
+    "2025-OS-OS-5-018": {
+      "page": 4,
+      "box": {
+        "x0": 389.0,
+        "y0": 313.75,
+        "x1": 428.75,
+        "y1": 323.5
+      },
+      "nazev": "Používám nástroje",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Péče o domácnost, technická tvořivost"
+    },
+    "2025-OS-OS-5-020": {
+      "page": 4,
+      "box": {
+        "x0": 389.0,
+        "y0": 356.0,
+        "x1": 428.75,
+        "y1": 365.75
+      },
+      "nazev": "Pracuji bezpečně",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Péče o domácnost, technická tvořivost"
+    },
+    "2025-OS-OS-5-017": {
+      "page": 4,
+      "box": {
+        "x0": 389.25,
+        "y0": 416.25,
+        "x1": 428.75,
+        "y1": 425.75
+      },
+      "nazev": "Stavím s návodem i bez",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Péče o domácnost, technická tvořivost"
+    },
     "2025-OS-OS-5-019": {
       "page": 4,
       "box": {
-        "x0": 252.164,
-        "y0": 473.377,
-        "x1": 291.752,
-        "y1": 482.734
+        "x0": 389.25,
+        "y0": 450.75,
+        "x1": 428.75,
+        "y1": 460.5
       },
       "nazev": "Zhotovuji výrobky 1.",
       "predmet": "Ostrovy a slavnosti",

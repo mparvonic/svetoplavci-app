@@ -33,6 +33,7 @@ export interface PortalLodickaRow {
   stupen: string | null;
   rocnikOd: number | null;
   rocnikDo: number | null;
+  jeVMape: boolean;
   garantPersonIds: string[];
   garantiNames: string[];
   stav: string;
@@ -54,6 +55,7 @@ export interface PortalLodickaCatalogRow {
   stupen: string | null;
   rocnikOd: number | null;
   rocnikDo: number | null;
+  jeVMape: boolean;
   garantPersonIds: string[];
   garantiNames: string[];
 }
@@ -129,6 +131,7 @@ type LodickaQueryRow = {
   stupen: string | null;
   rocnik_od: number | null;
   rocnik_do: number | null;
+  je_v_mape: boolean | null;
   garant_person_ids: string[] | null;
   garanti_names: string[] | null;
   stav: string | null;
@@ -810,6 +813,7 @@ async function getPortalChildLodickyFromContext(
       l.stupen::text AS stupen,
       l.rocnik_od AS rocnik_od,
       l.rocnik_do AS rocnik_do,
+      l.je_v_mape AS je_v_mape,
       COALESCE(
         (
           SELECT array_agg(sg.person_id ORDER BY p.display_name ASC, sg.created_at ASC)
@@ -867,6 +871,7 @@ async function getPortalChildLodickyFromContext(
     stupen: normalizeOptionalText(row.stupen),
     rocnikOd: typeof row.rocnik_od === "number" ? row.rocnik_od : null,
     rocnikDo: typeof row.rocnik_do === "number" ? row.rocnik_do : null,
+    jeVMape: row.je_v_mape !== false,
     garantPersonIds: Array.isArray(row.garant_person_ids)
       ? row.garant_person_ids.filter((id): id is string => typeof id === "string" && Boolean(id.trim()))
       : [],
@@ -1000,6 +1005,7 @@ export async function getPortalLodickyByActor(
       l.stupen::text AS stupen,
       l.rocnik_od AS rocnik_od,
       l.rocnik_do AS rocnik_do,
+      l.je_v_mape AS je_v_mape,
       COALESCE(
         (
           SELECT array_agg(sg.person_id ORDER BY p.display_name ASC, sg.created_at ASC)
@@ -1064,6 +1070,7 @@ export async function getPortalLodickyByActor(
       stupen: normalizeOptionalText(row.stupen),
       rocnikOd: typeof row.rocnik_od === "number" ? row.rocnik_od : null,
       rocnikDo: typeof row.rocnik_do === "number" ? row.rocnik_do : null,
+      jeVMape: row.je_v_mape !== false,
       garantPersonIds: Array.isArray(row.garant_person_ids)
         ? row.garant_person_ids.filter((id): id is string => typeof id === "string" && Boolean(id.trim()))
         : [],
@@ -1239,6 +1246,7 @@ export async function getPortalLodickyCompactByActor(
         l.stupen::text AS stupen,
         l.rocnik_od AS rocnik_od,
         l.rocnik_do AS rocnik_do,
+        l.je_v_mape AS je_v_mape,
         COALESCE(
           (
             SELECT array_agg(sg.person_id ORDER BY p.display_name ASC, sg.created_at ASC)
@@ -1283,6 +1291,7 @@ export async function getPortalLodickyCompactByActor(
               'stupen', NULLIF(BTRIM(cb.stupen), ''),
               'rocnikOd', cb.rocnik_od,
               'rocnikDo', cb.rocnik_do,
+              'jeVMape', cb.je_v_mape,
               'garantPersonIds', cb.garant_person_ids,
               'garantiNames', cb.garanti_names
             )
@@ -1340,6 +1349,7 @@ export async function getPortalLodickyCompactByActor(
       stupen: typeof row.stupen === "string" ? normalizeOptionalText(row.stupen) : null,
       rocnikOd: typeof row.rocnikOd === "number" ? row.rocnikOd : null,
       rocnikDo: typeof row.rocnikDo === "number" ? row.rocnikDo : null,
+      jeVMape: row.jeVMape !== false,
       garantPersonIds: Array.isArray(row.garantPersonIds)
         ? row.garantPersonIds.filter((id): id is string => typeof id === "string" && Boolean(id.trim()))
         : [],

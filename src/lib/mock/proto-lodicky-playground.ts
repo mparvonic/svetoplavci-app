@@ -44,6 +44,7 @@ export type ProtoLodickaCatalogItem = {
   garantId: string;
   garantIds?: string[];
   garantiNames?: string[];
+  jeVMape?: boolean;
   typ: "individualni" | "hromadna";
 };
 

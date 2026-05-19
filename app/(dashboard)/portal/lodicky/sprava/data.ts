@@ -133,6 +133,7 @@ export type TaxonomyLodickaOption = {
   podpredmetId: string | null;
   oblastId: string;
   ovuNotApplicable: boolean;
+  jeVMape: boolean;
   ovuIds: string[];
 };
 
@@ -150,6 +151,7 @@ export type LodickyManagementRow = {
   garantiNames: string | null;
   spravciNames: string | null;
   spravcePersonIds: string[];
+  jeVMape: boolean;
   canEditBasic: boolean;
   spravciCount: number;
   ovuCount: number;
@@ -218,6 +220,7 @@ export type LodickyManagementDetail = {
   canEditBasic: boolean;
   ovuIds: string[];
   ovuNotApplicable: boolean;
+  jeVMape: boolean;
 };
 
 export type LodickyManagementDetailPage = {
@@ -861,6 +864,7 @@ async function getTaxonomyOptions(
             l.podpredmet_id AS "podpredmetId",
             l.oblast_id AS "oblastId",
             l.ovu_not_applicable AS "ovuNotApplicable",
+            l.je_v_mape AS "jeVMape",
             COALESCE(
               array_agg(DISTINCT link.rvp_ovu_id) FILTER (WHERE link.rvp_ovu_id IS NOT NULL),
               ARRAY[]::text[]
@@ -1149,6 +1153,7 @@ export async function getLodickyManagementRows(input: {
       l.rocnik_od AS "rocnikOd",
       l.rocnik_do AS "rocnikDo",
       l.ovu_not_applicable AS "ovuNotApplicable",
+      l.je_v_mape AS "jeVMape",
       pr.nazev AS predmet,
       pp.nazev AS podpredmet,
       ob.nazev AS oblast,
@@ -1219,6 +1224,7 @@ export async function getLodickyManagementDetailPage(input: {
       pp.nazev AS podpredmet,
       ob.nazev AS oblast,
       l.ovu_not_applicable AS "ovuNotApplicable",
+      l.je_v_mape AS "jeVMape",
       COALESCE(
         array_agg(DISTINCT lg.person_id) FILTER (WHERE lg.person_id IS NOT NULL),
         ARRAY[]::text[]

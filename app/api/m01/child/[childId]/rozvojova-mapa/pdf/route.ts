@@ -123,6 +123,7 @@ async function renderDevelopmentMapPdf(child: PortalChild, rows: PortalLodickaRo
           podpredmet: row.podpredmet ?? "",
           oblast: row.oblast,
           nazevLodicky: row.nazevLodicky,
+          jeVMape: row.jeVMape !== false,
           status: normalizeStatusValue(row, viewDate),
         })),
         maxOutputBytes: stage === "II_STUPEN" ? 3_000_000 : null,
