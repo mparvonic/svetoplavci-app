@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-import { bulkUpdateLodickyManagementAction, updateLodickaMapVisibilityAction } from "./actions";
+import { bulkUpdateLodickyManagementAction } from "./actions";
 import type {
   LodickyManagementPersonOption,
   LodickyManagementRowsResult,
@@ -844,38 +844,7 @@ export function LodickyTableClient({
                         <span className="text-xs text-[#7F88A0]">{formatStupen(row.stupen)}</span>
                       </TableCell>
                       <TableCell>
-                        {wholeFleet ? (
-                          <form action={updateLodickaMapVisibilityAction}>
-                            <input type="hidden" name="returnTo" value={`/portal/lodicky/sprava${queryString ? `?${queryString}` : ""}`} />
-                            <input type="hidden" name="lodickaId" value={row.id} />
-                            <input type="hidden" name="jeVMape" value={row.jeVMape ? "0" : "1"} />
-                            <Button
-                              type="submit"
-                              variant="outline"
-                              size="sm"
-                              className={
-                                row.jeVMape
-                                  ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                                  : "border-[#D6DFF0] bg-white text-[#7F88A0] hover:bg-[#EEF2F7]"
-                              }
-                            >
-                              {row.jeVMape ? (
-                                <Check className="size-3.5" aria-hidden={true} />
-                              ) : (
-                                <X className="size-3.5" aria-hidden={true} />
-                              )}
-                              {row.jeVMape ? "V mapě" : "Mimo mapu"}
-                            </Button>
-                          </form>
-                        ) : row.jeVMape ? (
-                          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
-                            v mapě
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="border-[#D6DFF0] bg-white text-[#7F88A0]">
-                            mimo mapu
-                          </Badge>
-                        )}
+                        <span className="text-sm text-[#4A5A7C]">{row.jeVMape ? "Ano" : "Ne"}</span>
                       </TableCell>
                       <TableCell>
                         {row.ovuNotApplicable ? (

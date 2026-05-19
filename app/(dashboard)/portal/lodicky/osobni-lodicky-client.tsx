@@ -2604,10 +2604,10 @@ function DevelopmentMapStatusBoxes({
 }
 
 function getStatusVisual(status: LodickaStav) {
-  if (status === 4) return { fillClass: "bg-emerald-300", borderClass: "border-emerald-500", fillHex: "#6EE7B7" };
-  if (status === 3) return { fillClass: "bg-orange-300", borderClass: "border-orange-500", fillHex: "#FDBA74" };
-  if (status === 2) return { fillClass: "bg-blue-300", borderClass: "border-blue-500", fillHex: "#93C5FD" };
-  if (status === 1) return { fillClass: "bg-amber-300", borderClass: "border-amber-500", fillHex: "#FCD34D" };
+  if (status === 4) return { fillClass: "bg-[#C8372D]", borderClass: "border-[#C8372D]", fillHex: "#C8372D" };
+  if (status === 3) return { fillClass: "bg-[#0E2A5C]", borderClass: "border-[#0E2A5C]", fillHex: "#0E2A5C" };
+  if (status === 2) return { fillClass: "bg-[#4A5A7C]", borderClass: "border-[#4A5A7C]", fillHex: "#4A5A7C" };
+  if (status === 1) return { fillClass: "bg-[#D6DFF0]", borderClass: "border-[#D6DFF0]", fillHex: "#D6DFF0" };
   return { fillClass: "bg-slate-100", borderClass: "border-slate-300", fillHex: "#F1F5F9" };
 }
 
@@ -3904,33 +3904,33 @@ function formatLodickaTyp(typ: "individualni" | "hromadna"): string {
 }
 
 function stavBadgeClass(stav: LodickaStav): string {
-  if (stav === 4) return "cursor-default border border-emerald-500 bg-[#6EE7B7] text-emerald-950 hover:bg-[#6EE7B7]";
-  if (stav === 3) return "cursor-default border border-orange-500 bg-[#FDBA74] text-orange-950 hover:bg-[#FDBA74]";
-  if (stav === 2) return "cursor-default border border-blue-500 bg-[#93C5FD] text-[#0E2A5C] hover:bg-[#93C5FD]";
-  if (stav === 1) return "cursor-default border border-amber-500 bg-[#FCD34D] text-amber-950 hover:bg-[#FCD34D]";
+  if (stav === 4) return "cursor-default border border-[#C8372D] bg-[#C8372D] text-white hover:bg-[#C8372D]";
+  if (stav === 3) return "cursor-default border border-[#0E2A5C] bg-[#0E2A5C] text-white hover:bg-[#0E2A5C]";
+  if (stav === 2) return "cursor-default border border-[#4A5A7C] bg-[#4A5A7C] text-white hover:bg-[#4A5A7C]";
+  if (stav === 1) return "cursor-default border border-[#D6DFF0] bg-[#D6DFF0] text-[#0E2A5C] hover:bg-[#D6DFF0]";
   return "cursor-default bg-slate-100 text-slate-700 hover:bg-slate-100";
 }
 
 function statusButtonClass(value: LodickaStav, isCurrent: boolean): string {
   if (isCurrent) {
-    if (value === 4) return "!border-emerald-500 !bg-[#6EE7B7] !text-emerald-950 hover:!bg-[#6EE7B7]";
-    if (value === 3) return "!border-orange-500 !bg-[#FDBA74] !text-orange-950 hover:!bg-[#FDBA74]";
-    if (value === 2) return "!border-blue-500 !bg-[#93C5FD] !text-[#0E2A5C] hover:!bg-[#93C5FD]";
-    if (value === 1) return "!border-amber-500 !bg-[#FCD34D] !text-amber-950 hover:!bg-[#FCD34D]";
+    if (value === 4) return "!border-[#C8372D] !bg-[#C8372D] !text-white hover:!bg-[#C8372D]";
+    if (value === 3) return "!border-[#0E2A5C] !bg-[#0E2A5C] !text-white hover:!bg-[#0E2A5C]";
+    if (value === 2) return "!border-[#4A5A7C] !bg-[#4A5A7C] !text-white hover:!bg-[#4A5A7C]";
+    if (value === 1) return "!border-[#D6DFF0] !bg-[#D6DFF0] !text-[#0E2A5C] hover:!bg-[#D6DFF0]";
     return "!border-[#4A5A7C] !bg-[#4A5A7C] !text-white hover:!bg-[#4A5A7C]";
   }
 
   if (value === 4) {
-    return "border-slate-300 text-slate-700 hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800";
+    return "border-slate-300 text-slate-700 hover:border-[#C8372D] hover:bg-[#FAEAE9] hover:text-[#A42A22]";
   }
   if (value === 3) {
-    return "border-slate-300 text-slate-700 hover:border-orange-300 hover:bg-orange-100 hover:text-orange-800";
+    return "border-slate-300 text-slate-700 hover:border-[#0E2A5C] hover:bg-[#EEF2F7] hover:text-[#0E2A5C]";
   }
   if (value === 2) {
-    return "border-slate-300 text-slate-700 hover:border-blue-300 hover:bg-blue-100 hover:text-blue-800";
+    return "border-slate-300 text-slate-700 hover:border-[#4A5A7C] hover:bg-[#EEF2F7] hover:text-[#4A5A7C]";
   }
   if (value === 1) {
-    return "border-slate-300 text-slate-700 hover:border-amber-300 hover:bg-amber-100 hover:text-amber-800";
+    return "border-slate-300 text-slate-700 hover:border-[#D6DFF0] hover:bg-[#EEF2F7] hover:text-[#0E2A5C]";
   }
   return "border-slate-300 text-slate-700 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-800";
 }

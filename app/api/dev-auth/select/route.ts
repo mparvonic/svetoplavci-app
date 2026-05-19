@@ -3,20 +3,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { DEV_AUTH_COOKIE_NAME, getDevAuthUsers, isDevAuthBypassEnabled } from "@/src/lib/dev-auth";
 
 function getDevAuthRedirect(req: NextRequest): URL {
-  const redirectTo = new URL(req.headers.get("referer") || "/", req.url);
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") || "http";
+  const origin = host ? `${proto}://${host}` : req.url;
+  const redirectTo = new URL(req.headers.get("referer") || "/", origin);
   if (!redirectTo.pathname.startsWith("/auth/")) {
     return redirectTo;
   }
 
   const callbackUrl = redirectTo.searchParams.get("callbackUrl");
   if (callbackUrl) {
-    const callbackTarget = new URL(callbackUrl, req.url);
-    if (callbackTarget.origin === new URL(req.url).origin && !callbackTarget.pathname.startsWith("/auth/")) {
+    const callbackTarget = new URL(callbackUrl, origin);
+    if (callbackTarget.origin === new URL(origin).origin && !callbackTarget.pathname.startsWith("/auth/")) {
       return callbackTarget;
     }
   }
 
-  return new URL("/", req.url);
+  return new URL("/", origin);
 }
 
 export async function POST(req: NextRequest) {

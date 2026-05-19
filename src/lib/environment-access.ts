@@ -2,7 +2,7 @@ import { logSecurityEvent } from "@/src/lib/security-events";
 
 const PRODUCTION_HOSTS = new Set(["app.svetoplavci.cz"]);
 const STAGING_HOSTS = new Set(["app-test.svetoplavci.cz", "test-app.svetoplavci.cz"]);
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "192.168.10.6"]);
 let securityConfigWarningShown = false;
 
 export function normalizeHost(rawHost: string | null | undefined): string {
