@@ -101,7 +101,6 @@ def draw_stage1_chevrons(page, box, status):
             color=WHITE,
             fill=STATUS_COLORS[i + 1],
             width=1.05,
-            lineJoin=1,
             closePath=True,
             overlay=True,
         )
@@ -112,13 +111,37 @@ def draw_name(page, geometry, child_name):
     if not name_spec or name_spec.get("page") != 1:
         return
     font_path = next((candidate for candidate in FONT_CANDIDATES if Path(candidate).exists()), None)
-    page.insert_text(
-        (name_spec["x"], name_spec["y"]),
+    base_size = float(name_spec.get("size", 15))
+    rect = fitz.Rect(
+        float(name_spec["x"]),
+        float(name_spec.get("y0", name_spec["y"] - base_size - 2)),
+        float(name_spec.get("x1", page.rect.width - 12)),
+        float(name_spec.get("y1", name_spec["y"] + base_size * 0.55)),
+    )
+    font_kwargs = (
+        {"fontname": "DejaVuSans", "fontfile": font_path}
+        if font_path
+        else {"fontname": "helv"}
+    )
+    for step in range(13):
+        size = max(8, base_size - step * 0.5)
+        remaining = page.insert_textbox(
+            rect,
+            child_name,
+            fontsize=size,
+            color=BLUE,
+            overlay=True,
+            **font_kwargs,
+        )
+        if remaining >= 0:
+            return
+    page.insert_textbox(
+        rect,
         child_name,
-        fontsize=name_spec.get("size", 15),
-        fontfile=font_path,
+        fontsize=8,
         color=BLUE,
         overlay=True,
+        **font_kwargs,
     )
 
 
