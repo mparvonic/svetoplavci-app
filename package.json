@@ -19,6 +19,7 @@
     "ostrovy:non-daily:dry-run": "scripts/with-runtime-env.sh node scripts/dry-run-ostrovy-non-daily-registrations.mjs",
     "db:refresh:dev": "./scripts/db-refresh-dev.sh",
     "db:refresh:staging": "./scripts/db-refresh-staging.sh",
+    "m01:fix-swapped-people": "scripts/with-runtime-env.sh node scripts/fix-m01-swapped-spravci-garanti.mjs",
     "ci:security": "node scripts/ci/security-checks.mjs",
     "rvp:normalize": "node scripts/normalize-rvp-open-data.mjs",
     "rvp:diff": "node scripts/diff-rvp-normalized.mjs",

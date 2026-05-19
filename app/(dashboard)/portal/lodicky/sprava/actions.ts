@@ -2021,12 +2021,6 @@ export async function bulkUpdateLodickyManagementAction(formData: FormData) {
             WHERE scope_os.oblast_id = l.oblast_id
               AND scope_os.person_id IN (${Prisma.join(personIds)})
           )
-          OR EXISTS (
-            SELECT 1
-            FROM app_m01_lodicka_garant legacy_lg
-            WHERE legacy_lg.lodicka_id = l.id
-              AND legacy_lg.person_id IN (${Prisma.join(personIds)})
-          )
         )`
       : Prisma.sql`AND false`;
 

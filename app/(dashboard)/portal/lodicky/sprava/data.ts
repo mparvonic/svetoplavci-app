@@ -367,11 +367,6 @@ function buildWhere(input: {
             FROM app_m01_oblast_spravce scope_os
             WHERE scope_os.oblast_id = l.oblast_id
               AND scope_os.person_id IN (${Prisma.join(personIds)})
-          ) OR EXISTS (
-            SELECT 1
-            FROM app_m01_lodicka_garant legacy_scope_lg
-            WHERE legacy_scope_lg.lodicka_id = l.id
-              AND legacy_scope_lg.person_id IN (${Prisma.join(personIds)})
           )
         )`
         : Prisma.sql`false`,
@@ -455,12 +450,6 @@ function canEditBasicSql(access: LodickyManagementAccess): Prisma.Sql {
       WHERE edit_os.oblast_id = l.oblast_id
         AND edit_os.person_id IN (${Prisma.join(personIds)})
     )
-    OR EXISTS (
-      SELECT 1
-      FROM app_m01_lodicka_garant legacy_edit_lg
-      WHERE legacy_edit_lg.lodicka_id = l.id
-        AND legacy_edit_lg.person_id IN (${Prisma.join(personIds)})
-    )
   )`;
 }
 
@@ -480,11 +469,6 @@ function buildLodickaAccessWhere(input: {
             FROM app_m01_oblast_spravce scope_os
             WHERE scope_os.oblast_id = l.oblast_id
               AND scope_os.person_id IN (${Prisma.join(personIds)})
-          ) OR EXISTS (
-            SELECT 1
-            FROM app_m01_lodicka_garant legacy_scope_lg
-            WHERE legacy_scope_lg.lodicka_id = l.id
-              AND legacy_scope_lg.person_id IN (${Prisma.join(personIds)})
           )
         )`
         : Prisma.sql`false`,
