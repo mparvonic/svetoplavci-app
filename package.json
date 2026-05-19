@@ -21,6 +21,7 @@
     "db:refresh:staging": "./scripts/db-refresh-staging.sh",
     "m01:fix-swapped-people": "scripts/with-runtime-env.sh node scripts/fix-m01-swapped-spravci-garanti.mjs",
     "m01:fix-ii-stupen-people": "scripts/with-runtime-env.sh node scripts/fix-m01-ii-stupen-people.mjs",
+    "m01:fix-stupen-people": "scripts/with-runtime-env.sh node scripts/fix-m01-ii-stupen-people.mjs",
     "ci:security": "node scripts/ci/security-checks.mjs",
     "rvp:normalize": "node scripts/normalize-rvp-open-data.mjs",
     "rvp:diff": "node scripts/diff-rvp-normalized.mjs",
