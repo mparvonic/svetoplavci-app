@@ -3904,16 +3904,20 @@ function formatLodickaTyp(typ: "individualni" | "hromadna"): string {
 }
 
 function stavBadgeClass(stav: LodickaStav): string {
-  if (stav === 4) return "cursor-default bg-emerald-100 text-emerald-800 hover:bg-emerald-100";
-  if (stav === 3) return "cursor-default bg-orange-100 text-orange-800 hover:bg-orange-100";
-  if (stav === 2) return "cursor-default bg-blue-100 text-blue-800 hover:bg-blue-100";
-  if (stav === 1) return "cursor-default bg-amber-100 text-amber-800 hover:bg-amber-100";
+  if (stav === 4) return "cursor-default border border-emerald-500 bg-[#6EE7B7] text-emerald-950 hover:bg-[#6EE7B7]";
+  if (stav === 3) return "cursor-default border border-orange-500 bg-[#FDBA74] text-orange-950 hover:bg-[#FDBA74]";
+  if (stav === 2) return "cursor-default border border-blue-500 bg-[#93C5FD] text-[#0E2A5C] hover:bg-[#93C5FD]";
+  if (stav === 1) return "cursor-default border border-amber-500 bg-[#FCD34D] text-amber-950 hover:bg-[#FCD34D]";
   return "cursor-default bg-slate-100 text-slate-700 hover:bg-slate-100";
 }
 
 function statusButtonClass(value: LodickaStav, isCurrent: boolean): string {
   if (isCurrent) {
-    return "!border-[#0E2A5C] !bg-[#0E2A5C] !text-white !hover:border-[#0E2A5C] !hover:bg-[#0E2A5C] !hover:text-white";
+    if (value === 4) return "!border-emerald-500 !bg-[#6EE7B7] !text-emerald-950 hover:!bg-[#6EE7B7]";
+    if (value === 3) return "!border-orange-500 !bg-[#FDBA74] !text-orange-950 hover:!bg-[#FDBA74]";
+    if (value === 2) return "!border-blue-500 !bg-[#93C5FD] !text-[#0E2A5C] hover:!bg-[#93C5FD]";
+    if (value === 1) return "!border-amber-500 !bg-[#FCD34D] !text-amber-950 hover:!bg-[#FCD34D]";
+    return "!border-[#4A5A7C] !bg-[#4A5A7C] !text-white hover:!bg-[#4A5A7C]";
   }
 
   if (value === 4) {
