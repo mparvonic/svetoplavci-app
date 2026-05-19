@@ -6,7 +6,12 @@ This file provides guidance to Codex when working with this repository.
 
 ```bash
 npm run dev        # Start development server with Turbopack (localhost:3000)
-npm run build      # prisma generate + prisma db push + next build
+npm run dev:up     # Preferred Codex local startup: env + deps + DB tunnel + Next dev
+npm run dev:down   # Stop the background Next dev server started by dev:up
+npm run ops:doctor # Diagnose mount, env, SSH, DB tunnel, Next dev, and git state
+npm run release:test -- --message "fix: summary" # Commit/push toward staging/test
+npm run release:prod                             # Open/reuse staging -> main production PR
+npm run build      # prisma generate + next build
 npm run lint       # Run ESLint
 npm run db:check:schema
 npm run m01:lodicky:dry-run
@@ -91,9 +96,13 @@ Správa lodiček is a portal workflow under `/portal/lodicky/sprava`, not an adm
 
 ### Environments
 
-- GX10 runtime env file lives outside the repo at `/data/projects/svetoplavci-app/secrets/env.local`. Source it for DB-backed commands when repo `.env.local` is absent; never print or commit its contents.
+- Codex normally runs on Miroslav's Mac against the GX10 NFS mount at `/Users/miroslav/Projects/gx10/srv/projects/svetoplavci-app`; the canonical GX10 path is `/srv/projects/svetoplavci-app`.
+- Do not rediscover local startup manually. First run `npm run ops:doctor`; start local work with `npm run dev:up`.
+- GX10 runtime env file lives outside the repo at `/data/projects/svetoplavci-app/secrets/env.local`. From the Mac mount the same secret path is `/Users/miroslav/Projects/gx10/data/projects/svetoplavci-app/secrets/env.local`. Source it for DB-backed commands when repo `.env.local` is absent; never print or commit its contents.
+- Release/deploy automation is scripted. Use `npm run release:test -- --message "..."` for test/staging and `npm run release:prod` for production promotion. Do not hand-roll branch pushes unless the scripts are broken.
 - `main` branch -> production (`app.svetoplavci.cz`)
-- `staging` branch -> staging (`app-test.svetoplavci.cz`)
+- `staging` branch -> staging/test (`test-app.svetoplavci.cz`)
 - Feature development on feature branches, PR into `staging` first.
 
 Full workflow: `docs/development-workflow.md`.
+Local Codex automation: `docs/07-operations/runbooks/local-codex-automation.md`.

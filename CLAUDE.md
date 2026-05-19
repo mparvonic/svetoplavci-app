@@ -93,7 +93,7 @@ Configured via environment variables (see `.env.local`):
 ### Environments
 
 - `main` branch → production (`app.svetoplavci.cz`), Docker tag `:latest`
-- `staging` branch → staging (`app-test.svetoplavci.cz`), Docker tag `:staging`
+- `staging` branch → staging (`test-app.svetoplavci.cz`), Docker tag `:staging`
 - Feature development on `feature/xxx` branches, PR into `staging` first
 - Full workflow: `docs/development-workflow.md`
 

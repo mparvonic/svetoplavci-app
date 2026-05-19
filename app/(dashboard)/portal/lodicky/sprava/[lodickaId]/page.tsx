@@ -163,6 +163,7 @@ export default async function LodickaSpravaDetailPage({ params, searchParams }: 
   const returnTo = `/portal/lodicky/sprava/${page.lodicka.id}${listQuery ? `?${listQuery}` : ""}`;
   const wholeFleet = canManageWholeFleet(roles);
   const canEditFleetFields = page.canEditFleetFields && !openedFromList;
+  const canEditMapFlag = wholeFleet;
   const canEditBasicFields = page.canEditBasicFields || (wholeFleet && openedFromList);
   const readOnly = !canEditBasicFields;
   const needsDraftForFleetEdit = wholeFleet && !openedFromList && !canEditFleetFields;
@@ -239,7 +240,7 @@ export default async function LodickaSpravaDetailPage({ params, searchParams }: 
                 />
               </label>
 
-              {canEditFleetFields ? (
+              {canEditMapFlag ? (
                 <label className="flex items-start gap-3 rounded-[12px] border border-[#D6DFF0] bg-[#F8FBFF] p-3">
                   <input type="hidden" name="jeVMape" value="0" />
                   <input

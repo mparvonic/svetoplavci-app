@@ -1811,14 +1811,27 @@ export async function updateLodickaManagementAction(formData: FormData) {
     if (!nazev) {
       redirect(appendStatusParam(returnTo, "error", "invalid"));
     }
-    await prisma.$executeRaw(Prisma.sql`
-      UPDATE app_m01_lodicka
-      SET
-        nazev = ${nazev},
-        popis = ${popis || null},
-        updated_at = now()
-      WHERE id = ${lodickaId}
-    `);
+    const jeVMape = wholeFleet ? readBooleanFlag(formData, "jeVMape", true) : null;
+    if (wholeFleet) {
+      await prisma.$executeRaw(Prisma.sql`
+        UPDATE app_m01_lodicka
+        SET
+          nazev = ${nazev},
+          popis = ${popis || null},
+          je_v_mape = ${jeVMape},
+          updated_at = now()
+        WHERE id = ${lodickaId}
+      `);
+    } else {
+      await prisma.$executeRaw(Prisma.sql`
+        UPDATE app_m01_lodicka
+        SET
+          nazev = ${nazev},
+          popis = ${popis || null},
+          updated_at = now()
+        WHERE id = ${lodickaId}
+      `);
+    }
     revalidatePath("/portal/lodicky/sprava");
     revalidatePath(`/portal/lodicky/sprava/${lodickaId}`);
     redirect(appendStatusParam(returnTo, "saved", "1"));

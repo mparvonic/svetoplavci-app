@@ -45,7 +45,7 @@ is_watchdog_running() {
 
 start_watchdog() {
   echo "[dev:db:tunnel:up] Starting DB tunnel watchdog on localhost:$LOCAL_PORT ..."
-  nohup npm run -s db:tunnel:watch >"$LOG_FILE" 2>&1 < /dev/null &
+  nohup node scripts/db-tunnel-watch.mjs >"$LOG_FILE" 2>&1 < /dev/null &
   local watchdog_pid=$!
   disown "$watchdog_pid" 2>/dev/null || true
   echo "$watchdog_pid" > "$PID_FILE"
@@ -58,15 +58,15 @@ start_watchdog() {
   fi
 }
 
+if is_port_open; then
+  echo "[dev:db:tunnel:up] DB tunnel already available on localhost:$LOCAL_PORT."
+  exit 0
+fi
+
 if is_watchdog_running; then
   echo "[dev:db:tunnel:up] DB tunnel watchdog already running."
 else
   start_watchdog
-fi
-
-if is_port_open; then
-  echo "[dev:db:tunnel:up] DB tunnel already available on localhost:$LOCAL_PORT."
-  exit 0
 fi
 
 echo "[dev:db:tunnel:up] Waiting for DB tunnel to become available ..."
