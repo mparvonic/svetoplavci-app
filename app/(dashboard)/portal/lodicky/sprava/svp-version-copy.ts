@@ -47,7 +47,7 @@ export async function copySvpVersionContent(
       predmet.kod,
       predmet.nazev,
       predmet.stupen,
-      predmet.garant_person_id,
+      NULL,
       predmet.poradi,
       predmet.is_active,
       now(),
@@ -67,7 +67,7 @@ export async function copySvpVersionContent(
       podpredmet.kod,
       podpredmet.nazev,
       podpredmet.stupen,
-      podpredmet.garant_person_id,
+      NULL,
       podpredmet.poradi,
       podpredmet.is_active,
       now(),
@@ -105,7 +105,7 @@ export async function copySvpVersionContent(
       CONCAT('m01-oblast-spravce-', gen_random_uuid()::text),
       oblast_map.new_id,
       spravce.person_id,
-      spravce.is_primary,
+      false,
       now()
     FROM app_m01_oblast_spravce spravce
     JOIN tmp_m01_oblast_copy_map oblast_map ON oblast_map.old_id = spravce.oblast_id
@@ -146,7 +146,7 @@ export async function copySvpVersionContent(
       lodicka.rocnik_od,
       lodicka.rocnik_do,
       lodicka.stupen,
-      lodicka.garant_person_id,
+      NULL,
       lodicka.ovu_not_applicable,
       lodicka.is_deleted,
       lodicka.source_coda_row_id,
@@ -179,7 +179,7 @@ export async function copySvpVersionContent(
       CONCAT('m01-lodicka-stav-garant-', gen_random_uuid()::text),
       lodicka_map.new_id,
       garant.person_id,
-      garant.is_primary,
+      false,
       now()
     FROM app_m01_lodicka_stav_garant garant
     JOIN tmp_m01_lodicka_copy_map lodicka_map ON lodicka_map.old_id = garant.lodicka_id
@@ -192,7 +192,7 @@ export async function copySvpVersionContent(
       CONCAT('m01-lodicka-garant-', gen_random_uuid()::text),
       lodicka_map.new_id,
       spravce.person_id,
-      spravce.is_primary,
+      false,
       now()
     FROM app_m01_lodicka_garant spravce
     JOIN tmp_m01_lodicka_copy_map lodicka_map ON lodicka_map.old_id = spravce.lodicka_id

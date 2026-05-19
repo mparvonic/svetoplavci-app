@@ -42,6 +42,8 @@ export type ProtoLodickaCatalogItem = {
   odRocniku: number;
   doRocniku: number;
   garantId: string;
+  garantIds?: string[];
+  garantiNames?: string[];
   typ: "individualni" | "hromadna";
 };
 

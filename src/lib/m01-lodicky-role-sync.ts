@@ -154,24 +154,6 @@ export async function removeM01AssignmentsForPersons(
   const ids = uniqueIds(personIds);
   if (ids.length === 0) return;
 
-  const affectedLodicky = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-    SELECT DISTINCT id
-    FROM (
-      SELECT sg.lodicka_id AS id
-      FROM app_m01_lodicka_stav_garant sg
-      WHERE sg.person_id IN (${Prisma.join(ids)})
-      UNION
-      SELECT lg.lodicka_id AS id
-      FROM app_m01_lodicka_garant lg
-      WHERE lg.person_id IN (${Prisma.join(ids)})
-      UNION
-      SELECT l.id
-      FROM app_m01_lodicka l
-      WHERE l.garant_person_id IN (${Prisma.join(ids)})
-    ) affected
-  `);
-  const lodickaIds = affectedLodicky.map((lodicka) => lodicka.id);
-
   await tx.$executeRaw(Prisma.sql`
     DELETE FROM app_m01_oblast_spravce
     WHERE person_id IN (${Prisma.join(ids)})
@@ -184,22 +166,6 @@ export async function removeM01AssignmentsForPersons(
     DELETE FROM app_m01_lodicka_garant
     WHERE person_id IN (${Prisma.join(ids)})
   `);
-
-  if (lodickaIds.length > 0) {
-    await tx.$executeRaw(Prisma.sql`
-      UPDATE app_m01_lodicka l
-      SET
-        garant_person_id = (
-          SELECT sg.person_id
-          FROM app_m01_lodicka_stav_garant sg
-          WHERE sg.lodicka_id = l.id
-          ORDER BY sg.is_primary DESC, sg.created_at ASC
-          LIMIT 1
-        ),
-        updated_at = now()
-      WHERE l.id IN (${Prisma.join(lodickaIds)})
-    `);
-  }
 
   await syncM01DerivedRolesForPersons(tx, ids);
 }

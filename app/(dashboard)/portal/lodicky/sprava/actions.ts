@@ -633,11 +633,6 @@ async function getM01AssignmentPersonIds(
         SELECT person_id
         FROM app_m01_lodicka_garant
         WHERE lodicka_id IN (${Prisma.join(lodickaIds)})
-        UNION
-        SELECT garant_person_id AS person_id
-        FROM app_m01_lodicka
-        WHERE id IN (${Prisma.join(lodickaIds)})
-          AND garant_person_id IS NOT NULL
       ) people
     `);
     for (const row of rows) personIds.add(row.personId);
@@ -896,8 +891,8 @@ export async function updateOblastSpravciManagementAction(formData: FormData) {
       ...(await getM01AssignmentPersonIds(tx, { oblastIds })),
     ]);
     const preservedOwnRows = mode === "replace" && ownPersonIds.length > 0
-      ? await tx.$queryRaw<Array<{ oblastId: string; personId: string; isPrimary: boolean }>>(Prisma.sql`
-          SELECT oblast_id AS "oblastId", person_id AS "personId", is_primary AS "isPrimary"
+      ? await tx.$queryRaw<Array<{ oblastId: string; personId: string }>>(Prisma.sql`
+          SELECT oblast_id AS "oblastId", person_id AS "personId"
           FROM app_m01_oblast_spravce
           WHERE oblast_id IN (${Prisma.join(oblastIds)})
             AND person_id IN (${Prisma.join(ownPersonIds)})
@@ -926,13 +921,12 @@ export async function updateOblastSpravciManagementAction(formData: FormData) {
           ? [...new Set([...requestedSpravceIds, ...preservedForOblast.map((row) => row.personId)])]
           : requestedSpravceIds;
         for (const personId of finalSpravceIds) affectedPersonIds.add(personId);
-        for (const [index, personId] of finalSpravceIds.entries()) {
-          const preservedOwnRow = preservedForOblast.find((row) => row.personId === personId);
+        for (const personId of finalSpravceIds) {
           await tx.$executeRaw(Prisma.sql`
             INSERT INTO app_m01_oblast_spravce (id, oblast_id, person_id, is_primary, created_at)
-            VALUES (${id("m01-oblast-spravce")}, ${oblastId}, ${personId}, ${preservedOwnRow?.isPrimary ?? index === 0}, now())
+            VALUES (${id("m01-oblast-spravce")}, ${oblastId}, ${personId}, false, now())
             ON CONFLICT (oblast_id, person_id) DO UPDATE
-            SET is_primary = app_m01_oblast_spravce.is_primary OR EXCLUDED.is_primary
+            SET is_primary = false
           `);
         }
       }
@@ -1587,12 +1581,12 @@ export async function updateTaxonomyOblastPeopleAction(formData: FormData) {
       DELETE FROM app_m01_oblast_spravce
       WHERE oblast_id = ${oblastId}
     `);
-    for (const [index, personId] of requestedSpravceIds.entries()) {
+    for (const personId of requestedSpravceIds) {
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO app_m01_oblast_spravce (id, oblast_id, person_id, is_primary, created_at)
-        VALUES (${id("m01-oblast-spravce")}, ${oblastId}, ${personId}, ${index === 0}, now())
+        VALUES (${id("m01-oblast-spravce")}, ${oblastId}, ${personId}, false, now())
         ON CONFLICT (oblast_id, person_id) DO UPDATE
-        SET is_primary = EXCLUDED.is_primary
+        SET is_primary = false
       `);
     }
 
@@ -1613,20 +1607,15 @@ export async function updateTaxonomyOblastPeopleAction(formData: FormData) {
         WHERE lodicka_id IN (${Prisma.join(lodickaIds)})
       `);
       for (const lodickaId of lodickaIds) {
-        for (const [index, personId] of requestedGarantIds.entries()) {
+        for (const personId of requestedGarantIds) {
           await tx.$executeRaw(Prisma.sql`
             INSERT INTO app_m01_lodicka_stav_garant (id, lodicka_id, person_id, is_primary, created_at)
-            VALUES (${id("m01-lodicka-stav-garant")}, ${lodickaId}, ${personId}, ${index === 0}, now())
+            VALUES (${id("m01-lodicka-stav-garant")}, ${lodickaId}, ${personId}, false, now())
             ON CONFLICT (lodicka_id, person_id) DO UPDATE
-            SET is_primary = EXCLUDED.is_primary
+            SET is_primary = false
           `);
         }
       }
-      await tx.$executeRaw(Prisma.sql`
-        UPDATE app_m01_lodicka
-        SET garant_person_id = ${requestedGarantIds[0] || null}, updated_at = now()
-        WHERE id IN (${Prisma.join(lodickaIds)})
-      `);
     }
 
     await syncM01DerivedRolesForPersons(tx, [...affectedPersonIds]);
@@ -1724,7 +1713,6 @@ export async function createLodickaManagementAction(formData: FormData) {
         rocnik_od,
         rocnik_do,
         stupen,
-        garant_person_id,
         ovu_not_applicable,
         is_deleted,
         created_at,
@@ -1743,7 +1731,6 @@ export async function createLodickaManagementAction(formData: FormData) {
         ${rocnikOd},
         ${rocnikDo},
         ${stupen}::"M01Stupen",
-        ${requestedGarantIds[0] || null},
         ${ovuNotApplicable},
         false,
         now(),
@@ -1759,21 +1746,21 @@ export async function createLodickaManagementAction(formData: FormData) {
       `);
     }
 
-    for (const [index, personId] of requestedSpravceIds.entries()) {
+    for (const personId of requestedSpravceIds) {
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO app_m01_oblast_spravce (id, oblast_id, person_id, is_primary, created_at)
-        VALUES (${id("m01-oblast-spravce")}, ${oblastId}, ${personId}, ${index === 0}, now())
+        VALUES (${id("m01-oblast-spravce")}, ${oblastId}, ${personId}, false, now())
         ON CONFLICT (oblast_id, person_id) DO UPDATE
-        SET is_primary = EXCLUDED.is_primary
+        SET is_primary = false
       `);
     }
 
-    for (const [index, personId] of requestedGarantIds.entries()) {
+    for (const personId of requestedGarantIds) {
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO app_m01_lodicka_stav_garant (id, lodicka_id, person_id, is_primary, created_at)
-        VALUES (${id("m01-lodicka-stav-garant")}, ${lodickaId}, ${personId}, ${index === 0}, now())
+        VALUES (${id("m01-lodicka-stav-garant")}, ${lodickaId}, ${personId}, false, now())
         ON CONFLICT (lodicka_id, person_id) DO UPDATE
-        SET is_primary = EXCLUDED.is_primary
+        SET is_primary = false
       `);
     }
 
@@ -1904,7 +1891,6 @@ export async function updateLodickaManagementAction(formData: FormData) {
           predmet_id = ${requestedPredmetId},
           podpredmet_id = ${requestedPodpredmetId || null},
           oblast_id = ${requestedOblastId},
-          garant_person_id = ${requestedGarantIds[0] || null},
           ovu_not_applicable = ${ovuNotApplicable},
           updated_at = now()
         WHERE id = ${lodickaId}
@@ -1917,7 +1903,6 @@ export async function updateLodickaManagementAction(formData: FormData) {
           popis = ${popis || null},
           rocnik_od = ${rocnikOd},
           rocnik_do = ${rocnikDo},
-          garant_person_id = ${requestedGarantIds[0] || null},
           ovu_not_applicable = ${ovuNotApplicable},
           updated_at = now()
         WHERE id = ${lodickaId}
@@ -1940,8 +1925,8 @@ export async function updateLodickaManagementAction(formData: FormData) {
     if (wholeFleet) {
       const ownPersonIds = [...new Set(access.personIds.map((personId) => personId.trim()).filter(Boolean))];
       const preservedOwnRows = ownPersonIds.length > 0
-        ? await tx.$queryRaw<Array<{ personId: string; isPrimary: boolean }>>(Prisma.sql`
-            SELECT person_id AS "personId", is_primary AS "isPrimary"
+        ? await tx.$queryRaw<Array<{ personId: string }>>(Prisma.sql`
+            SELECT person_id AS "personId"
             FROM app_m01_oblast_spravce
             WHERE oblast_id = ${requestedOblastId}
               AND person_id IN (${Prisma.join(ownPersonIds)})
@@ -1955,13 +1940,12 @@ export async function updateLodickaManagementAction(formData: FormData) {
         WHERE oblast_id = ${requestedOblastId}
       `);
 
-      for (const [index, personId] of finalSpravceIds.entries()) {
-        const preservedOwnRow = preservedOwnRows.find((row) => row.personId === personId);
+      for (const personId of finalSpravceIds) {
         await tx.$executeRaw(Prisma.sql`
           INSERT INTO app_m01_oblast_spravce (id, oblast_id, person_id, is_primary, created_at)
-          VALUES (${id("m01-oblast-spravce")}, ${requestedOblastId}, ${personId}, ${preservedOwnRow?.isPrimary ?? index === 0}, now())
+          VALUES (${id("m01-oblast-spravce")}, ${requestedOblastId}, ${personId}, false, now())
           ON CONFLICT (oblast_id, person_id) DO UPDATE
-          SET is_primary = EXCLUDED.is_primary
+          SET is_primary = false
         `);
       }
     }
@@ -1971,12 +1955,12 @@ export async function updateLodickaManagementAction(formData: FormData) {
       WHERE lodicka_id = ${lodickaId}
     `);
 
-    for (const [index, personId] of requestedGarantIds.entries()) {
+    for (const personId of requestedGarantIds) {
       await tx.$executeRaw(Prisma.sql`
         INSERT INTO app_m01_lodicka_stav_garant (id, lodicka_id, person_id, is_primary, created_at)
-        VALUES (${id("m01-lodicka-stav-garant")}, ${lodickaId}, ${personId}, ${index === 0}, now())
+        VALUES (${id("m01-lodicka-stav-garant")}, ${lodickaId}, ${personId}, false, now())
         ON CONFLICT (lodicka_id, person_id) DO UPDATE
-        SET is_primary = EXCLUDED.is_primary
+        SET is_primary = false
       `);
     }
 
@@ -2167,8 +2151,8 @@ export async function bulkUpdateLodickyManagementAction(formData: FormData) {
 
     if (applySpravci) {
       const preservedOwnRows = spravceMode === "replace" && personIds.length > 0
-        ? await tx.$queryRaw<Array<{ oblastId: string; personId: string; isPrimary: boolean }>>(Prisma.sql`
-            SELECT oblast_id AS "oblastId", person_id AS "personId", is_primary AS "isPrimary"
+        ? await tx.$queryRaw<Array<{ oblastId: string; personId: string }>>(Prisma.sql`
+            SELECT oblast_id AS "oblastId", person_id AS "personId"
             FROM app_m01_oblast_spravce
             WHERE oblast_id IN (${Prisma.join(affectedOblastIdsForSpravci)})
               AND person_id IN (${Prisma.join(personIds)})
@@ -2197,13 +2181,12 @@ export async function bulkUpdateLodickyManagementAction(formData: FormData) {
             ? [...new Set([...requestedSpravceIds, ...preservedForOblast.map((row) => row.personId)])]
             : requestedSpravceIds;
           for (const personId of finalSpravceIds) affectedPersonIds.add(personId);
-          for (const [index, personId] of finalSpravceIds.entries()) {
-            const preservedOwnRow = preservedForOblast.find((row) => row.personId === personId);
+          for (const personId of finalSpravceIds) {
             await tx.$executeRaw(Prisma.sql`
               INSERT INTO app_m01_oblast_spravce (id, oblast_id, person_id, is_primary, created_at)
-              VALUES (${id("m01-oblast-spravce")}, ${oblastId}, ${personId}, ${preservedOwnRow?.isPrimary ?? index === 0}, now())
+              VALUES (${id("m01-oblast-spravce")}, ${oblastId}, ${personId}, false, now())
               ON CONFLICT (oblast_id, person_id) DO UPDATE
-              SET is_primary = app_m01_oblast_spravce.is_primary OR EXCLUDED.is_primary
+              SET is_primary = false
             `);
           }
         }
@@ -2228,30 +2211,16 @@ export async function bulkUpdateLodickyManagementAction(formData: FormData) {
 
       if ((garantMode === "add" || garantMode === "replace") && requestedGarantIds.length > 0) {
         for (const lodickaId of lodickaIds) {
-          for (const [index, personId] of requestedGarantIds.entries()) {
+          for (const personId of requestedGarantIds) {
             await tx.$executeRaw(Prisma.sql`
               INSERT INTO app_m01_lodicka_stav_garant (id, lodicka_id, person_id, is_primary, created_at)
-              VALUES (${id("m01-lodicka-stav-garant")}, ${lodickaId}, ${personId}, ${index === 0}, now())
+              VALUES (${id("m01-lodicka-stav-garant")}, ${lodickaId}, ${personId}, false, now())
               ON CONFLICT (lodicka_id, person_id) DO UPDATE
-              SET is_primary = app_m01_lodicka_stav_garant.is_primary OR EXCLUDED.is_primary
+              SET is_primary = false
             `);
           }
         }
       }
-
-      await tx.$executeRaw(Prisma.sql`
-        UPDATE app_m01_lodicka l
-        SET
-          garant_person_id = (
-            SELECT sg.person_id
-            FROM app_m01_lodicka_stav_garant sg
-            WHERE sg.lodicka_id = l.id
-            ORDER BY sg.is_primary DESC, sg.created_at ASC
-            LIMIT 1
-          ),
-          updated_at = now()
-        WHERE l.id IN (${Prisma.join(lodickaIds)})
-      `);
     }
 
     await syncM01DerivedRolesForPersons(tx, [...affectedPersonIds]);
