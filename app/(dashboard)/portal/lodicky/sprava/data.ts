@@ -364,9 +364,9 @@ function buildWhere(input: {
         ? Prisma.sql`(
           EXISTS (
             SELECT 1
-            FROM app_m01_oblast_spravce scope_os
-            WHERE scope_os.oblast_id = l.oblast_id
-              AND scope_os.person_id IN (${Prisma.join(personIds)})
+            FROM app_m01_lodicka_garant scope_lg
+            WHERE scope_lg.lodicka_id = l.id
+              AND scope_lg.person_id IN (${Prisma.join(personIds)})
           )
         )`
         : Prisma.sql`false`,
@@ -416,7 +416,7 @@ function buildWhere(input: {
 
   if (input.filters.coverage === "bez-spravce") {
     clauses.push(Prisma.sql`NOT EXISTS (
-      SELECT 1 FROM app_m01_oblast_spravce coverage_os WHERE coverage_os.oblast_id = l.oblast_id
+      SELECT 1 FROM app_m01_lodicka_garant coverage_lg WHERE coverage_lg.lodicka_id = l.id
     )`);
   }
 
@@ -449,6 +449,11 @@ function canEditBasicSql(access: LodickyManagementAccess): Prisma.Sql {
       FROM app_m01_oblast_spravce edit_os
       WHERE edit_os.oblast_id = l.oblast_id
         AND edit_os.person_id IN (${Prisma.join(personIds)})
+      UNION ALL
+      SELECT 1
+      FROM app_m01_lodicka_garant edit_lg
+      WHERE edit_lg.lodicka_id = l.id
+        AND edit_lg.person_id IN (${Prisma.join(personIds)})
     )
   )`;
 }
@@ -486,17 +491,17 @@ export async function getSvpVersions(): Promise<SvpVersionSummary[]> {
         count(*)::int AS lodicky_count,
         count(*) FILTER (WHERE ov.lodicka_id IS NULL AND l.ovu_not_applicable = false)::int AS without_ovu,
         count(*) FILTER (WHERE l.ovu_not_applicable = true)::int AS ovu_not_applicable,
-        count(*) FILTER (WHERE os.oblast_id IS NULL)::int AS without_spravce,
-        count(*) FILTER (WHERE sg.lodicka_id IS NULL AND l.garant_person_id IS NULL)::int AS without_garant
+        count(*) FILTER (WHERE lg.lodicka_id IS NULL)::int AS without_spravce,
+        count(*) FILTER (WHERE sg.lodicka_id IS NULL)::int AS without_garant
       FROM app_m01_lodicka l
       LEFT JOIN (
         SELECT DISTINCT lodicka_id
         FROM app_m01_lodicka_ovu_link
       ) ov ON ov.lodicka_id = l.id
       LEFT JOIN (
-        SELECT DISTINCT oblast_id
-        FROM app_m01_oblast_spravce
-      ) os ON os.oblast_id = l.oblast_id
+        SELECT DISTINCT lodicka_id
+        FROM app_m01_lodicka_garant
+      ) lg ON lg.lodicka_id = l.id
       LEFT JOIN (
         SELECT DISTINCT lodicka_id
         FROM app_m01_lodicka_stav_garant
@@ -944,14 +949,13 @@ async function getLodickyCounts(where: Prisma.Sql): Promise<CountRow> {
       count(*) FILTER (WHERE l.ovu_not_applicable = true)::int AS ovu_not_applicable,
       count(*) FILTER (
         WHERE NOT EXISTS (
-          SELECT 1 FROM app_m01_oblast_spravce count_os WHERE count_os.oblast_id = l.oblast_id
+          SELECT 1 FROM app_m01_lodicka_garant count_lg WHERE count_lg.lodicka_id = l.id
         )
       )::int AS without_spravce,
       count(*) FILTER (
         WHERE NOT EXISTS (
           SELECT 1 FROM app_m01_lodicka_stav_garant count_sg WHERE count_sg.lodicka_id = l.id
         )
-        AND l.garant_person_id IS NULL
       )::int AS without_garant
     FROM app_m01_lodicka l
     JOIN app_m01_predmet pr ON pr.id = l.predmet_id
@@ -1137,11 +1141,11 @@ export async function getLodickyManagementRows(input: {
       string_agg(DISTINCT sgp.display_name, ', ' ORDER BY sgp.display_name) AS "garantName",
       string_agg(DISTINCT sp.display_name, ', ' ORDER BY sp.display_name) AS "spravciNames",
       COALESCE(
-        array_agg(DISTINCT os.person_id) FILTER (WHERE os.person_id IS NOT NULL),
+        array_agg(DISTINCT lg.person_id) FILTER (WHERE lg.person_id IS NOT NULL),
         ARRAY[]::text[]
       ) AS "spravcePersonIds",
       ${canEditBasicSql(input.access)} AS "canEditBasic",
-      count(DISTINCT os.person_id)::int AS "spravciCount",
+      count(DISTINCT lg.person_id)::int AS "spravciCount",
       count(DISTINCT ov.rvp_ovu_id)::int AS "ovuCount"
     FROM app_m01_lodicka l
     JOIN app_m01_predmet pr ON pr.id = l.predmet_id
@@ -1149,8 +1153,8 @@ export async function getLodickyManagementRows(input: {
     JOIN app_m01_oblast ob ON ob.id = l.oblast_id
     LEFT JOIN app_m01_lodicka_stav_garant sg ON sg.lodicka_id = l.id
     LEFT JOIN app_person sgp ON sgp.id = sg.person_id
-    LEFT JOIN app_m01_oblast_spravce os ON os.oblast_id = l.oblast_id
-    LEFT JOIN app_person sp ON sp.id = os.person_id
+    LEFT JOIN app_m01_lodicka_garant lg ON lg.lodicka_id = l.id
+    LEFT JOIN app_person sp ON sp.id = lg.person_id
     LEFT JOIN app_m01_lodicka_ovu_link ov ON ov.lodicka_id = l.id
     ${where}
     GROUP BY l.id, pr.nazev, pp.nazev, ob.nazev
@@ -1202,7 +1206,7 @@ export async function getLodickyManagementDetailPage(input: {
       ob.nazev AS oblast,
       l.ovu_not_applicable AS "ovuNotApplicable",
       COALESCE(
-        array_agg(DISTINCT os.person_id) FILTER (WHERE os.person_id IS NOT NULL),
+        array_agg(DISTINCT lg.person_id) FILTER (WHERE lg.person_id IS NOT NULL),
         ARRAY[]::text[]
       ) AS "spravcePersonIds",
       ${canEditBasicSql(input.access)} AS "canEditBasic",
@@ -1220,7 +1224,7 @@ export async function getLodickyManagementDetailPage(input: {
     JOIN app_m01_predmet pr ON pr.id = l.predmet_id
     LEFT JOIN app_m01_podpredmet pp ON pp.id = l.podpredmet_id
     JOIN app_m01_oblast ob ON ob.id = l.oblast_id
-    LEFT JOIN app_m01_oblast_spravce os ON os.oblast_id = l.oblast_id
+    LEFT JOIN app_m01_lodicka_garant lg ON lg.lodicka_id = l.id
     LEFT JOIN app_m01_lodicka_stav_garant sg ON sg.lodicka_id = l.id
     LEFT JOIN app_m01_lodicka_ovu_link ov ON ov.lodicka_id = l.id
     WHERE l.id = ${input.lodickaId}
