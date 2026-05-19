@@ -60,9 +60,9 @@ def rect_from_box(box, inset=0.65):
     )
 
 
-def draw_box(page, box, color):
+def draw_box(page, box, color, inset=0.65):
     page.draw_rect(
-        rect_from_box(box),
+        rect_from_box(box, inset=inset),
         color=WHITE,
         fill=color,
         width=0.55,
@@ -210,16 +210,12 @@ def draw_summary(doc, geometry, rows):
         )
         statuses = sorted(statuses_by_group.get(key, []), reverse=True)
         page = doc[group["page"] - 1]
-        outline_color = BLACK if geometry.get("stage") == "II_STUPEN" else BLUE
-        for box in group.get("boxes", []):
-            clear_box(page, box)
         if not statuses:
             continue
+        fill_inset = 2.05
         for status, box in zip(statuses, group.get("boxes", [])):
             if status > 0:
-                draw_box(page, box, STATUS_COLORS[status])
-            else:
-                draw_empty_box(page, box, outline_color)
+                draw_box(page, box, STATUS_COLORS[status], inset=fill_inset)
 
 
 def rasterize_pdf(source_path, output_path, max_bytes):
