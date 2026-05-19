@@ -110,12 +110,6 @@ export async function syncM01DerivedRolesForPersons(
         FROM app_m01_oblast_spravce os
         JOIN app_m01_oblast o ON o.id = os.oblast_id AND o.is_active = true
         WHERE os.person_id = p.id
-      )
-      OR EXISTS (
-        SELECT 1
-        FROM app_m01_lodicka_garant lg
-        JOIN app_m01_lodicka l ON l.id = lg.lodicka_id AND l.is_deleted = false
-        WHERE lg.person_id = p.id
       ) AS "hasSpravceAssignments",
       (
         EXISTS (
