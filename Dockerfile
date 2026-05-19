@@ -41,7 +41,7 @@ RUN npx next build
 # Production image
 FROM base AS runner
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssl python3 python3-pip && \
+    apt-get install -y --no-install-recommends openssl python3 python3-pip fonts-dejavu-core && \
     python3 -m pip install --break-system-packages --no-cache-dir pymupdf==1.27.2 && \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /app
