@@ -147,7 +147,7 @@ export type LodickyManagementRow = {
   predmet: string;
   podpredmet: string | null;
   oblast: string;
-  garantName: string | null;
+  garantiNames: string | null;
   spravciNames: string | null;
   spravcePersonIds: string[];
   canEditBasic: boolean;
@@ -364,6 +364,13 @@ function buildWhere(input: {
         ? Prisma.sql`(
           EXISTS (
             SELECT 1
+            FROM app_m01_oblast_spravce scope_os
+            WHERE scope_os.oblast_id = l.oblast_id
+              AND scope_os.person_id IN (${Prisma.join(personIds)})
+          )
+          OR
+          EXISTS (
+            SELECT 1
             FROM app_m01_lodicka_garant scope_lg
             WHERE scope_lg.lodicka_id = l.id
               AND scope_lg.person_id IN (${Prisma.join(personIds)})
@@ -423,7 +430,7 @@ function buildWhere(input: {
   if (input.filters.coverage === "bez-garanta") {
     clauses.push(Prisma.sql`NOT EXISTS (
       SELECT 1 FROM app_m01_lodicka_stav_garant coverage_sg WHERE coverage_sg.lodicka_id = l.id
-    ) AND l.garant_person_id IS NULL`);
+    )`);
   }
 
   return Prisma.sql`WHERE ${Prisma.join(clauses, " AND ")}`;
@@ -474,6 +481,13 @@ function buildLodickaAccessWhere(input: {
             FROM app_m01_oblast_spravce scope_os
             WHERE scope_os.oblast_id = l.oblast_id
               AND scope_os.person_id IN (${Prisma.join(personIds)})
+          )
+          OR
+          EXISTS (
+            SELECT 1
+            FROM app_m01_lodicka_garant scope_lg
+            WHERE scope_lg.lodicka_id = l.id
+              AND scope_lg.person_id IN (${Prisma.join(personIds)})
           )
         )`
         : Prisma.sql`false`,
@@ -1138,7 +1152,7 @@ export async function getLodickyManagementRows(input: {
       pr.nazev AS predmet,
       pp.nazev AS podpredmet,
       ob.nazev AS oblast,
-      string_agg(DISTINCT sgp.display_name, ', ' ORDER BY sgp.display_name) AS "garantName",
+      string_agg(DISTINCT sgp.display_name, ', ' ORDER BY sgp.display_name) AS "garantiNames",
       string_agg(DISTINCT sp.display_name, ', ' ORDER BY sp.display_name) AS "spravciNames",
       COALESCE(
         array_agg(DISTINCT lg.person_id) FILTER (WHERE lg.person_id IS NOT NULL),

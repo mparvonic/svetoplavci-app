@@ -17,7 +17,7 @@ Without --apply the script runs the correction in a transaction and rolls it bac
 With --apply it commits the correction for the selected stupeň:
 - app_m01_lodicka_garant remains the lodička manager assignment (old import "Garant")
 - app_m01_lodicka_stav_garant is rebuilt from the current area people set
-- app_m01_lodicka.garant_person_id is reset to the primary lodička manager
+- app_m01_lodicka.garant_person_id is left untouched as a legacy import column
 - derived spravce_lodicek/garant roles are recalculated from canonical assignments
 
 Default --stupen is II_STUPEN for backward compatibility with the original repair.
@@ -275,51 +275,22 @@ async function main() {
         'm01-stupen-stav-garant-fix-' || md5(l.id || ':' || os.person_id),
         l.id,
         os.person_id,
-        os.person_id = l.garant_person_id,
+        false,
         now()
       FROM app_m01_lodicka l
       JOIN app_m01_oblast_spravce os ON os.oblast_id = l.oblast_id
       WHERE l.is_deleted = false
         ${stupenWhere("l")}
       ON CONFLICT (lodicka_id, person_id) DO UPDATE
-      SET is_primary = EXCLUDED.is_primary
+      SET is_primary = false
     `);
 
     await client.query(`
-      WITH without_primary AS (
-        SELECT sg.lodicka_id
-        FROM app_m01_lodicka_stav_garant sg
-        JOIN app_m01_lodicka l ON l.id = sg.lodicka_id
-        WHERE l.is_deleted = false
-          ${stupenWhere("l")}
-        GROUP BY sg.lodicka_id
-        HAVING bool_or(sg.is_primary) = false
-      ),
-      ranked AS (
-        SELECT
-          sg.id,
-          row_number() OVER (PARTITION BY sg.lodicka_id ORDER BY sg.created_at ASC, sg.person_id ASC) AS rn
-        FROM app_m01_lodicka_stav_garant sg
-        JOIN without_primary missing ON missing.lodicka_id = sg.lodicka_id
-      )
       UPDATE app_m01_lodicka_stav_garant sg
-      SET is_primary = ranked.rn = 1
-      FROM ranked
-      WHERE ranked.id = sg.id
-    `);
-
-    await client.query(`
-      UPDATE app_m01_lodicka l
-      SET
-        garant_person_id = (
-          SELECT lg.person_id
-          FROM app_m01_lodicka_garant lg
-          WHERE lg.lodicka_id = l.id
-          ORDER BY lg.is_primary DESC, lg.created_at ASC, lg.person_id ASC
-          LIMIT 1
-        ),
-        updated_at = now()
-      WHERE l.is_deleted = false
+      SET is_primary = false
+      FROM app_m01_lodicka l
+      WHERE l.id = sg.lodicka_id
+        AND l.is_deleted = false
         ${stupenWhere("l")}
     `);
 

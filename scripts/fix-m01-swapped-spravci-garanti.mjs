@@ -32,7 +32,7 @@ async function countSnapshot(client) {
   const { rows } = await client.query(`
     SELECT
       (SELECT count(*)::int FROM app_m01_lodicka WHERE is_deleted = false) AS active_lodicky,
-      (SELECT count(*)::int FROM app_m01_lodicka WHERE is_deleted = false AND garant_person_id IS NOT NULL) AS lodicky_with_primary_person,
+      (SELECT count(*)::int FROM app_m01_lodicka WHERE is_deleted = false AND garant_person_id IS NOT NULL) AS lodicky_with_legacy_person,
       (SELECT count(*)::int FROM app_m01_lodicka_garant) AS legacy_lodicka_garant_rows,
       (SELECT count(*)::int FROM app_m01_lodicka_stav_garant) AS stav_garant_rows,
       (SELECT count(*)::int FROM app_m01_oblast_spravce) AS oblast_spravce_rows,
@@ -107,11 +107,11 @@ async function main() {
         'm01-oblast-spravce-fix-' || md5(oblast_id || ':' || person_id),
         oblast_id,
         person_id,
-        rn = 1,
+        false,
         now()
       FROM ranked
       ON CONFLICT (oblast_id, person_id) DO UPDATE
-      SET is_primary = EXCLUDED.is_primary
+      SET is_primary = false
     `);
 
     await client.query("DELETE FROM app_m01_lodicka_stav_garant");
@@ -121,47 +121,18 @@ async function main() {
         'm01-lodicka-stav-garant-fix-' || md5(lg.lodicka_id || ':' || lg.person_id),
         lg.lodicka_id,
         lg.person_id,
-        lg.is_primary,
+        false,
         now()
       FROM app_m01_lodicka_garant lg
       JOIN app_m01_lodicka l ON l.id = lg.lodicka_id
       WHERE l.is_deleted = false
       ON CONFLICT (lodicka_id, person_id) DO UPDATE
-      SET is_primary = EXCLUDED.is_primary
+      SET is_primary = false
     `);
 
     await client.query(`
-      WITH lodicky_without_primary AS (
-        SELECT sg.lodicka_id
-        FROM app_m01_lodicka_stav_garant sg
-        GROUP BY sg.lodicka_id
-        HAVING bool_or(sg.is_primary) = false
-      ),
-      ranked AS (
-        SELECT
-          sg.id,
-          row_number() OVER (PARTITION BY sg.lodicka_id ORDER BY sg.created_at ASC, sg.person_id ASC) AS rn
-        FROM app_m01_lodicka_stav_garant sg
-        JOIN lodicky_without_primary missing ON missing.lodicka_id = sg.lodicka_id
-      )
-      UPDATE app_m01_lodicka_stav_garant sg
-      SET is_primary = ranked.rn = 1
-      FROM ranked
-      WHERE ranked.id = sg.id
-    `);
-
-    await client.query(`
-      UPDATE app_m01_lodicka l
-      SET
-        garant_person_id = (
-          SELECT sg.person_id
-          FROM app_m01_lodicka_stav_garant sg
-          WHERE sg.lodicka_id = l.id
-          ORDER BY sg.is_primary DESC, sg.created_at ASC, sg.person_id ASC
-          LIMIT 1
-        ),
-        updated_at = now()
-      WHERE l.is_deleted = false
+      UPDATE app_m01_lodicka_stav_garant
+      SET is_primary = false
     `);
 
     await client.query(

@@ -120,8 +120,8 @@ type LodickaRow = {
   stupen: string | null;
   rocnikOd: number | null;
   rocnikDo: number | null;
-  garantPersonId: string | null;
-  garantName: string | null;
+  garantPersonIds?: string[];
+  garantiNames?: string[];
   stav: string;
   hodnota: number | null;
   uspech: string;
@@ -170,8 +170,8 @@ type LodickaCatalogCompactRow = {
   stupen: string | null;
   rocnikOd: number | null;
   rocnikDo: number | null;
-  garantPersonId: string | null;
-  garantName: string | null;
+  garantPersonIds?: string[];
+  garantiNames?: string[];
 };
 
 type OsobniLodickaCompactRow = [
@@ -617,7 +617,7 @@ function OsobniLodickyPrototypePageInner({
       (a, b) => Number(a) - Number(b),
     );
 
-    const garanti = [...new Set(PROTO_LODICKY_CATALOG.map((lodicka) => getGuideDisplayName(lodicka.garantId)))].sort(
+    const garanti = [...new Set(PROTO_LODICKY_CATALOG.flatMap((lodicka) => getLodickaGarantLabels(lodicka)))].sort(
       (a, b) => a.localeCompare(b, "cs"),
     );
 
@@ -840,7 +840,8 @@ function OsobniLodickyPrototypePageInner({
 
     return PROTO_LODICKY_CATALOG.filter((lodicka) => {
       if (effectiveScope === "moje" && activeRole === "garant" && activeUserId) {
-        if (lodicka.garantId !== activeUserId) return false;
+        const garantIds = lodicka.garantIds?.length ? lodicka.garantIds : [lodicka.garantId];
+        if (!garantIds.includes(activeUserId)) return false;
       }
       if (
         effectiveLodickyPredmetFilter.length > 0 &&
@@ -863,7 +864,7 @@ function OsobniLodickyPrototypePageInner({
       if (
         showGarantControls &&
         effectiveLodickyGarantFilter.length > 0 &&
-        !effectiveLodickyGarantFilter.includes(getGuideDisplayName(lodicka.garantId))
+        !getLodickaGarantLabels(lodicka).some((name) => effectiveLodickyGarantFilter.includes(name))
       ) {
         return false;
       }
@@ -907,7 +908,8 @@ function OsobniLodickyPrototypePageInner({
     const allowedLodickaIds = new Set(
       PROTO_LODICKY_CATALOG.filter((lodicka) => {
         if (effectiveScope === "moje" && activeRole === "garant" && activeUserId) {
-          if (lodicka.garantId !== activeUserId) return false;
+          const garantIds = lodicka.garantIds?.length ? lodicka.garantIds : [lodicka.garantId];
+          if (!garantIds.includes(activeUserId)) return false;
         }
         if (lodickyPredmetFilter.length > 0 && !lodickyPredmetFilter.includes(lodicka.predmet)) return false;
         if (lodickyPodpredmetFilter.length > 0 && !lodickyPodpredmetFilter.includes(lodicka.podpředmět ?? "-")) {
@@ -917,7 +919,7 @@ function OsobniLodickyPrototypePageInner({
         if (
           showGarantControls &&
           lodickyGarantFilter.length > 0 &&
-          !lodickyGarantFilter.includes(getGuideDisplayName(lodicka.garantId))
+          !getLodickaGarantLabels(lodicka).some((name) => lodickyGarantFilter.includes(name))
         ) {
           return false;
         }
@@ -1322,7 +1324,8 @@ function OsobniLodickyPrototypePageInner({
     if (effectiveReadonly) return false;
     if (activeRole !== "garant") return false;
     if (savingStatusIdSet.has(row.personal.id)) return false;
-    return Boolean(effectiveWriterId && row.lodicka.garantId === effectiveWriterId);
+    const garantIds = row.lodicka.garantIds?.length ? row.lodicka.garantIds : [row.lodicka.garantId];
+    return Boolean(effectiveWriterId && garantIds.includes(effectiveWriterId));
   }
 
   async function updateStatus(personalId: string, nextStatus: LodickaStav) {
@@ -2341,7 +2344,7 @@ function DetailSheet({
                 <InfoCell label="Předmět" value={lodicka.predmet} />
                 <InfoCell label="Podpředmět" value={lodicka.podpředmět ?? "-"} />
                 <InfoCell label="Oblast" value={lodicka.oblast} />
-                <InfoCell label="Garant" value={getGuideDisplayName(lodicka.garantId)} />
+                <InfoCell label="Garanti" value={formatLodickaGaranti(lodicka)} />
                 <InfoCell label="Ročníky plnění" value={formatLodickaRocnikRange(lodicka.odRocniku, lodicka.doRocniku)} />
                 <InfoCell label="Typ" value={formatLodickaTyp(lodicka.typ)} />
               </div>
@@ -2475,8 +2478,8 @@ function buildProtoDatasetFromCompact(data: LodickyCompactResponse): ProtoDatase
       stupen: catalog.stupen,
       rocnikOd: catalog.rocnikOd,
       rocnikDo: catalog.rocnikDo,
-      garantPersonId: catalog.garantPersonId,
-      garantName: catalog.garantName,
+      garantPersonIds: catalog.garantPersonIds,
+      garantiNames: catalog.garantiNames,
       stav,
       hodnota,
       uspech,
@@ -2578,9 +2581,12 @@ function buildProtoDatasetFromDb(
       rowsCount += 1;
 
       const lodickaId = row.lodickaId.trim() || row.id;
-      const garantActorId = row.garantPersonId?.trim() || "";
-      if (garantActorId && row.garantName) {
-        ensureActor(garantActorId, row.garantName, "garant");
+      const garantActorIds = uniqueValues([
+        ...(Array.isArray(row.garantPersonIds) ? row.garantPersonIds : []),
+      ].map((id) => id.trim()).filter(Boolean));
+      const garantiNames = Array.isArray(row.garantiNames) ? row.garantiNames : [];
+      for (const [index, personId] of garantActorIds.entries()) {
+        ensureActor(personId, garantiNames[index] ?? personId, "garant");
       }
 
       let lodicka = catalogById.get(lodickaId);
@@ -2596,7 +2602,9 @@ function buildProtoDatasetFromDb(
           stupen: mapLodickaStupen(row.stupen, studentStupen),
           odRocniku: normalizeGradeBound(row.rocnikOd, studentRocnik),
           doRocniku: normalizeGradeBound(row.rocnikDo, studentRocnik),
-          garantId: garantActorId || "db-unknown-actor",
+          garantId: garantActorIds[0] ?? "db-unknown-actor",
+          garantIds: garantActorIds,
+          garantiNames,
           typ: mapLodickaTyp(row.typ),
         };
         catalogById.set(lodickaId, lodicka);
@@ -2947,7 +2955,7 @@ function sortLeftItems(items: LeftLodickaItem[] | LeftStudentItem[], mode: PaneS
   sorted.sort((a, b) => {
     if (viewMode === "po_lodickach" && a.kind === "lodicka" && b.kind === "lodicka") {
       if (mode === "garant") {
-        return getGuideDisplayName(a.lodicka.garantId).localeCompare(getGuideDisplayName(b.lodicka.garantId), "cs");
+        return formatLodickaGaranti(a.lodicka).localeCompare(formatLodickaGaranti(b.lodicka), "cs");
       }
       return a.lodicka.nazev.localeCompare(b.lodicka.nazev, "cs");
     }
@@ -3056,7 +3064,7 @@ function renderLeftPaneRows({
                 </Button>
               </div>
             </TableCell>
-            {showGarantControls && <TableCell>{getGuideDisplayName(item.lodicka.garantId)}</TableCell>}
+            {showGarantControls && <TableCell>{formatLodickaGaranti(item.lodicka)}</TableCell>}
             <TableCell>{item.count}</TableCell>
           </TableRow>,
         );
@@ -3313,7 +3321,7 @@ function buildStudentSearchHaystack(student: ProtoStudent): string {
 
 function buildLodickaSearchHaystack(lodicka: ProtoLodickaCatalogItem): string {
   return normalizeSearch(
-    `${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast} ${lodicka.predmet} ${lodicka.podpředmět ?? ""} ${getGuideDisplayName(lodicka.garantId)}`,
+    `${lodicka.nazev} ${lodicka.popis} ${lodicka.oblast} ${lodicka.predmet} ${lodicka.podpředmět ?? ""} ${formatLodickaGaranti(lodicka)}`,
   );
 }
 
@@ -3422,6 +3430,19 @@ function getGuideDisplayName(actorId: string): string {
   return actor.jmeno;
 }
 
+function getLodickaGarantLabels(lodicka: ProtoLodickaCatalogItem): string[] {
+  if (lodicka.garantiNames?.length) {
+    return lodicka.garantiNames;
+  }
+  const ids = lodicka.garantIds?.length ? lodicka.garantIds : [lodicka.garantId];
+  return ids.map(getGuideDisplayName).filter((name) => name.trim().length > 0);
+}
+
+function formatLodickaGaranti(lodicka: ProtoLodickaCatalogItem): string {
+  const names = getLodickaGarantLabels(lodicka);
+  return names.length > 0 ? names.join(", ") : "-";
+}
+
 function getActorDisplayName(actorId: string, activeRole: ProtoRoleId): string {
   const actor = PROTO_ACTORS.find((item) => item.id === actorId);
   if (!actor) return actorId;
@@ -3464,7 +3485,7 @@ function buildLodickaGroupLabel(lodicka: ProtoLodickaCatalogItem, keys: LodickaG
     if (key === "predmet") return lodicka.predmet;
     if (key === "podpredmet") return lodicka.podpředmět ?? "-";
     if (key === "oblast") return lodicka.oblast;
-    return getGuideDisplayName(lodicka.garantId);
+    return formatLodickaGaranti(lodicka);
   });
   return values.join(" · ");
 }
