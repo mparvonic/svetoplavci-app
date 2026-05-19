@@ -804,6 +804,7 @@ model M01Lodicka {
   stupen           M01Stupen
   garantPersonId   String?       @map("garant_person_id")
   ovuNotApplicable Boolean       @default(false) @map("ovu_not_applicable")
+  jeVMape          Boolean       @default(true) @map("je_v_mape")
   isDeleted        Boolean       @default(false) @map("is_deleted")
   sourceCodaRowId  String?       @map("source_coda_row_id")
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)

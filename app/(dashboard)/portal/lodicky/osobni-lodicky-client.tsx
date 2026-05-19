@@ -121,6 +121,7 @@ type LodickaRow = {
   stupen: string | null;
   rocnikOd: number | null;
   rocnikDo: number | null;
+  jeVMape: boolean;
   garantPersonIds?: string[];
   garantiNames?: string[];
   stav: string;
@@ -171,6 +172,7 @@ type LodickaCatalogCompactRow = {
   stupen: string | null;
   rocnikOd: number | null;
   rocnikDo: number | null;
+  jeVMape: boolean;
   garantPersonIds?: string[];
   garantiNames?: string[];
 };
@@ -2400,7 +2402,8 @@ function DevelopmentMapPanel({
   onSelectStudent: (studentId: string) => void;
   pdfHref: string | null;
 }) {
-  const subjectGroups = useMemo(() => groupDevelopmentMapRows(rows), [rows]);
+  const mapRows = useMemo(() => rows.filter((row) => row.lodicka.jeVMape !== false), [rows]);
+  const subjectGroups = useMemo(() => groupDevelopmentMapRows(mapRows), [mapRows]);
   const showParentSelect = activeRole === "rodic" && accessibleStudents.length > 1;
   const showGuideSearch = activeRole !== "rodic" && activeRole !== "zak" && accessibleStudents.length > 1;
 
@@ -2873,6 +2876,7 @@ function buildProtoDatasetFromCompact(data: LodickyCompactResponse): ProtoDatase
       stupen: catalog.stupen,
       rocnikOd: catalog.rocnikOd,
       rocnikDo: catalog.rocnikDo,
+      jeVMape: catalog.jeVMape !== false,
       garantPersonIds: catalog.garantPersonIds,
       garantiNames: catalog.garantiNames,
       stav,
@@ -3000,6 +3004,7 @@ function buildProtoDatasetFromDb(
           garantId: garantActorIds[0] ?? "db-unknown-actor",
           garantIds: garantActorIds,
           garantiNames,
+          jeVMape: row.jeVMape !== false,
           typ: mapLodickaTyp(row.typ),
         };
         catalogById.set(lodickaId, lodicka);

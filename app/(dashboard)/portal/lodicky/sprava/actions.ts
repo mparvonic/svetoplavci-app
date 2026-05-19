@@ -46,6 +46,12 @@ function readStringList(formData: FormData, key: string): string[] {
     .filter(Boolean);
 }
 
+function readBooleanFlag(formData: FormData, key: string, defaultValue: boolean): boolean {
+  const values = readStringList(formData, key);
+  if (values.length === 0) return defaultValue;
+  return values.includes("1");
+}
+
 function parseGrade(value: string): number | null {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed >= 1 && parsed <= 9 ? parsed : null;
@@ -1501,6 +1507,7 @@ export async function updateTaxonomyLodickaDetailAction(formData: FormData) {
   }
   await ensureDraftSvpVersion(context.svpVersionId, returnTo);
 
+  const jeVMape = readBooleanFlag(formData, "jeVMape", true);
   const rocnikOd = parseGrade(readString(formData, "rocnikOd"));
   const rocnikDo = parseGrade(readString(formData, "rocnikDo"));
   const stupen = parseStupen(context.stupen);
@@ -1523,6 +1530,7 @@ export async function updateTaxonomyLodickaDetailAction(formData: FormData) {
         rocnik_od = ${rocnikOd},
         rocnik_do = ${rocnikDo},
         ovu_not_applicable = ${ovuNotApplicable},
+        je_v_mape = ${jeVMape},
         updated_at = now()
       WHERE id = ${lodickaId}
     `);
@@ -1714,6 +1722,7 @@ export async function createLodickaManagementAction(formData: FormData) {
         rocnik_do,
         stupen,
         ovu_not_applicable,
+        je_v_mape,
         is_deleted,
         created_at,
         updated_at
@@ -1732,6 +1741,7 @@ export async function createLodickaManagementAction(formData: FormData) {
         ${rocnikDo},
         ${stupen}::"M01Stupen",
         ${ovuNotApplicable},
+        true,
         false,
         now(),
         now()
@@ -1840,6 +1850,7 @@ export async function updateLodickaManagementAction(formData: FormData) {
   const requestedPredmetId = wholeFleet ? readString(formData, "predmetId") : "";
   const requestedPodpredmetId = wholeFleet ? readString(formData, "podpredmetId") : "";
   const requestedOblastId = wholeFleet ? readString(formData, "oblastId") : "";
+  const jeVMape = wholeFleet ? readBooleanFlag(formData, "jeVMape", true) : true;
 
   if (wholeFleet) {
     const [validSpravci, classificationIsValid] = await Promise.all([
@@ -1892,6 +1903,7 @@ export async function updateLodickaManagementAction(formData: FormData) {
           podpredmet_id = ${requestedPodpredmetId || null},
           oblast_id = ${requestedOblastId},
           ovu_not_applicable = ${ovuNotApplicable},
+          je_v_mape = ${jeVMape},
           updated_at = now()
         WHERE id = ${lodickaId}
       `);
