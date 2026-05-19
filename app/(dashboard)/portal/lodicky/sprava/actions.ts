@@ -1984,6 +1984,32 @@ export async function updateLodickaManagementAction(formData: FormData) {
   redirect(appendStatusParam(returnTo, "saved", "1"));
 }
 
+export async function updateLodickaMapVisibilityAction(formData: FormData) {
+  const returnTo = readString(formData, "returnTo") || "/portal/lodicky/sprava";
+  const access = await getActionAccess();
+  if (!canManageWholeFleet(access.roles)) {
+    redirect(appendStatusParam(returnTo, "error", "not-allowed"));
+  }
+
+  const lodickaId = readString(formData, "lodickaId");
+  const jeVMape = readBooleanFlag(formData, "jeVMape", true);
+  if (!lodickaId) {
+    redirect(appendStatusParam(returnTo, "error", "invalid"));
+  }
+
+  await prisma.$executeRaw(Prisma.sql`
+    UPDATE app_m01_lodicka
+    SET je_v_mape = ${jeVMape}, updated_at = now()
+    WHERE id = ${lodickaId}
+      AND is_deleted = false
+  `);
+
+  revalidatePath("/portal/lodicky/sprava");
+  revalidatePath(`/portal/lodicky/sprava/${lodickaId}`);
+  revalidatePath("/portal/lodicky");
+  redirect(appendStatusParam(returnTo, "saved", "mapa"));
+}
+
 export async function bulkUpdateLodickyManagementAction(formData: FormData) {
   const returnTo = readString(formData, "returnTo") || "/portal/lodicky/sprava";
   const access = await getActionAccess();
