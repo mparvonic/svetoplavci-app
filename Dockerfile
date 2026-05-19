@@ -1,8 +1,10 @@
-FROM node:22-alpine AS base
+FROM node:22-bookworm-slim AS base
 
 # Install dependencies
 FROM base AS deps
-RUN apk add --no-cache libc6-compat openssl python3 make g++
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssl python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -10,7 +12,9 @@ RUN npm ci --legacy-peer-deps
 
 # Build the application
 FROM base AS builder
-RUN apk add --no-cache openssl
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssl && \
+    rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -36,7 +40,10 @@ RUN npx next build
 
 # Production image
 FROM base AS runner
-RUN apk add --no-cache openssl
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssl python3 python3-pip && \
+    python3 -m pip install --break-system-packages --no-cache-dir pymupdf==1.27.2 && \
+    rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -56,8 +63,10 @@ RUN mkdir -p /app/public/uploads/ostrovy && \
     chown -R nextjs:nodejs /app/public/uploads
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/assets ./assets
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.mjs ./prisma.config.mjs
+COPY --from=builder /app/scripts/render-development-map-pdf.py ./scripts/render-development-map-pdf.py
 
 # Prisma client (generated)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma

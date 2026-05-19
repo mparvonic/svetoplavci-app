@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+import json
+import re
+import sys
+import unicodedata
+from pathlib import Path
+
+import fitz
+
+
+BLUE = (0 / 255, 32 / 255, 96 / 255)
+WHITE = (1, 1, 1)
+STATUS_COLORS = {
+    1: (252 / 255, 211 / 255, 77 / 255),
+    2: (147 / 255, 197 / 255, 253 / 255),
+    3: (253 / 255, 186 / 255, 116 / 255),
+    4: (110 / 255, 231 / 255, 183 / 255),
+}
+FONT_CANDIDATES = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/Library/Fonts/Arial.ttf",
+]
+
+
+def clamp_status(value):
+    try:
+        return max(0, min(4, int(round(float(value)))))
+    except Exception:
+        return 0
+
+
+def row_key(row):
+    return (
+        normalize_key(row.get("predmet") or ""),
+        normalize_key(row.get("podpredmet") or ""),
+        normalize_key(row.get("oblast") or ""),
+    )
+
+
+def normalize_key(value):
+    normalized = unicodedata.normalize("NFKD", value)
+    without_marks = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+", " ", without_marks.lower()).strip()
+
+
+def rect_from_box(box, inset=0.65):
+    return fitz.Rect(
+        box["x0"] + inset,
+        box["y0"] + inset,
+        box["x1"] - inset,
+        box["y1"] - inset,
+    )
+
+
+def draw_box(page, box, color):
+    page.draw_rect(
+        rect_from_box(box),
+        color=WHITE,
+        fill=color,
+        width=0.55,
+        overlay=True,
+    )
+
+
+def draw_stage1_chevrons(page, box, status):
+    x0, y0, x1, y1 = box["x0"], box["y0"], box["x1"], box["y1"]
+    width = x1 - x0
+    height = y1 - y0
+    segment = width / 4.0
+    mid_y = (y0 + y1) / 2.0
+    inset_x = 0.75
+    inset_y = 0.75
+    notch = segment * 0.30
+
+    for i in range(status):
+        left = x0 + i * segment + inset_x
+        right = x0 + (i + 1) * segment - inset_x
+        top = y0 + inset_y
+        bottom = y1 - inset_y
+        if i == 0:
+            points = [
+                (left, top),
+                (right, top),
+                (right + notch, mid_y),
+                (right, bottom),
+                (left, bottom),
+            ]
+        else:
+            points = [
+                (left - notch, top),
+                (right, top),
+                (right + notch, mid_y),
+                (right, bottom),
+                (left - notch, bottom),
+                (left, mid_y),
+            ]
+        page.draw_polyline(
+            points,
+            color=WHITE,
+            fill=STATUS_COLORS[i + 1],
+            width=1.05,
+            lineJoin=1,
+            closePath=True,
+            overlay=True,
+        )
+
+
+def draw_name(page, geometry, child_name):
+    name_spec = geometry.get("name")
+    if not name_spec or name_spec.get("page") != 1:
+        return
+    font_path = next((candidate for candidate in FONT_CANDIDATES if Path(candidate).exists()), None)
+    page.insert_text(
+        (name_spec["x"], name_spec["y"]),
+        child_name,
+        fontsize=name_spec.get("size", 15),
+        fontfile=font_path,
+        color=BLUE,
+        overlay=True,
+    )
+
+
+def draw_individual(doc, geometry, rows_by_code):
+    stage = geometry["stage"]
+    for code, spec in geometry.get("individual", {}).items():
+        row = rows_by_code.get(code)
+        if not row:
+            continue
+        status = clamp_status(row.get("status"))
+        if status <= 0:
+            continue
+        page = doc[spec["page"] - 1]
+        if stage == "I_STUPEN":
+            draw_stage1_chevrons(page, spec["box"], status)
+        else:
+            for index, box in enumerate(spec.get("boxes", [])[:status]):
+                draw_box(page, box, STATUS_COLORS[index + 1])
+
+
+def draw_summary(doc, geometry, rows):
+    statuses_by_group = {}
+    for row in rows:
+        status = clamp_status(row.get("status"))
+        if status <= 0:
+            continue
+        statuses_by_group.setdefault(row_key(row), []).append(status)
+
+    for group in geometry.get("summary", []):
+        key = (
+            normalize_key(group.get("predmet") or ""),
+            normalize_key(group.get("podpredmet") or ""),
+            normalize_key(group.get("oblast") or ""),
+        )
+        statuses = sorted(statuses_by_group.get(key, []), reverse=True)
+        if not statuses:
+            continue
+        page = doc[group["page"] - 1]
+        for status, box in zip(statuses, group.get("boxes", [])):
+            draw_box(page, box, STATUS_COLORS[status])
+
+
+def rasterize_pdf(source_path, output_path, max_bytes):
+    candidates = [
+        (180, 75),
+        (180, 65),
+        (150, 75),
+        (150, 65),
+        (140, 65),
+        (120, 75),
+    ]
+    best_path = None
+    best_size = None
+    source = Path(source_path)
+    for dpi, quality in candidates:
+        rendered = fitz.open(source)
+        out = fitz.open()
+        matrix = fitz.Matrix(dpi / 72, dpi / 72)
+        for page in rendered:
+            pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+            image_bytes = pixmap.tobytes("jpeg", jpg_quality=quality)
+            image_page = out.new_page(width=page.rect.width, height=page.rect.height)
+            image_page.insert_image(page.rect, stream=image_bytes)
+        candidate_path = source.with_name(f"{source.stem}-{dpi}-{quality}.pdf")
+        out.save(candidate_path, garbage=4, deflate=True)
+        out.close()
+        rendered.close()
+        candidate_size = candidate_path.stat().st_size
+        if best_size is None or candidate_size < best_size:
+            if best_path and best_path.exists():
+                best_path.unlink()
+            best_path = candidate_path
+            best_size = candidate_size
+        else:
+            candidate_path.unlink()
+        if candidate_size <= max_bytes:
+            best_path.replace(output_path)
+            return
+    if best_path:
+        best_path.replace(output_path)
+
+
+def main():
+    if len(sys.argv) != 2:
+        raise SystemExit("Usage: render-development-map-pdf.py payload.json")
+    payload = json.loads(Path(sys.argv[1]).read_text())
+    geometry = json.loads(Path(payload["geometryPath"]).read_text())
+    rows = payload["rows"]
+    rows_by_code = {row["kodLodicky"]: row for row in rows if row.get("kodLodicky")}
+
+    output_path = Path(payload["outputPath"])
+    vector_output_path = output_path.with_suffix(".vector.pdf")
+    doc = fitz.open(payload["templatePath"])
+    draw_name(doc[0], geometry, payload.get("childName") or "")
+    draw_individual(doc, geometry, rows_by_code)
+    draw_summary(doc, geometry, rows)
+    doc.save(vector_output_path, garbage=4, deflate=True)
+    doc.close()
+
+    max_output_bytes = payload.get("maxOutputBytes")
+    if max_output_bytes and vector_output_path.stat().st_size > max_output_bytes:
+        rasterize_pdf(vector_output_path, output_path, int(max_output_bytes))
+        vector_output_path.unlink(missing_ok=True)
+    else:
+        vector_output_path.replace(output_path)
+
+
+if __name__ == "__main__":
+    main()

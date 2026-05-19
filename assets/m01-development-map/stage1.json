@@ -1,0 +1,3654 @@
+{
+  "version": 1,
+  "stage": "I_STUPEN",
+  "pageSize": [
+    595.5,
+    842.25
+  ],
+  "name": {
+    "page": 1,
+    "x": 67,
+    "y": 34.8,
+    "size": 15
+  },
+  "individual": {
+    "2025-ED-ED-5-002": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 92.132,
+        "x1": 159.552,
+        "y1": 101.489
+      },
+      "nazev": "Mluvím, o čem přemýšlím",
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky"
+    },
+    "2025-ED-ED-3-005": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 127.641,
+        "x1": 159.552,
+        "y1": 136.999
+      },
+      "nazev": "Moje rodina",
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky"
+    },
+    "2025-ED-ED-3-004": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 154.513,
+        "x1": 159.552,
+        "y1": 163.87
+      },
+      "nazev": "Oblíbené věci",
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky"
+    },
+    "2025-ED-ED-3-003": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 192.902,
+        "x1": 159.552,
+        "y1": 202.259
+      },
+      "nazev": "Otázky",
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky"
+    },
+    "2025-ED-ED-5-003": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 245.206,
+        "x1": 159.552,
+        "y1": 254.563
+      },
+      "nazev": "Píšu text",
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky"
+    },
+    "2025-ED-ED-5-004": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 269.678,
+        "x1": 159.552,
+        "y1": 279.036
+      },
+      "nazev": "Pokládám otázky",
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky"
+    },
+    "2025-ED-ED-5-001": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 299.669,
+        "x1": 159.552,
+        "y1": 309.027
+      },
+      "nazev": "Povídám si",
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky"
+    },
+    "2025-ED-ED-3-006": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 335.179,
+        "x1": 159.552,
+        "y1": 344.536
+      },
+      "nazev": "Reálné situace",
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky"
+    },
+    "2025-ED-ED-3-002": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 376.206,
+        "x1": 159.552,
+        "y1": 385.563
+      },
+      "nazev": "Slovní zásoba",
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky"
+    },
+    "2025-ED-ED-5-007": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 444.586,
+        "x1": 159.552,
+        "y1": 453.703
+      },
+      "nazev": "Naviguji kamaráda",
+      "predmet": "English Day",
+      "oblast": "Reaguji v angličtině"
+    },
+    "2025-ED-ED-5-005": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 472.417,
+        "x1": 159.552,
+        "y1": 481.774
+      },
+      "nazev": "Porozumím rozhovoru",
+      "predmet": "English Day",
+      "oblast": "Reaguji v angličtině"
+    },
+    "2025-ED-ED-5-006": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 504.567,
+        "x1": 159.552,
+        "y1": 513.925
+      },
+      "nazev": "Předvedu divadlo",
+      "predmet": "English Day",
+      "oblast": "Reaguji v angličtině"
+    },
+    "2025-ED-ED-3-008": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 527.361,
+        "x1": 159.552,
+        "y1": 536.718
+      },
+      "nazev": "Příprava oslavy",
+      "predmet": "English Day",
+      "oblast": "Reaguji v angličtině"
+    },
+    "2025-ED-ED-3-012": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 585.903,
+        "x1": 159.552,
+        "y1": 595.26
+      },
+      "nazev": "Čtení příběhu",
+      "predmet": "English Day",
+      "oblast": "Rozumím anglicky"
+    },
+    "2025-ED-ED-5-010": {
+      "page": 1,
+      "box": {
+        "x0": 120.684,
+        "y0": 608.456,
+        "x1": 160.272,
+        "y1": 617.813
+      },
+      "nazev": "Naučím se slova",
+      "predmet": "English Day",
+      "oblast": "Rozumím anglicky"
+    },
+    "2025-ED-ED-5-008": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 640.127,
+        "x1": 159.552,
+        "y1": 649.484
+      },
+      "nazev": "Rozumím příběhu",
+      "predmet": "English Day",
+      "oblast": "Rozumím anglicky"
+    },
+    "2025-ED-ED-5-009": {
+      "page": 1,
+      "box": {
+        "x0": 120.204,
+        "y0": 672.037,
+        "x1": 159.552,
+        "y1": 681.154
+      },
+      "nazev": "Vyhledám informace",
+      "predmet": "English Day",
+      "oblast": "Rozumím anglicky"
+    },
+    "2025-EXP-EXP-5-003": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 90.693,
+        "x1": 303.988,
+        "y1": 100.05
+      },
+      "nazev": "Bezpečí na kole",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-006": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 114.205,
+        "x1": 303.988,
+        "y1": 123.563
+      },
+      "nazev": "Bezpečí v přírodě",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-004": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 137.718,
+        "x1": 303.988,
+        "y1": 147.076
+      },
+      "nazev": "Bezpečí ve městě",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-009": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 162.431,
+        "x1": 303.988,
+        "y1": 171.788
+      },
+      "nazev": "Cizí lidé a věci",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-005": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 197.7,
+        "x1": 303.988,
+        "y1": 207.057
+      },
+      "nazev": "Hromadná doprava",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-007": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 225.532,
+        "x1": 303.988,
+        "y1": 234.889
+      },
+      "nazev": "Oheň a bezpečí",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-011": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 265.84,
+        "x1": 303.988,
+        "y1": 275.197
+      },
+      "nazev": "Pravidla v dopravě",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-001": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 300.629,
+        "x1": 303.988,
+        "y1": 309.986
+      },
+      "nazev": "První pomoc 1",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-002": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 324.622,
+        "x1": 303.988,
+        "y1": 333.979
+      },
+      "nazev": "První pomoc 2",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-010": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 358.692,
+        "x1": 303.988,
+        "y1": 368.049
+      },
+      "nazev": "Přivolání první pomoci",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-008": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 380.045,
+        "x1": 303.988,
+        "y1": 389.402
+      },
+      "nazev": "Vedu bezpečně",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-012": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 421.073,
+        "x1": 303.988,
+        "y1": 430.43
+      },
+      "nazev": "Znám pravidla v dopravě",
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví"
+    },
+    "2025-EXP-EXP-5-013": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 456.822,
+        "x1": 303.988,
+        "y1": 466.179
+      },
+      "nazev": "Hospodaření s penězi",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-014": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 479.375,
+        "x1": 303.988,
+        "y1": 488.732
+      },
+      "nazev": "Ohleduplnost k přírodě",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-015": {
+      "page": 1,
+      "box": {
+        "x0": 264.4,
+        "y0": 502.648,
+        "x1": 303.988,
+        "y1": 512.005
+      },
+      "nazev": "Péče o místo, kde žiju",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-016": {
+      "page": 1,
+      "box": {
+        "x0": 267.519,
+        "y0": 549.194,
+        "x1": 307.107,
+        "y1": 558.551
+      },
+      "nazev": "Pomáhám řešit problémy",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-017": {
+      "page": 1,
+      "box": {
+        "x0": 267.519,
+        "y0": 590.701,
+        "x1": 307.107,
+        "y1": 600.059
+      },
+      "nazev": "Posun k udržitelnosti v mém životě",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-018": {
+      "page": 1,
+      "box": {
+        "x0": 267.519,
+        "y0": 622.612,
+        "x1": 307.107,
+        "y1": 631.969
+      },
+      "nazev": "Rozvoj mého okolí",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-019": {
+      "page": 1,
+      "box": {
+        "x0": 267.519,
+        "y0": 651.403,
+        "x1": 307.107,
+        "y1": 660.76
+      },
+      "nazev": "Slabé a silné stránky",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-023": {
+      "page": 1,
+      "box": {
+        "x0": 267.519,
+        "y0": 677.795,
+        "x1": 307.107,
+        "y1": 687.152
+      },
+      "nazev": "Šetrné chování",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-021": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 47.266,
+        "x1": 442.426,
+        "y1": 56.623
+      },
+      "nazev": "Udržitelnost v mém okolí",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-020": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 75.337,
+        "x1": 442.426,
+        "y1": 84.694
+      },
+      "nazev": "Udržitelnost v okolí",
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí"
+    },
+    "2025-EXP-EXP-5-028": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 114.445,
+        "x1": 442.426,
+        "y1": 123.803
+      },
+      "nazev": "Čtu v mapě",
+      "predmet": "Expedice",
+      "oblast": "Orientace"
+    },
+    "2025-EXP-EXP-5-026": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 140.118,
+        "x1": 442.426,
+        "y1": 149.475
+      },
+      "nazev": "Orientace v terénu",
+      "predmet": "Expedice",
+      "oblast": "Orientace"
+    },
+    "2025-EXP-EXP-5-027": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 211.136,
+        "x1": 442.426,
+        "y1": 220.493
+      },
+      "nazev": "Vedu s mapou",
+      "predmet": "Expedice",
+      "oblast": "Orientace"
+    },
+    "2025-EXP-EXP-5-029": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 229.611,
+        "x1": 442.426,
+        "y1": 238.968
+      },
+      "nazev": "Vím kam jít",
+      "predmet": "Expedice",
+      "oblast": "Orientace"
+    },
+    "2025-EXP-EXP-5-025": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 257.442,
+        "x1": 442.186,
+        "y1": 266.799
+      },
+      "nazev": "Znám obecní úřad",
+      "predmet": "Expedice",
+      "oblast": "Orientace"
+    },
+    "2025-EXP-EXP-5-037": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 310.466,
+        "x1": 442.426,
+        "y1": 319.583
+      },
+      "nazev": "Pomoc druhým",
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé"
+    },
+    "2025-EXP-EXP-5-033": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 334.699,
+        "x1": 442.426,
+        "y1": 344.056
+      },
+      "nazev": "Postaráme se o sebe",
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé"
+    },
+    "2025-EXP-EXP-5-031": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 367.089,
+        "x1": 442.426,
+        "y1": 376.446
+      },
+      "nazev": "Poučím se",
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé"
+    },
+    "2025-EXP-EXP-5-030": {
+      "page": 1,
+      "box": {
+        "x0": 404.278,
+        "y0": 395.64,
+        "x1": 443.626,
+        "y1": 404.998
+      },
+      "nazev": "Prevence a zavislosti",
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé"
+    },
+    "2025-EXP-EXP-5-032": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 424.192,
+        "x1": 442.426,
+        "y1": 433.549
+      },
+      "nazev": "Společné prostředí",
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé"
+    },
+    "2025-EXP-EXP-5-035": {
+      "page": 1,
+      "box": {
+        "x0": 416.274,
+        "y0": 468.338,
+        "x1": 453.703,
+        "y1": 477.696
+      },
+      "nazev": "Spolupracuji s ostatními I",
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé"
+    },
+    "2025-EXP-EXP-5-036": {
+      "page": 1,
+      "box": {
+        "x0": 418.434,
+        "y0": 493.051,
+        "x1": 453.703,
+        "y1": 502.408
+      },
+      "nazev": "Spolupracuji s ostatními II",
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé"
+    },
+    "2025-EXP-VEX-5-001": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 525.681,
+        "x1": 442.426,
+        "y1": 535.038
+      },
+      "nazev": "Stres",
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé"
+    },
+    "2025-EXP-EXP-5-034": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 557.352,
+        "x1": 442.186,
+        "y1": 566.709
+      },
+      "nazev": "Zdravý životní styl",
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé"
+    },
+    "2025-EXP-EXP-5-049": {
+      "page": 1,
+      "box": {
+        "x0": 402.838,
+        "y0": 620.213,
+        "x1": 442.426,
+        "y1": 629.57
+      },
+      "nazev": "Člověk a příroda",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-039": {
+      "page": 1,
+      "box": {
+        "x0": 409.796,
+        "y0": 661.72,
+        "x1": 449.384,
+        "y1": 671.077
+      },
+      "nazev": "Dlouhodobé pozorování",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-042": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 10.317,
+        "x1": 578.225,
+        "y1": 19.674
+      },
+      "nazev": "Měřím a vážím",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-051": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 43.427,
+        "x1": 578.225,
+        "y1": 52.784
+      },
+      "nazev": "Podmínky prostředí",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-045": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 103.889,
+        "x1": 578.225,
+        "y1": 113.246
+      },
+      "nazev": "Poznávám okolí",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-041": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 174.667,
+        "x1": 578.225,
+        "y1": 184.024
+      },
+      "nazev": "Pozorování zvířat a rostlin",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-022": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 196.261,
+        "x1": 578.225,
+        "y1": 205.618
+      },
+      "nazev": "Příroda a já",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-053": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 221.453,
+        "x1": 578.225,
+        "y1": 230.81
+      },
+      "nazev": "Rozmanitost",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-052": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 292.951,
+        "x1": 578.225,
+        "y1": 302.309
+      },
+      "nazev": "Sbírám a vyhodnocuji data",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-055": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 314.785,
+        "x1": 578.225,
+        "y1": 323.902
+      },
+      "nazev": "Skupenství",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-046": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 365.889,
+        "x1": 578.225,
+        "y1": 375.247
+      },
+      "nazev": "Šlechtění",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-040": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 407.877,
+        "x1": 578.225,
+        "y1": 417.234
+      },
+      "nazev": "Typy prostředí",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-044": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 450.344,
+        "x1": 578.225,
+        "y1": 459.461
+      },
+      "nazev": "Typy prostředí II",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-050": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 501.448,
+        "x1": 578.225,
+        "y1": 510.566
+      },
+      "nazev": "Udržitelný život",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-048": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 543.196,
+        "x1": 578.225,
+        "y1": 552.553
+      },
+      "nazev": "Určování",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-054": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 585.183,
+        "x1": 578.225,
+        "y1": 594.54
+      },
+      "nazev": "Vlastnosti látek",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-038": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 636.048,
+        "x1": 578.225,
+        "y1": 645.405
+      },
+      "nazev": "Vývoj člověka",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-EXP-EXP-5-043": {
+      "page": 1,
+      "box": {
+        "x0": 538.877,
+        "y0": 669.638,
+        "x1": 578.225,
+        "y1": 678.995
+      },
+      "nazev": "Zvyšuji rozmanitost",
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody"
+    },
+    "2025-SP-SP-5-005": {
+      "page": 2,
+      "box": {
+        "x0": 109.887,
+        "y0": 82.295,
+        "x1": 149.475,
+        "y1": 94.291
+      },
+      "nazev": "Perspektivy",
+      "predmet": "Samostatná plavba",
+      "oblast": "Kruhy a smečky"
+    },
+    "2025-SP-SP-5-003": {
+      "page": 2,
+      "box": {
+        "x0": 109.887,
+        "y0": 155.473,
+        "x1": 149.475,
+        "y1": 167.469
+      },
+      "nazev": "Podporuji dobrou atmosféru",
+      "predmet": "Samostatná plavba",
+      "oblast": "Kruhy a smečky"
+    },
+    "2025-SP-SP-5-004": {
+      "page": 2,
+      "box": {
+        "x0": 109.887,
+        "y0": 182.345,
+        "x1": 149.475,
+        "y1": 194.341
+      },
+      "nazev": "Pravidla",
+      "predmet": "Samostatná plavba",
+      "oblast": "Kruhy a smečky"
+    },
+    "2025-SP-SP-5-001": {
+      "page": 2,
+      "box": {
+        "x0": 109.887,
+        "y0": 261.761,
+        "x1": 149.475,
+        "y1": 273.757
+      },
+      "nazev": "Vztahy s ostatními",
+      "predmet": "Samostatná plavba",
+      "oblast": "Kruhy a smečky"
+    },
+    "2025-SP-SP-5-011": {
+      "page": 2,
+      "box": {
+        "x0": 111.806,
+        "y0": 339.257,
+        "x1": 151.154,
+        "y1": 351.254
+      },
+      "nazev": "Měřím a porovnávám",
+      "predmet": "Samostatná plavba",
+      "oblast": "Měření pohybu"
+    },
+    "2025-SP-SP-5-006": {
+      "page": 2,
+      "box": {
+        "x0": 110.846,
+        "y0": 414.355,
+        "x1": 150.435,
+        "y1": 426.351
+      },
+      "nazev": "Mé potřeby a učení",
+      "predmet": "Samostatná plavba",
+      "oblast": "Plánování"
+    },
+    "2025-SP-SP-5-008": {
+      "page": 2,
+      "box": {
+        "x0": 110.846,
+        "y0": 458.261,
+        "x1": 150.435,
+        "y1": 470.258
+      },
+      "nazev": "Osobní rozvoj",
+      "predmet": "Samostatná plavba",
+      "oblast": "Plánování"
+    },
+    "2025-SP-SP-5-009": {
+      "page": 2,
+      "box": {
+        "x0": 110.846,
+        "y0": 492.331,
+        "x1": 150.435,
+        "y1": 504.328
+      },
+      "nazev": "Umění se učit",
+      "predmet": "Samostatná plavba",
+      "oblast": "Plánování"
+    },
+    "2025-SP-MA-5-008": {
+      "page": 2,
+      "box": {
+        "x0": 261.041,
+        "y0": 80.376,
+        "x1": 300.629,
+        "y1": 92.372
+      },
+      "nazev": "Rovnice o jedné neznámé",
+      "predmet": "Samostatná plavba",
+      "oblast": "Algebra"
+    },
+    "2025-SP-MA-5-010": {
+      "page": 2,
+      "box": {
+        "x0": 261.041,
+        "y0": 108.207,
+        "x1": 300.629,
+        "y1": 120.204
+      },
+      "nazev": "Vzorec a pravidelnost",
+      "predmet": "Samostatná plavba",
+      "oblast": "Algebra"
+    },
+    "2025-SP-MA-5-023": {
+      "page": 2,
+      "box": {
+        "x0": 261.041,
+        "y0": 384.124,
+        "x1": 300.629,
+        "y1": 396.12
+      },
+      "nazev": "Desetinná čísla",
+      "predmet": "Samostatná plavba",
+      "oblast": "Číslo a početní operace"
+    },
+    "2025-SP-MA-5-013": {
+      "page": 2,
+      "box": {
+        "x0": 261.041,
+        "y0": 433.069,
+        "x1": 300.629,
+        "y1": 445.065
+      },
+      "nazev": "Kmenové zlomky",
+      "predmet": "Samostatná plavba",
+      "oblast": "Číslo a početní operace"
+    },
+    "2025-SP-MA-5-015": {
+      "page": 2,
+      "box": {
+        "x0": 261.041,
+        "y0": 521.602,
+        "x1": 300.629,
+        "y1": 533.599
+      },
+      "nazev": "Násobilka 2",
+      "predmet": "Samostatná plavba",
+      "oblast": "Číslo a početní operace"
+    },
+    "2025-SP-MA-5-025": {
+      "page": 2,
+      "box": {
+        "x0": 261.041,
+        "y0": 656.442,
+        "x1": 300.629,
+        "y1": 668.438
+      },
+      "nazev": "Početní operace se zlomky",
+      "predmet": "Samostatná plavba",
+      "oblast": "Číslo a početní operace"
+    },
+    "2025-SP-MA-5-030": {
+      "page": 2,
+      "box": {
+        "x0": 404.998,
+        "y0": 86.614,
+        "x1": 444.346,
+        "y1": 98.61
+      },
+      "nazev": "Rozklad celku na zlomky",
+      "predmet": "Samostatná plavba",
+      "oblast": "Číslo a početní operace"
+    },
+    "2025-SP-MA-5-020": {
+      "page": 2,
+      "box": {
+        "x0": 404.998,
+        "y0": 494.97,
+        "x1": 444.346,
+        "y1": 506.967
+      },
+      "nazev": "Zlomky",
+      "predmet": "Samostatná plavba",
+      "oblast": "Číslo a početní operace"
+    },
+    "2025-SP-MA-5-038": {
+      "page": 2,
+      "box": {
+        "x0": 404.998,
+        "y0": 667.958,
+        "x1": 444.346,
+        "y1": 679.954
+      },
+      "nazev": "Měření v geometrii",
+      "predmet": "Samostatná plavba",
+      "oblast": "Geometrie"
+    },
+    "2025-SP-MA-5-044": {
+      "page": 2,
+      "box": {
+        "x0": 543.196,
+        "y0": 88.773,
+        "x1": 582.544,
+        "y1": 100.77
+      },
+      "nazev": "Rýsování ve čtvercové síti",
+      "predmet": "Samostatná plavba",
+      "oblast": "Geometrie"
+    },
+    "2025-SP-MA-5-046": {
+      "page": 2,
+      "box": {
+        "x0": 543.196,
+        "y0": 217.374,
+        "x1": 582.544,
+        "y1": 229.371
+      },
+      "nazev": "Trojúhelníky a čtyřúhelníky",
+      "predmet": "Samostatná plavba",
+      "oblast": "Geometrie"
+    },
+    "2025-SP-MA-5-048": {
+      "page": 2,
+      "box": {
+        "x0": 539.837,
+        "y0": 410.996,
+        "x1": 579.425,
+        "y1": 422.992
+      },
+      "nazev": "Obvod a obsah rovinných útvarů.",
+      "predmet": "Samostatná plavba",
+      "oblast": "Porovnávání a měření"
+    },
+    "2025-SP-MA-5-050": {
+      "page": 2,
+      "box": {
+        "x0": 539.837,
+        "y0": 524.721,
+        "x1": 579.425,
+        "y1": 536.718
+      },
+      "nazev": "Házení mincí",
+      "predmet": "Samostatná plavba",
+      "oblast": "Práce s daty"
+    },
+    "2025-SP-MA-5-053": {
+      "page": 2,
+      "box": {
+        "x0": 539.837,
+        "y0": 631.729,
+        "x1": 579.425,
+        "y1": 643.725
+      },
+      "nazev": "Podmínka",
+      "predmet": "Samostatná plavba",
+      "oblast": "Práce s daty"
+    },
+    "2025-SP-CJ-5-001": {
+      "page": 3,
+      "box": {
+        "x0": 112.766,
+        "y0": 117.085,
+        "x1": 152.114,
+        "y1": 129.081
+      },
+      "nazev": "Čtenářský deník I",
+      "predmet": "Samostatná plavba",
+      "oblast": "Čtení a porozumění textu"
+    },
+    "2025-SP-CJ-5-007": {
+      "page": 3,
+      "box": {
+        "x0": 113.726,
+        "y0": 158.832,
+        "x1": 153.314,
+        "y1": 170.828
+      },
+      "nazev": "Čtenářský deník II",
+      "predmet": "Samostatná plavba",
+      "oblast": "Čtení a porozumění textu"
+    },
+    "2025-SP-CJ-5-009": {
+      "page": 3,
+      "box": {
+        "x0": 113.726,
+        "y0": 272.558,
+        "x1": 153.314,
+        "y1": 284.554
+      },
+      "nazev": "Fakta a názory",
+      "predmet": "Samostatná plavba",
+      "oblast": "Čtení a porozumění textu"
+    },
+    "2025-SP-CJ-5-004": {
+      "page": 3,
+      "box": {
+        "x0": 113.726,
+        "y0": 383.404,
+        "x1": 153.314,
+        "y1": 395.4
+      },
+      "nazev": "Rozliším důležité informace",
+      "predmet": "Samostatná plavba",
+      "oblast": "Čtení a porozumění textu"
+    },
+    "2025-SP-CJ-5-010": {
+      "page": 3,
+      "box": {
+        "x0": 113.726,
+        "y0": 499.049,
+        "x1": 153.314,
+        "y1": 511.046
+      },
+      "nazev": "Záměr autora",
+      "predmet": "Samostatná plavba",
+      "oblast": "Čtení a porozumění textu"
+    },
+    "2025-SP-CJ-5-015": {
+      "page": 3,
+      "box": {
+        "x0": 113.726,
+        "y0": 683.074,
+        "x1": 153.074,
+        "y1": 695.07
+      },
+      "nazev": "Naslouchám",
+      "predmet": "Samostatná plavba",
+      "oblast": "Komunikace"
+    },
+    "2025-SP-CJ-5-013": {
+      "page": 3,
+      "box": {
+        "x0": 263.92,
+        "y0": 85.654,
+        "x1": 303.508,
+        "y1": 97.65
+      },
+      "nazev": "Poznám manipulaci",
+      "predmet": "Samostatná plavba",
+      "oblast": "Komunikace"
+    },
+    "2025-SP-CJ-5-028": {
+      "page": 3,
+      "box": {
+        "x0": 263.92,
+        "y0": 303.988,
+        "x1": 303.508,
+        "y1": 315.984
+      },
+      "nazev": "dě-tě-ně",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-039": {
+      "page": 3,
+      "box": {
+        "x0": 263.92,
+        "y0": 350.054,
+        "x1": 303.508,
+        "y1": 362.051
+      },
+      "nazev": "Hlásky",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-031": {
+      "page": 3,
+      "box": {
+        "x0": 263.92,
+        "y0": 518.483,
+        "x1": 303.508,
+        "y1": 530.48
+      },
+      "nazev": "Název-činnost-vlastnost",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-040": {
+      "page": 3,
+      "box": {
+        "x0": 263.92,
+        "y0": 620.213,
+        "x1": 303.508,
+        "y1": 632.209
+      },
+      "nazev": "Podmět a přísudek",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-030": {
+      "page": 3,
+      "box": {
+        "x0": 263.92,
+        "y0": 668.918,
+        "x1": 303.508,
+        "y1": 680.914
+      },
+      "nazev": "Podstatná jména I",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-026": {
+      "page": 3,
+      "box": {
+        "x0": 406.677,
+        "y0": 154.513,
+        "x1": 446.265,
+        "y1": 166.51
+      },
+      "nazev": "Přídavná jména",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-038": {
+      "page": 3,
+      "box": {
+        "x0": 406.677,
+        "y0": 196.501,
+        "x1": 446.265,
+        "y1": 208.497
+      },
+      "nazev": "Přímá a nepřímá řeč",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-035": {
+      "page": 3,
+      "box": {
+        "x0": 408.596,
+        "y0": 291.512,
+        "x1": 448.185,
+        "y1": 303.508
+      },
+      "nazev": "Skupiny slov",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-046": {
+      "page": 3,
+      "box": {
+        "x0": 406.677,
+        "y0": 336.618,
+        "x1": 446.265,
+        "y1": 348.615
+      },
+      "nazev": "Slovesa",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-045": {
+      "page": 3,
+      "box": {
+        "x0": 407.397,
+        "y0": 387.003,
+        "x1": 446.745,
+        "y1": 398.999
+      },
+      "nazev": "Slovní druhy",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-033": {
+      "page": 3,
+      "box": {
+        "x0": 406.677,
+        "y0": 442.666,
+        "x1": 446.265,
+        "y1": 454.663
+      },
+      "nazev": "Slovní druhy základ",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-037": {
+      "page": 3,
+      "box": {
+        "x0": 408.596,
+        "y0": 509.366,
+        "x1": 448.185,
+        "y1": 521.362
+      },
+      "nazev": "Spisovně a nespisovně",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-048": {
+      "page": 3,
+      "box": {
+        "x0": 406.677,
+        "y0": 554.232,
+        "x1": 446.265,
+        "y1": 566.229
+      },
+      "nazev": "Stavba slov",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-042": {
+      "page": 3,
+      "box": {
+        "x0": 538.637,
+        "y0": 93.572,
+        "x1": 578.225,
+        "y1": 105.568
+      },
+      "nazev": "Účel textu",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-032": {
+      "page": 3,
+      "box": {
+        "x0": 538.637,
+        "y0": 181.145,
+        "x1": 578.225,
+        "y1": 193.142
+      },
+      "nazev": "Věty",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-050": {
+      "page": 3,
+      "box": {
+        "x0": 538.637,
+        "y0": 291.272,
+        "x1": 578.225,
+        "y1": 303.268
+      },
+      "nazev": "Vlastní kniha",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-SP-CJ-5-041": {
+      "page": 3,
+      "box": {
+        "x0": 538.637,
+        "y0": 657.881,
+        "x1": 578.225,
+        "y1": 669.878
+      },
+      "nazev": "Význam slov",
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba"
+    },
+    "2025-PO-PO-5-001": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 66.94,
+        "x1": 155.233,
+        "y1": 76.057
+      },
+      "nazev": "Digi bezpečnost",
+      "predmet": "Ponorka",
+      "oblast": "Digitální svět"
+    },
+    "2025-PO-PO-5-005": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 95.011,
+        "x1": 155.233,
+        "y1": 104.368
+      },
+      "nazev": "Digitální programování",
+      "predmet": "Ponorka",
+      "oblast": "Digitální svět"
+    },
+    "2025-PO-PO-5-006": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 138.198,
+        "x1": 155.233,
+        "y1": 147.555
+      },
+      "nazev": "Informační systémy",
+      "predmet": "Ponorka",
+      "oblast": "Digitální svět"
+    },
+    "2025-PO-PO-5-007": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 173.947,
+        "x1": 155.233,
+        "y1": 183.305
+      },
+      "nazev": "Počítačová grafika",
+      "predmet": "Ponorka",
+      "oblast": "Digitální svět"
+    },
+    "2025-PO-PO-5-003": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 213.535,
+        "x1": 155.233,
+        "y1": 222.893
+      },
+      "nazev": "Práce s modelem",
+      "predmet": "Ponorka",
+      "oblast": "Digitální svět"
+    },
+    "2025-PO-PO-5-004": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 247.125,
+        "x1": 155.233,
+        "y1": 256.482
+      },
+      "nazev": "Prezentace",
+      "predmet": "Ponorka",
+      "oblast": "Digitální svět"
+    },
+    "2025-PO-PO-5-002": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 283.114,
+        "x1": 155.233,
+        "y1": 292.472
+      },
+      "nazev": "Programování",
+      "predmet": "Ponorka",
+      "oblast": "Digitální svět"
+    },
+    "2025-PO-PO-5-008": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 318.864,
+        "x1": 155.233,
+        "y1": 328.461
+      },
+      "nazev": "Užití aplikací",
+      "predmet": "Ponorka",
+      "oblast": "Digitální svět"
+    },
+    "2025-PO-PO-5-011": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 375.247,
+        "x1": 155.233,
+        "y1": 384.604
+      },
+      "nazev": "Hledám v mapě",
+      "predmet": "Ponorka",
+      "oblast": "Můj domov"
+    },
+    "2025-PO-PO-5-012": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 403.318,
+        "x1": 155.233,
+        "y1": 412.675
+      },
+      "nazev": "Můj kraj",
+      "predmet": "Ponorka",
+      "oblast": "Můj domov"
+    },
+    "2025-PO-PO-5-015": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 434.509,
+        "x1": 155.233,
+        "y1": 443.866
+      },
+      "nazev": "Oblasti ČR",
+      "predmet": "Ponorka",
+      "oblast": "Můj domov"
+    },
+    "2025-PO-PO-5-009": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 468.818,
+        "x1": 155.233,
+        "y1": 478.175
+      },
+      "nazev": "Představení ČR",
+      "predmet": "Ponorka",
+      "oblast": "Můj domov"
+    },
+    "2025-PO-PO-5-010": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 502.888,
+        "x1": 155.233,
+        "y1": 512.245
+      },
+      "nazev": "Správa státu",
+      "predmet": "Ponorka",
+      "oblast": "Můj domov"
+    },
+    "2025-PO-PO-5-016": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 557.352,
+        "x1": 155.233,
+        "y1": 566.469
+      },
+      "nazev": "Časová osa",
+      "predmet": "Ponorka",
+      "oblast": "Naše historie"
+    },
+    "2025-PO-PO-5-013": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 599.339,
+        "x1": 155.233,
+        "y1": 608.456
+      },
+      "nazev": "Historie a internet",
+      "predmet": "Ponorka",
+      "oblast": "Naše historie"
+    },
+    "2025-PO-PO-5-014": {
+      "page": 4,
+      "box": {
+        "x0": 115.645,
+        "y0": 648.524,
+        "x1": 155.233,
+        "y1": 657.881
+      },
+      "nazev": "Písemná historie",
+      "predmet": "Ponorka",
+      "oblast": "Naše historie"
+    },
+    "2025-PO-PO-5-029": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 66.94,
+        "x1": 291.752,
+        "y1": 76.057
+      },
+      "nazev": "Mé učení",
+      "predmet": "Ponorka",
+      "oblast": "Nováček"
+    },
+    "2025-PO-PO-5-028": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 103.409,
+        "x1": 291.752,
+        "y1": 112.766
+      },
+      "nazev": "Moje odpovědnost",
+      "predmet": "Ponorka",
+      "oblast": "Nováček"
+    },
+    "2025-OS-OS-5-014": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 150.674,
+        "x1": 291.752,
+        "y1": 160.032
+      },
+      "nazev": "Bezpečný pohyb",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Aktivní pohyb"
+    },
+    "2025-PO-PO-5-030": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 185.944,
+        "x1": 291.752,
+        "y1": 195.301
+      },
+      "nazev": "Pobyt venku",
+      "predmet": "Ponorka",
+      "oblast": "Nováček"
+    },
+    "2025-PO-PO-5-031": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 223.852,
+        "x1": 291.752,
+        "y1": 233.21
+      },
+      "nazev": "Pravidla techniky",
+      "predmet": "Ponorka",
+      "oblast": "Nováček"
+    },
+    "2025-PO-PO-5-019": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 291.512,
+        "x1": 291.752,
+        "y1": 300.869
+      },
+      "nazev": "Data online",
+      "predmet": "Ponorka",
+      "oblast": "Práce se zdroji"
+    },
+    "2025-PO-PO-5-020": {
+      "page": 4,
+      "box": {
+        "x0": 255.523,
+        "y0": 331.58,
+        "x1": 295.111,
+        "y1": 340.937
+      },
+      "nazev": "Ověřování informací",
+      "predmet": "Ponorka",
+      "oblast": "Práce se zdroji"
+    },
+    "2025-PO-PO-5-017": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 359.651,
+        "x1": 291.752,
+        "y1": 369.008
+      },
+      "nazev": "Sběr dat",
+      "predmet": "Ponorka",
+      "oblast": "Práce se zdroji"
+    },
+    "2025-PO-PO-5-018": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 401.399,
+        "x1": 291.752,
+        "y1": 410.756
+      },
+      "nazev": "Znazornění situací",
+      "predmet": "Ponorka",
+      "oblast": "Práce se zdroji"
+    },
+    "2025-OS-OS-5-019": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 473.377,
+        "x1": 291.752,
+        "y1": 482.734
+      },
+      "nazev": "Zhotovuji výrobky 1.",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Péče o domácnost, technická tvořivost"
+    },
+    "2025-PO-PO-5-026": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 516.804,
+        "x1": 291.752,
+        "y1": 526.161
+      },
+      "nazev": "Lidské tělo",
+      "predmet": "Ponorka",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-PO-PO-5-023": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 559.271,
+        "x1": 291.752,
+        "y1": 568.628
+      },
+      "nazev": "Náš svět",
+      "predmet": "Ponorka",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-PO-PO-5-021": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 601.738,
+        "x1": 291.752,
+        "y1": 611.095
+      },
+      "nazev": "Sluneční soustava",
+      "predmet": "Ponorka",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-PO-PO-5-022": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 636.768,
+        "x1": 291.752,
+        "y1": 646.125
+      },
+      "nazev": "Světadíly",
+      "predmet": "Ponorka",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-OS-OS-5-022": {
+      "page": 4,
+      "box": {
+        "x0": 252.164,
+        "y0": 675.156,
+        "x1": 291.752,
+        "y1": 684.513
+      },
+      "nazev": "Reakce na umění",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Porozumění umění"
+    },
+    "2025-OS-OS-5-033": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 66.94,
+        "x1": 428.51,
+        "y1": 76.057
+      },
+      "nazev": "NaučMě",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-OS-OS-5-025": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 153.314,
+        "x1": 428.51,
+        "y1": 162.671
+      },
+      "nazev": "Práce a povolání",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-OS-OS-5-031": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 203.938,
+        "x1": 428.51,
+        "y1": 213.296
+      },
+      "nazev": "Práce s daty",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-OS-OS-5-024": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 266.08,
+        "x1": 428.51,
+        "y1": 275.437
+      },
+      "nazev": "Skupinová práce",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-OS-OS-5-032": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 313.825,
+        "x1": 428.51,
+        "y1": 323.182
+      },
+      "nazev": "Zásady badatelství",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-OS-OS-5-034": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 356.052,
+        "x1": 428.51,
+        "y1": 365.41
+      },
+      "nazev": "Zpětná vazba",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Svět kolem nás"
+    },
+    "2025-OS-OS-5-027": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 416.034,
+        "x1": 428.51,
+        "y1": 425.391
+      },
+      "nazev": "Divadlo",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Vlastní tvorba"
+    },
+    "2025-OS-OS-5-028": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 450.824,
+        "x1": 428.51,
+        "y1": 460.181
+      },
+      "nazev": "Filmová tvorba",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Vlastní tvorba"
+    },
+    "2025-OS-OS-5-006": {
+      "page": 4,
+      "box": {
+        "x0": 400.439,
+        "y0": 494.251,
+        "x1": 437.148,
+        "y1": 503.608
+      },
+      "nazev": "Hudební doprovod",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Vlastní tvorba"
+    },
+    "2025-OS-OS-5-005": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 536.718,
+        "x1": 428.51,
+        "y1": 545.835
+      },
+      "nazev": "Hudební nástroje",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Vlastní tvorba"
+    },
+    "2025-OS-OS-5-001": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 569.828,
+        "x1": 428.51,
+        "y1": 579.185
+      },
+      "nazev": "Pohyb v hudbě",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Vlastní tvorba"
+    },
+    "2025-OS-OS-5-030": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 612.775,
+        "x1": 428.51,
+        "y1": 622.132
+      },
+      "nazev": "Umělecký záměr",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Vlastní tvorba"
+    },
+    "2025-OS-OS-5-029": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 645.645,
+        "x1": 428.51,
+        "y1": 655.002
+      },
+      "nazev": "Výtvarné techniky",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Vlastní tvorba"
+    },
+    "2025-OS-OS-5-008": {
+      "page": 4,
+      "box": {
+        "x0": 389.162,
+        "y0": 678.755,
+        "x1": 428.51,
+        "y1": 688.112
+      },
+      "nazev": "Zpěv",
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Vlastní tvorba"
+    }
+  },
+  "summary": [
+    {
+      "page": 1,
+      "predmet": "English Day",
+      "oblast": "Mluvím a píšu anglicky",
+      "boxes": [
+        {
+          "x0": 272.318,
+          "y0": 772.327,
+          "x1": 282.874,
+          "y1": 783.123
+        },
+        {
+          "x0": 286.713,
+          "y0": 772.327,
+          "x1": 297.51,
+          "y1": 783.123
+        },
+        {
+          "x0": 301.349,
+          "y0": 772.327,
+          "x1": 312.146,
+          "y1": 783.123
+        },
+        {
+          "x0": 315.984,
+          "y0": 772.327,
+          "x1": 326.781,
+          "y1": 783.123
+        },
+        {
+          "x0": 330.62,
+          "y0": 772.327,
+          "x1": 341.177,
+          "y1": 783.123
+        },
+        {
+          "x0": 272.318,
+          "y0": 787.442,
+          "x1": 282.874,
+          "y1": 798.239
+        },
+        {
+          "x0": 286.713,
+          "y0": 787.442,
+          "x1": 297.51,
+          "y1": 798.239
+        },
+        {
+          "x0": 301.349,
+          "y0": 787.442,
+          "x1": 312.146,
+          "y1": 798.239
+        },
+        {
+          "x0": 315.984,
+          "y0": 787.442,
+          "x1": 326.781,
+          "y1": 798.239
+        }
+      ]
+    },
+    {
+      "page": 1,
+      "predmet": "English Day",
+      "oblast": "Reaguji v angličtině",
+      "boxes": [
+        {
+          "x0": 272.318,
+          "y0": 802.557,
+          "x1": 282.874,
+          "y1": 813.354
+        },
+        {
+          "x0": 286.713,
+          "y0": 802.557,
+          "x1": 297.51,
+          "y1": 813.354
+        },
+        {
+          "x0": 301.349,
+          "y0": 802.557,
+          "x1": 312.146,
+          "y1": 813.354
+        },
+        {
+          "x0": 315.984,
+          "y0": 802.557,
+          "x1": 326.781,
+          "y1": 813.354
+        }
+      ]
+    },
+    {
+      "page": 1,
+      "predmet": "English Day",
+      "oblast": "Rozumím anglicky",
+      "boxes": [
+        {
+          "x0": 272.318,
+          "y0": 817.433,
+          "x1": 282.874,
+          "y1": 827.99
+        },
+        {
+          "x0": 286.713,
+          "y0": 817.433,
+          "x1": 297.51,
+          "y1": 827.99
+        },
+        {
+          "x0": 301.349,
+          "y0": 817.433,
+          "x1": 312.146,
+          "y1": 827.99
+        },
+        {
+          "x0": 315.984,
+          "y0": 817.433,
+          "x1": 326.781,
+          "y1": 827.99
+        }
+      ]
+    },
+    {
+      "page": 1,
+      "predmet": "Expedice",
+      "oblast": "Bezpečnost a ochrana zdraví",
+      "boxes": [
+        {
+          "x0": 437.628,
+          "y0": 729.38,
+          "x1": 448.424,
+          "y1": 740.176
+        },
+        {
+          "x0": 452.263,
+          "y0": 729.38,
+          "x1": 462.82,
+          "y1": 740.176
+        },
+        {
+          "x0": 466.899,
+          "y0": 729.38,
+          "x1": 477.456,
+          "y1": 740.176
+        },
+        {
+          "x0": 481.295,
+          "y0": 729.38,
+          "x1": 492.091,
+          "y1": 740.176
+        },
+        {
+          "x0": 495.93,
+          "y0": 729.38,
+          "x1": 506.727,
+          "y1": 740.176
+        },
+        {
+          "x0": 510.566,
+          "y0": 729.38,
+          "x1": 521.362,
+          "y1": 740.176
+        },
+        {
+          "x0": 524.002,
+          "y0": 729.38,
+          "x1": 534.558,
+          "y1": 740.176
+        },
+        {
+          "x0": 538.397,
+          "y0": 729.38,
+          "x1": 549.194,
+          "y1": 740.176
+        },
+        {
+          "x0": 553.033,
+          "y0": 729.38,
+          "x1": 563.83,
+          "y1": 740.176
+        },
+        {
+          "x0": 567.668,
+          "y0": 729.38,
+          "x1": 578.225,
+          "y1": 740.176
+        },
+        {
+          "x0": 437.628,
+          "y0": 744.255,
+          "x1": 448.424,
+          "y1": 754.812
+        },
+        {
+          "x0": 452.263,
+          "y0": 744.255,
+          "x1": 462.82,
+          "y1": 754.812
+        }
+      ]
+    },
+    {
+      "page": 1,
+      "predmet": "Expedice",
+      "oblast": "Já a mé okolí",
+      "boxes": [
+        {
+          "x0": 437.628,
+          "y0": 758.171,
+          "x1": 448.424,
+          "y1": 768.968
+        },
+        {
+          "x0": 452.263,
+          "y0": 758.171,
+          "x1": 462.82,
+          "y1": 768.968
+        },
+        {
+          "x0": 466.659,
+          "y0": 758.171,
+          "x1": 477.456,
+          "y1": 768.968
+        },
+        {
+          "x0": 481.295,
+          "y0": 758.171,
+          "x1": 492.091,
+          "y1": 768.968
+        },
+        {
+          "x0": 495.93,
+          "y0": 758.171,
+          "x1": 506.727,
+          "y1": 768.968
+        },
+        {
+          "x0": 510.566,
+          "y0": 758.171,
+          "x1": 521.122,
+          "y1": 768.968
+        },
+        {
+          "x0": 524.002,
+          "y0": 758.171,
+          "x1": 534.558,
+          "y1": 768.968
+        },
+        {
+          "x0": 538.397,
+          "y0": 758.171,
+          "x1": 549.194,
+          "y1": 768.968
+        },
+        {
+          "x0": 553.033,
+          "y0": 758.171,
+          "x1": 563.83,
+          "y1": 768.968
+        },
+        {
+          "x0": 567.668,
+          "y0": 758.171,
+          "x1": 578.225,
+          "y1": 768.968
+        }
+      ]
+    },
+    {
+      "page": 1,
+      "predmet": "Expedice",
+      "oblast": "Orientace",
+      "boxes": [
+        {
+          "x0": 437.628,
+          "y0": 773.046,
+          "x1": 448.424,
+          "y1": 783.843
+        },
+        {
+          "x0": 452.263,
+          "y0": 773.046,
+          "x1": 462.82,
+          "y1": 783.843
+        },
+        {
+          "x0": 466.659,
+          "y0": 773.046,
+          "x1": 477.456,
+          "y1": 783.843
+        },
+        {
+          "x0": 481.295,
+          "y0": 773.046,
+          "x1": 492.091,
+          "y1": 783.843
+        },
+        {
+          "x0": 495.93,
+          "y0": 773.046,
+          "x1": 506.727,
+          "y1": 783.843
+        },
+        {
+          "x0": 510.566,
+          "y0": 773.046,
+          "x1": 521.122,
+          "y1": 783.843
+        }
+      ]
+    },
+    {
+      "page": 1,
+      "predmet": "Expedice",
+      "oblast": "Péče o sebe a druhé",
+      "boxes": [
+        {
+          "x0": 437.628,
+          "y0": 787.442,
+          "x1": 448.424,
+          "y1": 798.239
+        },
+        {
+          "x0": 452.263,
+          "y0": 787.442,
+          "x1": 462.82,
+          "y1": 798.239
+        },
+        {
+          "x0": 466.659,
+          "y0": 787.442,
+          "x1": 477.456,
+          "y1": 798.239
+        },
+        {
+          "x0": 481.295,
+          "y0": 787.442,
+          "x1": 492.091,
+          "y1": 798.239
+        },
+        {
+          "x0": 495.93,
+          "y0": 787.442,
+          "x1": 506.727,
+          "y1": 798.239
+        },
+        {
+          "x0": 510.566,
+          "y0": 787.442,
+          "x1": 521.122,
+          "y1": 798.239
+        },
+        {
+          "x0": 523.762,
+          "y0": 787.442,
+          "x1": 534.558,
+          "y1": 798.239
+        },
+        {
+          "x0": 538.397,
+          "y0": 787.442,
+          "x1": 548.954,
+          "y1": 798.239
+        },
+        {
+          "x0": 553.033,
+          "y0": 787.442,
+          "x1": 563.83,
+          "y1": 798.239
+        }
+      ]
+    },
+    {
+      "page": 1,
+      "predmet": "Expedice",
+      "oblast": "Rozmanitost přírody",
+      "boxes": [
+        {
+          "x0": 437.628,
+          "y0": 802.557,
+          "x1": 448.424,
+          "y1": 813.354
+        },
+        {
+          "x0": 452.263,
+          "y0": 802.557,
+          "x1": 462.82,
+          "y1": 813.354
+        },
+        {
+          "x0": 466.659,
+          "y0": 802.557,
+          "x1": 477.456,
+          "y1": 813.354
+        },
+        {
+          "x0": 481.295,
+          "y0": 802.557,
+          "x1": 492.091,
+          "y1": 813.354
+        },
+        {
+          "x0": 495.93,
+          "y0": 802.557,
+          "x1": 506.727,
+          "y1": 813.354
+        },
+        {
+          "x0": 510.566,
+          "y0": 802.557,
+          "x1": 521.122,
+          "y1": 813.354
+        },
+        {
+          "x0": 523.762,
+          "y0": 802.557,
+          "x1": 534.558,
+          "y1": 813.354
+        },
+        {
+          "x0": 538.397,
+          "y0": 802.557,
+          "x1": 548.954,
+          "y1": 813.354
+        },
+        {
+          "x0": 553.033,
+          "y0": 802.557,
+          "x1": 563.83,
+          "y1": 813.354
+        },
+        {
+          "x0": 566.469,
+          "y0": 802.557,
+          "x1": 577.026,
+          "y1": 813.354
+        },
+        {
+          "x0": 437.628,
+          "y0": 817.433,
+          "x1": 448.424,
+          "y1": 828.23
+        },
+        {
+          "x0": 452.263,
+          "y0": 817.433,
+          "x1": 462.82,
+          "y1": 828.23
+        },
+        {
+          "x0": 466.659,
+          "y0": 817.433,
+          "x1": 477.456,
+          "y1": 828.23
+        },
+        {
+          "x0": 481.295,
+          "y0": 817.433,
+          "x1": 492.091,
+          "y1": 828.23
+        },
+        {
+          "x0": 495.93,
+          "y0": 817.433,
+          "x1": 506.727,
+          "y1": 828.23
+        },
+        {
+          "x0": 510.566,
+          "y0": 817.433,
+          "x1": 521.122,
+          "y1": 828.23
+        },
+        {
+          "x0": 523.762,
+          "y0": 817.433,
+          "x1": 534.558,
+          "y1": 828.23
+        },
+        {
+          "x0": 538.397,
+          "y0": 817.433,
+          "x1": 548.954,
+          "y1": 828.23
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Kruhy a smečky",
+      "boxes": [
+        {
+          "x0": 115.165,
+          "y0": 722.901,
+          "x1": 125.242,
+          "y1": 733.218
+        },
+        {
+          "x0": 129.321,
+          "y0": 722.901,
+          "x1": 139.398,
+          "y1": 733.218
+        },
+        {
+          "x0": 143.477,
+          "y0": 722.901,
+          "x1": 153.554,
+          "y1": 733.218
+        },
+        {
+          "x0": 157.152,
+          "y0": 722.901,
+          "x1": 167.229,
+          "y1": 733.218
+        },
+        {
+          "x0": 171.068,
+          "y0": 722.901,
+          "x1": 181.385,
+          "y1": 733.218
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Měření pohybu",
+      "boxes": [
+        {
+          "x0": 115.165,
+          "y0": 737.297,
+          "x1": 125.242,
+          "y1": 747.614
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Plánování",
+      "boxes": [
+        {
+          "x0": 115.165,
+          "y0": 751.453,
+          "x1": 125.242,
+          "y1": 761.77
+        },
+        {
+          "x0": 129.321,
+          "y0": 751.453,
+          "x1": 139.398,
+          "y1": 761.77
+        },
+        {
+          "x0": 143.477,
+          "y0": 751.453,
+          "x1": 153.554,
+          "y1": 761.77
+        },
+        {
+          "x0": 157.392,
+          "y0": 751.453,
+          "x1": 167.709,
+          "y1": 761.77
+        },
+        {
+          "x0": 171.548,
+          "y0": 751.453,
+          "x1": 181.625,
+          "y1": 761.77
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Algebra",
+      "boxes": [
+        {
+          "x0": 115.165,
+          "y0": 765.849,
+          "x1": 125.242,
+          "y1": 776.165
+        },
+        {
+          "x0": 129.321,
+          "y0": 765.849,
+          "x1": 139.398,
+          "y1": 776.165
+        },
+        {
+          "x0": 143.477,
+          "y0": 765.849,
+          "x1": 153.554,
+          "y1": 776.165
+        },
+        {
+          "x0": 157.392,
+          "y0": 765.849,
+          "x1": 167.709,
+          "y1": 776.165
+        },
+        {
+          "x0": 171.548,
+          "y0": 765.849,
+          "x1": 181.625,
+          "y1": 776.165
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Číslo a početní operace",
+      "boxes": [
+        {
+          "x0": 115.165,
+          "y0": 780.244,
+          "x1": 125.242,
+          "y1": 790.561
+        },
+        {
+          "x0": 129.321,
+          "y0": 780.244,
+          "x1": 139.398,
+          "y1": 790.561
+        },
+        {
+          "x0": 143.477,
+          "y0": 780.244,
+          "x1": 153.554,
+          "y1": 790.561
+        },
+        {
+          "x0": 157.392,
+          "y0": 780.244,
+          "x1": 167.709,
+          "y1": 790.561
+        },
+        {
+          "x0": 171.548,
+          "y0": 780.244,
+          "x1": 181.625,
+          "y1": 790.561
+        },
+        {
+          "x0": 185.704,
+          "y0": 780.244,
+          "x1": 196.021,
+          "y1": 790.561
+        },
+        {
+          "x0": 199.86,
+          "y0": 780.244,
+          "x1": 209.937,
+          "y1": 790.561
+        },
+        {
+          "x0": 214.015,
+          "y0": 780.244,
+          "x1": 224.092,
+          "y1": 790.561
+        },
+        {
+          "x0": 228.171,
+          "y0": 780.244,
+          "x1": 238.248,
+          "y1": 790.561
+        },
+        {
+          "x0": 242.087,
+          "y0": 780.244,
+          "x1": 252.164,
+          "y1": 790.561
+        },
+        {
+          "x0": 256.482,
+          "y0": 780.244,
+          "x1": 266.559,
+          "y1": 790.561
+        },
+        {
+          "x0": 270.398,
+          "y0": 780.244,
+          "x1": 280.715,
+          "y1": 790.561
+        },
+        {
+          "x0": 115.165,
+          "y0": 794.64,
+          "x1": 125.242,
+          "y1": 804.717
+        },
+        {
+          "x0": 129.321,
+          "y0": 794.64,
+          "x1": 139.398,
+          "y1": 804.717
+        },
+        {
+          "x0": 143.477,
+          "y0": 794.64,
+          "x1": 153.554,
+          "y1": 804.717
+        },
+        {
+          "x0": 157.392,
+          "y0": 794.64,
+          "x1": 167.709,
+          "y1": 804.717
+        },
+        {
+          "x0": 171.548,
+          "y0": 794.64,
+          "x1": 181.625,
+          "y1": 804.717
+        },
+        {
+          "x0": 185.704,
+          "y0": 794.64,
+          "x1": 196.021,
+          "y1": 804.717
+        },
+        {
+          "x0": 199.86,
+          "y0": 794.64,
+          "x1": 209.937,
+          "y1": 804.717
+        },
+        {
+          "x0": 214.015,
+          "y0": 794.64,
+          "x1": 224.092,
+          "y1": 804.717
+        },
+        {
+          "x0": 228.171,
+          "y0": 794.64,
+          "x1": 238.248,
+          "y1": 804.717
+        },
+        {
+          "x0": 242.087,
+          "y0": 794.64,
+          "x1": 252.164,
+          "y1": 804.717
+        },
+        {
+          "x0": 256.482,
+          "y0": 794.64,
+          "x1": 266.559,
+          "y1": 804.717
+        },
+        {
+          "x0": 270.398,
+          "y0": 794.64,
+          "x1": 280.715,
+          "y1": 804.717
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Geometrie",
+      "boxes": [
+        {
+          "x0": 115.165,
+          "y0": 809.035,
+          "x1": 125.242,
+          "y1": 819.112
+        },
+        {
+          "x0": 129.321,
+          "y0": 809.035,
+          "x1": 139.398,
+          "y1": 819.112
+        },
+        {
+          "x0": 143.477,
+          "y0": 809.035,
+          "x1": 153.554,
+          "y1": 819.112
+        },
+        {
+          "x0": 157.392,
+          "y0": 809.035,
+          "x1": 167.709,
+          "y1": 819.112
+        },
+        {
+          "x0": 171.548,
+          "y0": 809.035,
+          "x1": 181.625,
+          "y1": 819.112
+        },
+        {
+          "x0": 185.704,
+          "y0": 809.035,
+          "x1": 196.021,
+          "y1": 819.112
+        },
+        {
+          "x0": 199.86,
+          "y0": 809.035,
+          "x1": 209.937,
+          "y1": 819.112
+        },
+        {
+          "x0": 214.015,
+          "y0": 809.035,
+          "x1": 224.092,
+          "y1": 819.112
+        },
+        {
+          "x0": 228.171,
+          "y0": 809.035,
+          "x1": 238.248,
+          "y1": 819.112
+        },
+        {
+          "x0": 242.087,
+          "y0": 809.035,
+          "x1": 252.164,
+          "y1": 819.112
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Porovnávání a měření",
+      "boxes": [
+        {
+          "x0": 115.165,
+          "y0": 822.951,
+          "x1": 125.242,
+          "y1": 833.268
+        },
+        {
+          "x0": 129.321,
+          "y0": 822.951,
+          "x1": 139.398,
+          "y1": 833.268
+        },
+        {
+          "x0": 143.477,
+          "y0": 822.951,
+          "x1": 153.554,
+          "y1": 833.268
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Práce s daty",
+      "boxes": [
+        {
+          "x0": 416.754,
+          "y0": 747.854,
+          "x1": 426.831,
+          "y1": 758.171
+        },
+        {
+          "x0": 430.91,
+          "y0": 747.854,
+          "x1": 441.227,
+          "y1": 758.171
+        },
+        {
+          "x0": 445.305,
+          "y0": 747.854,
+          "x1": 455.382,
+          "y1": 758.171
+        },
+        {
+          "x0": 459.701,
+          "y0": 747.854,
+          "x1": 469.778,
+          "y1": 758.171
+        },
+        {
+          "x0": 473.857,
+          "y0": 747.854,
+          "x1": 484.174,
+          "y1": 758.171
+        },
+        {
+          "x0": 488.252,
+          "y0": 747.854,
+          "x1": 498.329,
+          "y1": 758.171
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Čtení a porozumění textu",
+      "boxes": [
+        {
+          "x0": 416.754,
+          "y0": 762.49,
+          "x1": 426.831,
+          "y1": 772.806
+        },
+        {
+          "x0": 430.91,
+          "y0": 762.49,
+          "x1": 441.227,
+          "y1": 772.806
+        },
+        {
+          "x0": 445.305,
+          "y0": 762.49,
+          "x1": 455.382,
+          "y1": 772.806
+        },
+        {
+          "x0": 459.701,
+          "y0": 762.49,
+          "x1": 469.778,
+          "y1": 772.806
+        },
+        {
+          "x0": 474.097,
+          "y0": 762.49,
+          "x1": 484.174,
+          "y1": 772.806
+        },
+        {
+          "x0": 488.492,
+          "y0": 762.49,
+          "x1": 498.569,
+          "y1": 772.806
+        },
+        {
+          "x0": 502.648,
+          "y0": 762.49,
+          "x1": 512.965,
+          "y1": 772.806
+        },
+        {
+          "x0": 517.044,
+          "y0": 762.49,
+          "x1": 527.121,
+          "y1": 772.806
+        },
+        {
+          "x0": 531.439,
+          "y0": 762.49,
+          "x1": 541.516,
+          "y1": 772.806
+        },
+        {
+          "x0": 545.595,
+          "y0": 762.49,
+          "x1": 555.912,
+          "y1": 772.806
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Komunikace",
+      "boxes": [
+        {
+          "x0": 416.754,
+          "y0": 777.125,
+          "x1": 426.831,
+          "y1": 787.442
+        },
+        {
+          "x0": 430.91,
+          "y0": 777.125,
+          "x1": 441.227,
+          "y1": 787.442
+        },
+        {
+          "x0": 445.305,
+          "y0": 777.125,
+          "x1": 455.382,
+          "y1": 787.442
+        },
+        {
+          "x0": 459.701,
+          "y0": 777.125,
+          "x1": 469.778,
+          "y1": 787.442
+        },
+        {
+          "x0": 473.857,
+          "y0": 777.125,
+          "x1": 484.174,
+          "y1": 787.442
+        },
+        {
+          "x0": 488.252,
+          "y0": 777.125,
+          "x1": 498.329,
+          "y1": 787.442
+        }
+      ]
+    },
+    {
+      "page": 3,
+      "predmet": "Samostatná plavba",
+      "oblast": "Psaní a slovní zásoba",
+      "boxes": [
+        {
+          "x0": 416.754,
+          "y0": 791.761,
+          "x1": 426.831,
+          "y1": 802.078
+        },
+        {
+          "x0": 430.91,
+          "y0": 791.761,
+          "x1": 441.227,
+          "y1": 802.078
+        },
+        {
+          "x0": 445.305,
+          "y0": 791.761,
+          "x1": 455.382,
+          "y1": 802.078
+        },
+        {
+          "x0": 459.701,
+          "y0": 791.761,
+          "x1": 469.778,
+          "y1": 802.078
+        },
+        {
+          "x0": 474.097,
+          "y0": 791.761,
+          "x1": 484.174,
+          "y1": 802.078
+        },
+        {
+          "x0": 488.492,
+          "y0": 791.761,
+          "x1": 498.569,
+          "y1": 802.078
+        },
+        {
+          "x0": 502.648,
+          "y0": 791.761,
+          "x1": 512.965,
+          "y1": 802.078
+        },
+        {
+          "x0": 517.044,
+          "y0": 791.761,
+          "x1": 527.121,
+          "y1": 802.078
+        },
+        {
+          "x0": 531.439,
+          "y0": 791.761,
+          "x1": 541.516,
+          "y1": 802.078
+        },
+        {
+          "x0": 545.595,
+          "y0": 791.761,
+          "x1": 555.912,
+          "y1": 802.078
+        },
+        {
+          "x0": 560.231,
+          "y0": 791.761,
+          "x1": 570.308,
+          "y1": 802.078
+        },
+        {
+          "x0": 574.386,
+          "y0": 791.761,
+          "x1": 584.703,
+          "y1": 802.078
+        },
+        {
+          "x0": 416.754,
+          "y0": 807.356,
+          "x1": 426.831,
+          "y1": 817.673
+        },
+        {
+          "x0": 430.91,
+          "y0": 807.356,
+          "x1": 441.227,
+          "y1": 817.673
+        },
+        {
+          "x0": 445.305,
+          "y0": 807.356,
+          "x1": 455.382,
+          "y1": 817.673
+        },
+        {
+          "x0": 459.701,
+          "y0": 807.356,
+          "x1": 469.778,
+          "y1": 817.673
+        },
+        {
+          "x0": 474.097,
+          "y0": 807.356,
+          "x1": 484.174,
+          "y1": 817.673
+        },
+        {
+          "x0": 488.492,
+          "y0": 807.356,
+          "x1": 498.569,
+          "y1": 817.673
+        },
+        {
+          "x0": 502.648,
+          "y0": 807.356,
+          "x1": 512.965,
+          "y1": 817.673
+        },
+        {
+          "x0": 517.044,
+          "y0": 807.356,
+          "x1": 527.121,
+          "y1": 817.673
+        },
+        {
+          "x0": 531.439,
+          "y0": 807.356,
+          "x1": 541.516,
+          "y1": 817.673
+        },
+        {
+          "x0": 545.595,
+          "y0": 807.356,
+          "x1": 555.912,
+          "y1": 817.673
+        },
+        {
+          "x0": 560.231,
+          "y0": 807.356,
+          "x1": 570.308,
+          "y1": 817.673
+        },
+        {
+          "x0": 574.386,
+          "y0": 807.356,
+          "x1": 584.703,
+          "y1": 817.673
+        },
+        {
+          "x0": 416.754,
+          "y0": 822.951,
+          "x1": 426.831,
+          "y1": 833.268
+        },
+        {
+          "x0": 430.91,
+          "y0": 822.951,
+          "x1": 441.227,
+          "y1": 833.268
+        },
+        {
+          "x0": 445.305,
+          "y0": 822.951,
+          "x1": 455.382,
+          "y1": 833.268
+        },
+        {
+          "x0": 459.701,
+          "y0": 822.951,
+          "x1": 469.778,
+          "y1": 833.268
+        },
+        {
+          "x0": 474.097,
+          "y0": 822.951,
+          "x1": 484.174,
+          "y1": 833.268
+        },
+        {
+          "x0": 488.492,
+          "y0": 822.951,
+          "x1": 498.569,
+          "y1": 833.268
+        },
+        {
+          "x0": 502.648,
+          "y0": 822.951,
+          "x1": 512.965,
+          "y1": 833.268
+        },
+        {
+          "x0": 517.044,
+          "y0": 822.951,
+          "x1": 527.121,
+          "y1": 833.268
+        },
+        {
+          "x0": 531.439,
+          "y0": 822.951,
+          "x1": 541.516,
+          "y1": 833.268
+        },
+        {
+          "x0": 545.595,
+          "y0": 822.951,
+          "x1": 555.912,
+          "y1": 833.268
+        },
+        {
+          "x0": 560.231,
+          "y0": 822.951,
+          "x1": 570.308,
+          "y1": 833.268
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ponorka",
+      "oblast": "Digitální svět",
+      "boxes": [
+        {
+          "x0": 172.028,
+          "y0": 750.973,
+          "x1": 182.105,
+          "y1": 761.29
+        },
+        {
+          "x0": 186.184,
+          "y0": 750.973,
+          "x1": 196.261,
+          "y1": 761.29
+        },
+        {
+          "x0": 200.339,
+          "y0": 750.973,
+          "x1": 210.416,
+          "y1": 761.29
+        },
+        {
+          "x0": 214.255,
+          "y0": 750.973,
+          "x1": 224.572,
+          "y1": 761.29
+        },
+        {
+          "x0": 228.411,
+          "y0": 750.973,
+          "x1": 238.728,
+          "y1": 761.29
+        },
+        {
+          "x0": 242.567,
+          "y0": 750.973,
+          "x1": 252.644,
+          "y1": 761.29
+        },
+        {
+          "x0": 256.722,
+          "y0": 750.973,
+          "x1": 266.799,
+          "y1": 761.29
+        },
+        {
+          "x0": 270.878,
+          "y0": 750.973,
+          "x1": 280.955,
+          "y1": 761.29
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ponorka",
+      "oblast": "Můj domov",
+      "boxes": [
+        {
+          "x0": 172.028,
+          "y0": 765.369,
+          "x1": 182.105,
+          "y1": 775.686
+        },
+        {
+          "x0": 186.184,
+          "y0": 765.369,
+          "x1": 196.261,
+          "y1": 775.686
+        },
+        {
+          "x0": 200.339,
+          "y0": 765.369,
+          "x1": 210.416,
+          "y1": 775.686
+        },
+        {
+          "x0": 214.255,
+          "y0": 765.369,
+          "x1": 224.572,
+          "y1": 775.686
+        },
+        {
+          "x0": 228.411,
+          "y0": 765.369,
+          "x1": 238.728,
+          "y1": 775.686
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ponorka",
+      "oblast": "Naše historie",
+      "boxes": [
+        {
+          "x0": 172.028,
+          "y0": 779.524,
+          "x1": 182.105,
+          "y1": 789.841
+        },
+        {
+          "x0": 186.184,
+          "y0": 779.524,
+          "x1": 196.261,
+          "y1": 789.841
+        },
+        {
+          "x0": 200.339,
+          "y0": 779.524,
+          "x1": 210.416,
+          "y1": 789.841
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ponorka",
+      "oblast": "Nováček",
+      "boxes": [
+        {
+          "x0": 172.028,
+          "y0": 793.92,
+          "x1": 182.105,
+          "y1": 804.237
+        },
+        {
+          "x0": 186.184,
+          "y0": 793.92,
+          "x1": 196.261,
+          "y1": 804.237
+        },
+        {
+          "x0": 200.339,
+          "y0": 793.92,
+          "x1": 210.416,
+          "y1": 804.237
+        },
+        {
+          "x0": 214.255,
+          "y0": 793.92,
+          "x1": 224.572,
+          "y1": 804.237
+        },
+        {
+          "x0": 228.411,
+          "y0": 793.92,
+          "x1": 238.728,
+          "y1": 804.237
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ponorka",
+      "oblast": "Práce se zdroji",
+      "boxes": [
+        {
+          "x0": 172.028,
+          "y0": 808.076,
+          "x1": 182.105,
+          "y1": 818.393
+        },
+        {
+          "x0": 186.184,
+          "y0": 808.076,
+          "x1": 196.261,
+          "y1": 818.393
+        },
+        {
+          "x0": 200.339,
+          "y0": 808.076,
+          "x1": 210.416,
+          "y1": 818.393
+        },
+        {
+          "x0": 214.255,
+          "y0": 808.076,
+          "x1": 224.572,
+          "y1": 818.393
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ponorka",
+      "oblast": "Svět kolem nás",
+      "boxes": [
+        {
+          "x0": 172.028,
+          "y0": 822.471,
+          "x1": 182.105,
+          "y1": 832.788
+        },
+        {
+          "x0": 186.184,
+          "y0": 822.471,
+          "x1": 196.261,
+          "y1": 832.788
+        },
+        {
+          "x0": 200.339,
+          "y0": 822.471,
+          "x1": 210.416,
+          "y1": 832.788
+        },
+        {
+          "x0": 214.255,
+          "y0": 822.471,
+          "x1": 224.572,
+          "y1": 832.788
+        },
+        {
+          "x0": 228.411,
+          "y0": 822.471,
+          "x1": 238.728,
+          "y1": 832.788
+        },
+        {
+          "x0": 242.567,
+          "y0": 822.471,
+          "x1": 252.644,
+          "y1": 832.788
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Aktivní pohyb",
+      "boxes": [
+        {
+          "x0": 447.465,
+          "y0": 764.889,
+          "x1": 457.542,
+          "y1": 775.206
+        },
+        {
+          "x0": 461.62,
+          "y0": 764.889,
+          "x1": 471.697,
+          "y1": 775.206
+        },
+        {
+          "x0": 475.776,
+          "y0": 764.889,
+          "x1": 486.093,
+          "y1": 775.206
+        },
+        {
+          "x0": 490.172,
+          "y0": 764.889,
+          "x1": 500.249,
+          "y1": 775.206
+        },
+        {
+          "x0": 504.328,
+          "y0": 764.889,
+          "x1": 514.405,
+          "y1": 775.206
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Péče o domácnost, technická tvořivost",
+      "boxes": [
+        {
+          "x0": 447.465,
+          "y0": 779.284,
+          "x1": 457.542,
+          "y1": 789.601
+        },
+        {
+          "x0": 461.62,
+          "y0": 779.284,
+          "x1": 471.697,
+          "y1": 789.601
+        },
+        {
+          "x0": 475.776,
+          "y0": 779.284,
+          "x1": 486.093,
+          "y1": 789.601
+        },
+        {
+          "x0": 490.172,
+          "y0": 779.284,
+          "x1": 500.249,
+          "y1": 789.601
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Porozumění umění",
+      "boxes": [
+        {
+          "x0": 447.465,
+          "y0": 793.92,
+          "x1": 457.542,
+          "y1": 804.237
+        },
+        {
+          "x0": 461.62,
+          "y0": 793.92,
+          "x1": 471.697,
+          "y1": 804.237
+        },
+        {
+          "x0": 475.776,
+          "y0": 793.92,
+          "x1": 486.093,
+          "y1": 804.237
+        },
+        {
+          "x0": 490.172,
+          "y0": 793.92,
+          "x1": 500.249,
+          "y1": 804.237
+        },
+        {
+          "x0": 504.328,
+          "y0": 793.92,
+          "x1": 514.405,
+          "y1": 804.237
+        },
+        {
+          "x0": 518.483,
+          "y0": 793.92,
+          "x1": 528.8,
+          "y1": 804.237
+        },
+        {
+          "x0": 532.879,
+          "y0": 793.92,
+          "x1": 542.956,
+          "y1": 804.237
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Svět kolem nás",
+      "boxes": [
+        {
+          "x0": 447.465,
+          "y0": 808.316,
+          "x1": 457.542,
+          "y1": 818.633
+        },
+        {
+          "x0": 461.62,
+          "y0": 808.316,
+          "x1": 471.697,
+          "y1": 818.633
+        },
+        {
+          "x0": 475.776,
+          "y0": 808.316,
+          "x1": 486.093,
+          "y1": 818.633
+        },
+        {
+          "x0": 490.172,
+          "y0": 808.316,
+          "x1": 500.249,
+          "y1": 818.633
+        },
+        {
+          "x0": 504.567,
+          "y0": 808.316,
+          "x1": 514.644,
+          "y1": 818.633
+        },
+        {
+          "x0": 518.723,
+          "y0": 808.316,
+          "x1": 528.8,
+          "y1": 818.633
+        },
+        {
+          "x0": 532.879,
+          "y0": 808.316,
+          "x1": 543.196,
+          "y1": 818.633
+        },
+        {
+          "x0": 547.275,
+          "y0": 808.316,
+          "x1": 557.591,
+          "y1": 818.633
+        }
+      ]
+    },
+    {
+      "page": 4,
+      "predmet": "Ostrovy a slavnosti",
+      "oblast": "Vlastní tvorba",
+      "boxes": [
+        {
+          "x0": 447.465,
+          "y0": 822.711,
+          "x1": 457.542,
+          "y1": 833.028
+        },
+        {
+          "x0": 461.62,
+          "y0": 822.711,
+          "x1": 471.697,
+          "y1": 833.028
+        },
+        {
+          "x0": 475.776,
+          "y0": 822.711,
+          "x1": 486.093,
+          "y1": 833.028
+        },
+        {
+          "x0": 490.172,
+          "y0": 822.711,
+          "x1": 500.249,
+          "y1": 833.028
+        },
+        {
+          "x0": 504.567,
+          "y0": 822.711,
+          "x1": 514.644,
+          "y1": 833.028
+        },
+        {
+          "x0": 518.723,
+          "y0": 822.711,
+          "x1": 528.8,
+          "y1": 833.028
+        },
+        {
+          "x0": 532.879,
+          "y0": 822.711,
+          "x1": 543.196,
+          "y1": 833.028
+        },
+        {
+          "x0": 547.275,
+          "y0": 822.711,
+          "x1": 557.591,
+          "y1": 833.028
+        },
+        {
+          "x0": 561.67,
+          "y0": 822.711,
+          "x1": 571.987,
+          "y1": 833.028
+        },
+        {
+          "x0": 576.066,
+          "y0": 822.711,
+          "x1": 586.383,
+          "y1": 833.028
+        }
+      ]
+    }
+  ]
+}
