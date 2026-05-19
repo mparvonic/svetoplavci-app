@@ -861,7 +861,7 @@ export function LodickyTableClient({
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-[#4A5A7C]">
-                        {row.garantName ? row.garantName : <span className="font-semibold text-[#C8372D]">bez garanta</span>}
+                        {row.garantiNames ? row.garantiNames : <span className="font-semibold text-[#C8372D]">bez garanta</span>}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button asChild variant={canEditRow ? "default" : "outline"} size="sm">

@@ -33,8 +33,8 @@ export interface PortalLodickaRow {
   stupen: string | null;
   rocnikOd: number | null;
   rocnikDo: number | null;
-  garantPersonId: string | null;
-  garantName: string | null;
+  garantPersonIds: string[];
+  garantiNames: string[];
   stav: string;
   hodnota: number | null;
   uspech: string;
@@ -54,8 +54,8 @@ export interface PortalLodickaCatalogRow {
   stupen: string | null;
   rocnikOd: number | null;
   rocnikDo: number | null;
-  garantPersonId: string | null;
-  garantName: string | null;
+  garantPersonIds: string[];
+  garantiNames: string[];
 }
 
 export type PortalOsobniLodickaCurrentRow = [
@@ -129,8 +129,8 @@ type LodickaQueryRow = {
   stupen: string | null;
   rocnik_od: number | null;
   rocnik_do: number | null;
-  garant_person_id: string | null;
-  garant_name: string | null;
+  garant_person_ids: string[] | null;
+  garanti_names: string[] | null;
   stav: string | null;
   hodnota: number | null;
   uspech: string | null;
@@ -565,7 +565,7 @@ export async function filterChildrenByGarant(children: PortalChild[], garantPers
       AND sg.person_id = ${trimmedGarantId}
     WHERE os.status = 'ACTIVE'
       AND os.person_id IN (${Prisma.join(childIds)})
-      AND (sg.person_id IS NOT NULL OR l.garant_person_id = ${trimmedGarantId})
+      AND sg.person_id IS NOT NULL
   `);
 
   const allowed = new Set(rows.map((row) => row.child_id));
@@ -793,7 +793,6 @@ async function getPortalChildLodickyFromContext(
           WHERE gf.lodicka_id = l.id
             AND gf.person_id = ${garantPersonId}
         )
-        OR l.garant_person_id = ${garantPersonId}
       )`
     : Prisma.empty;
 
@@ -811,8 +810,24 @@ async function getPortalChildLodickyFromContext(
       l.stupen::text AS stupen,
       l.rocnik_od AS rocnik_od,
       l.rocnik_do AS rocnik_do,
-      l.garant_person_id AS garant_person_id,
-      gp.display_name AS garant_name,
+      COALESCE(
+        (
+          SELECT array_agg(sg.person_id ORDER BY p.display_name ASC, sg.created_at ASC)
+          FROM app_m01_lodicka_stav_garant sg
+          JOIN app_person p ON p.id = sg.person_id
+          WHERE sg.lodicka_id = l.id
+        ),
+        ARRAY[]::text[]
+      ) AS garant_person_ids,
+      COALESCE(
+        (
+          SELECT array_agg(p.display_name ORDER BY p.display_name ASC, sg.created_at ASC)
+          FROM app_m01_lodicka_stav_garant sg
+          JOIN app_person p ON p.id = sg.person_id
+          WHERE sg.lodicka_id = l.id
+        ),
+        ARRAY[]::text[]
+      ) AS garanti_names,
       ol.current_stav_label AS stav,
       ol.current_hodnota AS hodnota,
       ol.uspech AS uspech,
@@ -832,8 +847,6 @@ async function getPortalChildLodickyFromContext(
       ON pp.id = l.podpredmet_id
     JOIN app_m01_oblast ob
       ON ob.id = l.oblast_id
-    LEFT JOIN app_person gp
-      ON gp.id = l.garant_person_id
     ${historyJoin}
     WHERE os.person_id = ${child.id}
       AND os.status = 'ACTIVE'
@@ -854,8 +867,12 @@ async function getPortalChildLodickyFromContext(
     stupen: normalizeOptionalText(row.stupen),
     rocnikOd: typeof row.rocnik_od === "number" ? row.rocnik_od : null,
     rocnikDo: typeof row.rocnik_do === "number" ? row.rocnik_do : null,
-    garantPersonId: normalizeOptionalText(row.garant_person_id),
-    garantName: normalizeOptionalText(row.garant_name),
+    garantPersonIds: Array.isArray(row.garant_person_ids)
+      ? row.garant_person_ids.filter((id): id is string => typeof id === "string" && Boolean(id.trim()))
+      : [],
+    garantiNames: Array.isArray(row.garanti_names)
+      ? row.garanti_names.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+      : [],
     stav: normalizeText(row.stav, "Nezahájeno"),
     hodnota: typeof row.hodnota === "number" && Number.isFinite(row.hodnota) ? row.hodnota : null,
     uspech: normalizeText(row.uspech, "—"),
@@ -965,7 +982,6 @@ export async function getPortalLodickyByActor(
           WHERE gf.lodicka_id = l.id
             AND gf.person_id = ${garantPersonId}
         )
-        OR l.garant_person_id = ${garantPersonId}
       )`
     : Prisma.empty;
 
@@ -984,8 +1000,24 @@ export async function getPortalLodickyByActor(
       l.stupen::text AS stupen,
       l.rocnik_od AS rocnik_od,
       l.rocnik_do AS rocnik_do,
-      l.garant_person_id AS garant_person_id,
-      gp.display_name AS garant_name,
+      COALESCE(
+        (
+          SELECT array_agg(sg.person_id ORDER BY p.display_name ASC, sg.created_at ASC)
+          FROM app_m01_lodicka_stav_garant sg
+          JOIN app_person p ON p.id = sg.person_id
+          WHERE sg.lodicka_id = l.id
+        ),
+        ARRAY[]::text[]
+      ) AS garant_person_ids,
+      COALESCE(
+        (
+          SELECT array_agg(p.display_name ORDER BY p.display_name ASC, sg.created_at ASC)
+          FROM app_m01_lodicka_stav_garant sg
+          JOIN app_person p ON p.id = sg.person_id
+          WHERE sg.lodicka_id = l.id
+        ),
+        ARRAY[]::text[]
+      ) AS garanti_names,
       ol.current_stav_label AS stav,
       ol.current_hodnota AS hodnota,
       ol.uspech AS uspech,
@@ -1005,8 +1037,6 @@ export async function getPortalLodickyByActor(
       ON pp.id = l.podpredmet_id
     JOIN app_m01_oblast ob
       ON ob.id = l.oblast_id
-    LEFT JOIN app_person gp
-      ON gp.id = l.garant_person_id
     ${historyJoin}
     WHERE os.person_id IN (${Prisma.join(childIds)})
       AND os.status = 'ACTIVE'
@@ -1034,8 +1064,12 @@ export async function getPortalLodickyByActor(
       stupen: normalizeOptionalText(row.stupen),
       rocnikOd: typeof row.rocnik_od === "number" ? row.rocnik_od : null,
       rocnikDo: typeof row.rocnik_do === "number" ? row.rocnik_do : null,
-      garantPersonId: normalizeOptionalText(row.garant_person_id),
-      garantName: normalizeOptionalText(row.garant_name),
+      garantPersonIds: Array.isArray(row.garant_person_ids)
+        ? row.garant_person_ids.filter((id): id is string => typeof id === "string" && Boolean(id.trim()))
+        : [],
+      garantiNames: Array.isArray(row.garanti_names)
+        ? row.garanti_names.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+        : [],
       stav: normalizeText(row.stav, "Nezahájeno"),
       hodnota: typeof row.hodnota === "number" && Number.isFinite(row.hodnota) ? row.hodnota : null,
       uspech: normalizeText(row.uspech, "—"),
@@ -1131,7 +1165,6 @@ export async function getPortalLodickyCompactByActor(
           WHERE gf.lodicka_id = lf.id
             AND gf.person_id = ${garantPersonId}
         )
-        OR lf.garant_person_id = ${garantPersonId}
       )`
     : Prisma.empty;
   const personalTuple = includeHistory
@@ -1206,8 +1239,24 @@ export async function getPortalLodickyCompactByActor(
         l.stupen::text AS stupen,
         l.rocnik_od AS rocnik_od,
         l.rocnik_do AS rocnik_do,
-        l.garant_person_id AS garant_person_id,
-        gp.display_name AS garant_name
+        COALESCE(
+          (
+            SELECT array_agg(sg.person_id ORDER BY p.display_name ASC, sg.created_at ASC)
+            FROM app_m01_lodicka_stav_garant sg
+            JOIN app_person p ON p.id = sg.person_id
+            WHERE sg.lodicka_id = l.id
+          ),
+          ARRAY[]::text[]
+        ) AS garant_person_ids,
+        COALESCE(
+          (
+            SELECT array_agg(p.display_name ORDER BY p.display_name ASC, sg.created_at ASC)
+            FROM app_m01_lodicka_stav_garant sg
+            JOIN app_person p ON p.id = sg.person_id
+            WHERE sg.lodicka_id = l.id
+          ),
+          ARRAY[]::text[]
+        ) AS garanti_names
       FROM (SELECT DISTINCT lodicka_id FROM personal_base) ids
       JOIN app_m01_lodicka l
         ON l.id = ids.lodicka_id
@@ -1218,8 +1267,6 @@ export async function getPortalLodickyCompactByActor(
         ON pp.id = l.podpredmet_id
       JOIN app_m01_oblast ob
         ON ob.id = l.oblast_id
-      LEFT JOIN app_person gp
-        ON gp.id = l.garant_person_id
     )
     SELECT
       COALESCE(
@@ -1236,8 +1283,8 @@ export async function getPortalLodickyCompactByActor(
               'stupen', NULLIF(BTRIM(cb.stupen), ''),
               'rocnikOd', cb.rocnik_od,
               'rocnikDo', cb.rocnik_do,
-              'garantPersonId', NULLIF(BTRIM(cb.garant_person_id), ''),
-              'garantName', NULLIF(BTRIM(cb.garant_name), '')
+              'garantPersonIds', cb.garant_person_ids,
+              'garantiNames', cb.garanti_names
             )
             ORDER BY cb.catalog_idx
           )
@@ -1293,8 +1340,12 @@ export async function getPortalLodickyCompactByActor(
       stupen: typeof row.stupen === "string" ? normalizeOptionalText(row.stupen) : null,
       rocnikOd: typeof row.rocnikOd === "number" ? row.rocnikOd : null,
       rocnikDo: typeof row.rocnikDo === "number" ? row.rocnikDo : null,
-      garantPersonId: typeof row.garantPersonId === "string" ? normalizeOptionalText(row.garantPersonId) : null,
-      garantName: typeof row.garantName === "string" ? normalizeOptionalText(row.garantName) : null,
+      garantPersonIds: Array.isArray(row.garantPersonIds)
+        ? row.garantPersonIds.filter((id): id is string => typeof id === "string" && Boolean(id.trim()))
+        : [],
+      garantiNames: Array.isArray(row.garantiNames)
+        ? row.garantiNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+        : [],
     }];
   });
 
@@ -1437,13 +1488,11 @@ export async function savePortalLodickaStatusForActor(
     personal_id: string;
     child_id: string;
     lodicka_id: string;
-    garant_person_id: string | null;
   }>>(Prisma.sql`
     SELECT
       ol.id AS personal_id,
       os.person_id AS child_id,
-      l.id AS lodicka_id,
-      l.garant_person_id AS garant_person_id
+      l.id AS lodicka_id
     FROM app_m01_osobni_lodicka ol
     JOIN app_m01_osobni_sada_lodicek os
       ON os.id = ol.osobni_sada_id
@@ -1478,10 +1527,8 @@ export async function savePortalLodickaStatusForActor(
           AND sg.person_id IN (${Prisma.join(actorPersonIdList)})
       `)
     : [];
-  const targetGarantId = target.garant_person_id?.trim() ?? "";
-  const hasLegacyGarant = Boolean(targetGarantId && actorPersonIds.has(targetGarantId));
   const hasNewGarant = (newGarantRows[0]?.count ?? 0) > 0;
-  if (!hasLegacyGarant && !hasNewGarant) {
+  if (!hasNewGarant) {
     return { ok: false, code: "FORBIDDEN", message: "Stav této lodičky smí měnit pouze její garant." };
   }
 
