@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { CalendarDays, ChevronDown, ChevronUp, Filter, Info, Search, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, Download, Filter, Info, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +42,7 @@ const TEST_LODICKA_STAV_LABEL: Record<LodickaStav, string> = {
 
 type ScopeMode = "moje" | "vsechny";
 type ViewMode = "po_lodickach" | "po_lidech";
+type PageTab = "lodicky" | "mapa";
 type PaneSort = "nazev" | "garant" | "jmeno" | "rocnik" | "stav";
 type PeopleGroupKey = "smecka" | "rocnik" | "none";
 type LodickaGroupKey = "predmet" | "podpredmet" | "oblast" | "garant";
@@ -338,6 +339,7 @@ function OsobniLodickyPrototypePageInner({
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const queryRole = searchParams.get("role");
+  const queryTab = searchParams.get("tab");
   const sessionRoleOptions = mapSessionRolesToProto(sessionUser.roles, sessionUser.role);
   const rawSessionRoles = useMemo(
     () => new Set([...sessionUser.roles, sessionUser.role]),
@@ -392,6 +394,7 @@ function OsobniLodickyPrototypePageInner({
 
   const [scopeMode, setScopeMode] = useState<ScopeMode>("moje");
   const [viewMode, setViewMode] = useState<ViewMode>("po_lidech");
+  const [pageTab, setPageTab] = useState<PageTab>(queryTab === "mapa" ? "mapa" : "lodicky");
   const [viewDate, setViewDate] = useState<string>(todayIso);
   const [viewDateDraft, setViewDateDraft] = useState<string>(todayIso);
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -415,11 +418,14 @@ function OsobniLodickyPrototypePageInner({
 
   const [searchInput, setSearchInput] = useState("");
   const [rightPaneSearchInput, setRightPaneSearchInput] = useState("");
+  const [mapStudentSearchInput, setMapStudentSearchInput] = useState("");
+  const [mapStudentSuggestionsOpen, setMapStudentSuggestionsOpen] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const leftSort: PaneSort = "nazev";
   const rightSort: PaneSort = "jmeno";
 
   const [selectedLeftId, setSelectedLeftId] = useState<string | null>(null);
+  const [selectedMapStudentId, setSelectedMapStudentId] = useState<string | null>(null);
   const [selectedPersonalId, setSelectedPersonalId] = useState<string | null>(null);
   const [detailSheet, setDetailSheet] = useState<DetailSheetState>({ type: "none" });
 
@@ -605,12 +611,17 @@ function OsobniLodickyPrototypePageInner({
         params.delete("role");
       }
     }
+    if (pageTab === "mapa") {
+      params.set("tab", "mapa");
+    } else {
+      params.delete("tab");
+    }
     const query = params.toString();
     const nextUrl = query ? `${pathname}?${query}` : pathname;
     if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState(window.history.state, "", nextUrl);
     }
-  }, [activeRole, activeUserId, adminToolsEnabled, effectiveSessionRoleOptions.length, pathname]);
+  }, [activeRole, activeUserId, adminToolsEnabled, effectiveSessionRoleOptions.length, pageTab, pathname]);
 
   const filterOptions = useMemo(() => {
     const rocniky = [...new Set(PROTO_STUDENTS.map((student) => String(student.rocnik)))].sort(
@@ -711,6 +722,65 @@ function OsobniLodickyPrototypePageInner({
 
     return PROTO_STUDENTS;
   }, [activeRole, activeUser, datasetVersion]);
+
+  const selectedMapStudentIdEffective = useMemo(() => {
+    const ids = accessibleStudents.map((student) => student.id);
+    if (ids.length === 0) return null;
+    if (selectedMapStudentId && ids.includes(selectedMapStudentId)) return selectedMapStudentId;
+    if (selectedLeftId && ids.includes(selectedLeftId)) return selectedLeftId;
+    return ids[0];
+  }, [accessibleStudents, selectedLeftId, selectedMapStudentId]);
+
+  const selectedMapStudent = useMemo(() => {
+    if (!selectedMapStudentIdEffective) return null;
+    return studentsById.get(selectedMapStudentIdEffective) ?? null;
+  }, [selectedMapStudentIdEffective, studentsById]);
+
+  useEffect(() => {
+    if (!selectedMapStudent) return;
+    setMapStudentSearchInput(getStudentDisplayName(selectedMapStudent, activeRole));
+  }, [activeRole, selectedMapStudent]);
+
+  const mapStudentSuggestions = useMemo(() => {
+    const tokens = tokenizeSearch(mapStudentSearchInput);
+    const rows =
+      tokens.length === 0
+        ? accessibleStudents
+        : accessibleStudents.filter((student) =>
+            tokens.every((token) => buildStudentSearchHaystack(student).includes(token)),
+          );
+    return rows.slice(0, 8);
+  }, [accessibleStudents, mapStudentSearchInput]);
+
+  const developmentMapRows = useMemo(() => {
+    if (!selectedMapStudentIdEffective) return [] as PersonalWithSnapshot[];
+    const rows: PersonalWithSnapshot[] = [];
+
+    PROTO_OSOBNI_LODICKY.forEach((personal) => {
+      if (personal.studentId !== selectedMapStudentIdEffective) return;
+
+      const student = studentsById.get(personal.studentId);
+      const lodicka = lodickyById.get(personal.lodickaId);
+      if (!student || !lodicka) return;
+
+      const snapshot = statusSnapshotByPersonal.get(personal.id);
+      rows.push({
+        personal,
+        student,
+        lodicka,
+        stav: snapshot?.stav ?? 0,
+        lastEvent: snapshot?.lastEvent ?? null,
+      });
+    });
+
+    return rows.sort((a, b) => {
+      const subjectCompare = a.lodicka.predmet.localeCompare(b.lodicka.predmet, "cs");
+      if (subjectCompare !== 0) return subjectCompare;
+      const areaCompare = a.lodicka.oblast.localeCompare(b.lodicka.oblast, "cs");
+      if (areaCompare !== 0) return areaCompare;
+      return a.lodicka.nazev.localeCompare(b.lodicka.nazev, "cs");
+    });
+  }, [lodickyById, selectedMapStudentIdEffective, statusSnapshotByPersonal, studentsById]);
 
   const searchPlan = useMemo(
     () =>
@@ -1697,6 +1767,26 @@ function OsobniLodickyPrototypePageInner({
           </div>
         )}
 
+        <div className="flex flex-wrap gap-2 rounded-xl border border-[#D6DFF0] bg-white p-1 shadow-sm">
+          {[
+            { id: "lodicky", label: "Osobní lodičky" },
+            { id: "mapa", label: "Mapa rozvoje" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setPageTab(tab.id as PageTab)}
+              className={cn(
+                "rounded-lg px-4 py-2 text-sm font-semibold transition",
+                pageTab === tab.id ? "bg-[#002060] text-white" : "text-slate-600 hover:bg-[#EEF2F7]",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {pageTab === "lodicky" && (
         <Card className="border-[#D6DFF0]">
           <CardContent className="space-y-3 p-3 sm:p-4">
               <div className="grid gap-2 min-[900px]:grid-cols-[minmax(320px,0.8fr)_280px_auto_auto]">
@@ -1995,8 +2085,48 @@ function OsobniLodickyPrototypePageInner({
               )}
             </CardContent>
         </Card>
+        )}
 
-        {!dbLoading && (
+        {!dbLoading && pageTab === "mapa" && (
+          <DevelopmentMapPanel
+            activeRole={activeRole}
+            rows={developmentMapRows}
+            selectedStudent={selectedMapStudent}
+            accessibleStudents={accessibleStudents}
+            mapStudentSearchInput={mapStudentSearchInput}
+            mapStudentSuggestions={mapStudentSuggestions}
+            suggestionsOpen={mapStudentSuggestionsOpen}
+            onSearchInputChange={(value) => {
+              setMapStudentSearchInput(value);
+              setMapStudentSuggestionsOpen(true);
+            }}
+            onSearchFocus={() => setMapStudentSuggestionsOpen(true)}
+            onSearchClear={() => {
+              setMapStudentSearchInput("");
+              setMapStudentSuggestionsOpen(false);
+            }}
+            onSelectStudent={(studentId) => {
+              setSelectedMapStudentId(studentId);
+              setMapStudentSuggestionsOpen(false);
+              pushDebug({
+                elementId: "SELECT-MAP-CHILD",
+                label: "Přepnutí dítěte v mapě rozvoje",
+                action: "change-map-child",
+                hierarchy: "PERSONAL_LODICKY > DEVELOPMENT_MAP",
+                payload: `student=${studentId}`,
+              });
+            }}
+            pdfHref={
+              selectedMapStudent
+                ? `/api/m01/child/${encodeURIComponent(selectedMapStudent.id)}/rozvojova-mapa/pdf?role=${encodeURIComponent(
+                    activeRole,
+                  )}&scope=${encodeURIComponent(effectiveScope)}&viewDate=${encodeURIComponent(effectiveViewDate)}`
+                : null
+            }
+          />
+        )}
+
+        {!dbLoading && pageTab === "lodicky" && (
           <section
             className={
               isParentLayout
@@ -2241,6 +2371,271 @@ export default function OsobniLodickyPrototypePage({
       <OsobniLodickyPrototypePageInner adminToolsEnabled={adminToolsEnabled} sessionUser={sessionUser} />
     </Suspense>
   );
+}
+
+function DevelopmentMapPanel({
+  activeRole,
+  rows,
+  selectedStudent,
+  accessibleStudents,
+  mapStudentSearchInput,
+  mapStudentSuggestions,
+  suggestionsOpen,
+  onSearchInputChange,
+  onSearchFocus,
+  onSearchClear,
+  onSelectStudent,
+  pdfHref,
+}: {
+  activeRole: ProtoRoleId;
+  rows: PersonalWithSnapshot[];
+  selectedStudent: ProtoStudent | null;
+  accessibleStudents: ProtoStudent[];
+  mapStudentSearchInput: string;
+  mapStudentSuggestions: ProtoStudent[];
+  suggestionsOpen: boolean;
+  onSearchInputChange: (value: string) => void;
+  onSearchFocus: () => void;
+  onSearchClear: () => void;
+  onSelectStudent: (studentId: string) => void;
+  pdfHref: string | null;
+}) {
+  const subjectGroups = useMemo(() => groupDevelopmentMapRows(rows), [rows]);
+  const showParentSelect = activeRole === "rodic" && accessibleStudents.length > 1;
+  const showGuideSearch = activeRole !== "rodic" && activeRole !== "zak" && accessibleStudents.length > 1;
+
+  return (
+    <section className="space-y-4">
+      <Card className="border-[#D6DFF0]">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-normal text-[#C8372D]">Mapa rozvoje</p>
+            <h2 className="mt-1 text-xl font-semibold text-[#002060]">
+              {selectedStudent ? getStudentDisplayName(selectedStudent, activeRole) : "Vyber dítě"}
+            </h2>
+            {selectedStudent && (
+              <p className="mt-1 text-sm text-slate-500">
+                {selectedStudent.rocnik}. ročník · {selectedStudent.smecka} · {selectedStudent.stupen}. stupeň
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {showParentSelect && (
+              <InlineSelect
+                label="Dítě"
+                value={selectedStudent?.id ?? ""}
+                onChange={onSelectStudent}
+                options={accessibleStudents.map((student) => ({
+                  id: student.id,
+                  label: getStudentDisplayName(student, activeRole),
+                }))}
+              />
+            )}
+
+            {showGuideSearch && (
+              <div className="relative w-full min-w-[260px] max-w-[420px] sm:w-[360px]">
+                <div className="flex h-10 items-center gap-2 rounded-xl border border-[#D6DFF0] bg-white px-3">
+                  <Search className="size-4 shrink-0 text-[#1E3F7A]" />
+                  <input
+                    value={mapStudentSearchInput}
+                    onFocus={onSearchFocus}
+                    onChange={(event) => onSearchInputChange(event.target.value)}
+                    placeholder="Najít dítě"
+                    className="min-w-0 flex-1 text-sm text-slate-700 outline-none"
+                  />
+                  {mapStudentSearchInput.trim().length > 0 && (
+                    <button
+                      type="button"
+                      onClick={onSearchClear}
+                      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                      aria-label="Vymazat hledání dítěte"
+                      title="Vymazat hledání dítěte"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {suggestionsOpen && mapStudentSuggestions.length > 0 && (
+                  <div className="absolute top-[calc(100%+6px)] z-20 w-full rounded-xl border border-[#D6DFF0] bg-white p-1 shadow-xl">
+                    {mapStudentSuggestions.map((student) => (
+                      <button
+                        key={student.id}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => onSelectStudent(student.id)}
+                        className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-[#F4F8FF]"
+                      >
+                        {getStudentDisplayName(student, activeRole)}
+                        <span className="ml-2 text-xs text-slate-500">
+                          {student.rocnik}. ročník · {student.smecka}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {pdfHref && (
+              <Button asChild className="h-10 bg-[#002060] text-white hover:bg-[#001540]">
+                <a href={pdfHref}>
+                  <Download className="size-4" />
+                  Stáhnout PDF
+                </a>
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-4">
+        <div className="space-y-4">
+          {subjectGroups.length === 0 && (
+            <Card className="border-[#D6DFF0]">
+              <CardContent className="p-8 text-center text-sm text-slate-500">
+                Pro vybrané dítě zatím nejsou dostupné žádné lodičky.
+              </CardContent>
+            </Card>
+          )}
+
+          {subjectGroups.map((subject) => (
+            <section key={subject.name} className="rounded-xl border border-[#D6DFF0] bg-white shadow-sm">
+              <div className="border-b border-[#E3ECF9] px-4 py-3">
+                <h3 className="text-lg font-semibold text-[#002060]">{subject.name}</h3>
+              </div>
+              <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
+                {subject.areas.map((area) => (
+                  <div key={area.key} className="rounded-lg border border-[#E3ECF9] bg-[#F8FBFF] p-3">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-semibold text-[#006B2D]">{area.name}</h4>
+                        {area.subtitle && <p className="text-xs text-slate-500">{area.subtitle}</p>}
+                      </div>
+                      <DevelopmentMapStatusBoxes statuses={area.rows.map((row) => row.stav)} size="summary" />
+                    </div>
+
+                    <div className="space-y-2">
+                      {area.rows.map((row) => (
+                        <div
+                          key={row.personal.id}
+                          className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-md bg-white px-2 py-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-[#002060]">{row.lodicka.nazev}</p>
+                          </div>
+                          <div className="pt-0.5">
+                            <DevelopmentMapChevrons value={row.stav} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DevelopmentMapChevrons({ value }: { value: LodickaStav }) {
+  return (
+    <div className="flex gap-0.5" aria-label={`${value} ze 4`}>
+      {([1, 2, 3, 4] as LodickaStav[]).map((step) => {
+        const filled = value >= step;
+        const colors = getStatusVisual(step);
+        return (
+          <svg
+            key={step}
+            viewBox="0 0 28 16"
+            className="h-4 w-7 shrink-0 overflow-visible"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <polygon
+              points="1,1 20,1 27,8 20,15 1,15 8,8"
+              fill={filled ? colors.fillHex : "#FFFFFF"}
+              stroke="#002060"
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        );
+      })}
+    </div>
+  );
+}
+
+function DevelopmentMapStatusBoxes({
+  statuses,
+  size = "default",
+}: {
+  statuses: LodickaStav[];
+  size?: "default" | "summary";
+}) {
+  const boxClass = size === "summary" ? "h-4 w-4 rounded-[4px]" : "h-3.5 w-3.5 rounded-[3px]";
+  const ordered = [...statuses].sort((a, b) => b - a);
+
+  return (
+    <div className="flex max-w-[180px] flex-wrap gap-1" aria-label={ordered.join(", ")}>
+      {ordered.map((status, index) => {
+        const colors = getStatusVisual(status);
+        return (
+          <span
+            key={`${status}-${index}`}
+            className={cn(
+              boxClass,
+              "inline-block border",
+              status > 0 ? `${colors.fillClass} ${colors.borderClass}` : "border-slate-300 bg-white",
+            )}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function getStatusVisual(status: LodickaStav) {
+  if (status === 4) return { fillClass: "bg-emerald-300", borderClass: "border-emerald-500", fillHex: "#6EE7B7" };
+  if (status === 3) return { fillClass: "bg-orange-300", borderClass: "border-orange-500", fillHex: "#FDBA74" };
+  if (status === 2) return { fillClass: "bg-blue-300", borderClass: "border-blue-500", fillHex: "#93C5FD" };
+  if (status === 1) return { fillClass: "bg-amber-300", borderClass: "border-amber-500", fillHex: "#FCD34D" };
+  return { fillClass: "bg-slate-100", borderClass: "border-slate-300", fillHex: "#F1F5F9" };
+}
+
+function groupDevelopmentMapRows(rows: PersonalWithSnapshot[]) {
+  const subjectMap = new Map<
+    string,
+    Map<string, { key: string; name: string; subtitle: string; rows: PersonalWithSnapshot[] }>
+  >();
+
+  rows.forEach((row) => {
+    const subjectName = row.lodicka.predmet || "Bez předmětu";
+    const areaName = row.lodicka.oblast || "Bez oblasti";
+    const subtitle = row.lodicka.podpředmět ?? "";
+    const areaKey = `${subtitle}::${areaName}`;
+    const areaMap = subjectMap.get(subjectName) ?? new Map();
+    const area = areaMap.get(areaKey) ?? {
+      key: areaKey,
+      name: areaName,
+      subtitle,
+      rows: [] as PersonalWithSnapshot[],
+    };
+
+    area.rows.push(row);
+    areaMap.set(areaKey, area);
+    subjectMap.set(subjectName, areaMap);
+  });
+
+  return [...subjectMap.entries()].map(([name, areaMap]) => ({
+    name,
+    areas: [...areaMap.values()].sort((a, b) => a.name.localeCompare(b.name, "cs")),
+  }));
 }
 
 function DetailSheet({
