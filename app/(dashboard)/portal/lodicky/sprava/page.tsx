@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Anchor, BookOpen, CheckCircle2, Filter, Plus, Sailboat, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Anchor, BookOpen, CheckCircle2, Filter, Network, Plus, Sailboat, ShieldCheck, TriangleAlert } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
 } from "./actions";
 import {
   canManageWholeFleet,
+  canViewRvpManagement,
   canViewLodickyManagement,
   formatSvpVersionLabel,
   getLodickyManagementPage,
@@ -345,7 +346,10 @@ export default async function LodickySpravaPage({ searchParams }: PageProps) {
   const rawSearchParams = await searchParams;
   const filters = parseLodickyManagementFilters(rawSearchParams);
   const rawTab = Array.isArray(rawSearchParams.tab) ? rawSearchParams.tab[0] : rawSearchParams.tab;
-  const activeTab = rawTab === "seznam" || rawTab === "pristup" || rawTab === "rvp"
+  const canViewRvp = canViewRvpManagement(roles);
+  const activeTab = rawTab === "rvp" && !canViewRvp
+    ? "struktura"
+    : rawTab === "seznam" || rawTab === "pristup" || rawTab === "rvp"
     ? rawTab
     : "struktura";
   const wholeFleet = canManageWholeFleet(roles);
@@ -385,12 +389,22 @@ export default async function LodickySpravaPage({ searchParams }: PageProps) {
               Správa sady lodiček
             </Link>
           </Button>
-          <Button asChild variant="outline">
-            <Link href="/portal/lodicky/sprava/rvp">
-              <BookOpen className="size-4" aria-hidden={true} />
-              Správa RVP
-            </Link>
-          </Button>
+          {canViewRvp ? (
+            <>
+              <Button asChild variant="outline">
+                <Link href="/portal/lodicky/sprava/rvp">
+                  <BookOpen className="size-4" aria-hidden={true} />
+                  Správa RVP
+                </Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/portal/lodicky/sprava/vazby">
+                  <Network className="size-4" aria-hidden={true} />
+                  Vazby RVP
+                </Link>
+              </Button>
+            </>
+          ) : null}
         </div>
         <Card>
           <CardHeader>
@@ -451,12 +465,22 @@ export default async function LodickySpravaPage({ searchParams }: PageProps) {
             <Button asChild variant="outline" size="sm">
               <Link href="/portal/lodicky">Zpět na lodičky</Link>
             </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/portal/lodicky/sprava/rvp">
-                <BookOpen className="size-4" aria-hidden={true} />
-                Správa RVP
-              </Link>
-            </Button>
+            {canViewRvp ? (
+              <>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/portal/lodicky/sprava/rvp">
+                    <BookOpen className="size-4" aria-hidden={true} />
+                    Správa RVP
+                  </Link>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/portal/lodicky/sprava/vazby">
+                    <Network className="size-4" aria-hidden={true} />
+                    Vazby RVP
+                  </Link>
+                </Button>
+              </>
+            ) : null}
             {canEditSvpStructure && selectedSvp && (
               <Button asChild size="sm">
                 <Link href={`/portal/lodicky/sprava/nova?svp=${encodeURIComponent(selectedSvp.id)}`}>
@@ -519,12 +543,22 @@ export default async function LodickySpravaPage({ searchParams }: PageProps) {
               Přístup k lodičkám
             </Link>
           </TabsTrigger>
-          <TabsTrigger value="rvp" asChild>
-            <Link href={buildHref({ tab: "rvp", page: null }, currentParams)}>
-              <BookOpen className="mr-2 size-4" aria-hidden={true} />
-              Správa RVP
-            </Link>
-          </TabsTrigger>
+          {canViewRvp ? (
+            <>
+              <TabsTrigger value="rvp" asChild>
+                <Link href={buildHref({ tab: "rvp", page: null }, currentParams)}>
+                  <BookOpen className="mr-2 size-4" aria-hidden={true} />
+                  Správa RVP
+                </Link>
+              </TabsTrigger>
+              <Button asChild variant="outline" size="sm" className="h-9 rounded-full">
+                <Link href="/portal/lodicky/sprava/vazby">
+                  <Network className="mr-2 size-4" aria-hidden={true} />
+                  Vazby RVP
+                </Link>
+              </Button>
+            </>
+          ) : null}
         </TabsList>
 
         {activeTab === "struktura" && <TabsContent value="struktura" className="space-y-4">
@@ -651,7 +685,7 @@ export default async function LodickySpravaPage({ searchParams }: PageProps) {
           )}
         </TabsContent>}
 
-        {activeTab === "rvp" && <TabsContent value="rvp" className="space-y-4">
+        {canViewRvp && activeTab === "rvp" && <TabsContent value="rvp" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {page.rvpVersions.map((rvp) => (
               <Card key={rvp.id} className={selectedSvp?.basedOnRvpVersionId === rvp.id ? "border-[#0E2A5C]" : ""}>

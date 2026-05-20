@@ -26,7 +26,7 @@ export default async function AuthErrorPage({
 
   return (
     <main className="sv-paper-grain flex min-h-screen flex-col items-center justify-center bg-[#EEF2F7] p-4">
-      <div className="relative mx-auto w-full max-w-md rounded-[32px] border border-[#D6DFF0] bg-white p-8 text-center shadow-[var(--sv-shadow-lift)]">
+      <div className="sv-shadow-lift relative mx-auto w-full max-w-md rounded-[32px] border border-[#D6DFF0] bg-white p-8 text-center">
         <p className="sv-eyebrow mb-3 text-[#C8372D]">Přihlášení</p>
         <h1 className="sv-display-sm mb-3 text-[#0E2A5C]">{title}</h1>
         <p className="text-sm text-[#4A5A7C]">{message}</p>

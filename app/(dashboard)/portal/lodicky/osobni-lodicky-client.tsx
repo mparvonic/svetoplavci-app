@@ -2705,7 +2705,7 @@ function DetailSheet({
       onClick={onClose}
     >
       <div
-        className={`relative max-h-[90vh] w-full ${detailWidthClass} overflow-y-auto rounded-xl border border-[#D6DFF0] bg-white shadow-[var(--sv-shadow-lift)]`}
+        className={`sv-shadow-lift relative max-h-[90vh] w-full ${detailWidthClass} overflow-y-auto rounded-xl border border-[#D6DFF0] bg-white`}
         onClick={(event) => event.stopPropagation()}
       >
         <Button

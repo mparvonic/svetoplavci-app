@@ -51,13 +51,13 @@ export default async function SignInPage({
               Přihlaste se Google účtem nebo přes e‑mailový odkaz. Doporučujeme
               e‑mail, který máte u školy evidovaný.
             </p>
-            <div className="mt-6 rounded-[12px] border border-[#D6DFF0] bg-white p-4 text-sm text-[#4A5A7C] shadow-[var(--sv-shadow-paper)]">
+            <div className="sv-shadow-paper mt-6 rounded-[12px] border border-[#D6DFF0] bg-white p-4 text-sm text-[#4A5A7C]">
               <b className="text-[#0E2A5C]">Tip:</b> Odkaz z e‑mailu je platný 24 hodin.
               Po 30 minutách nečinnosti vás aplikace automaticky odhlásí.
             </div>
           </div>
 
-          <Card className="relative z-10 overflow-hidden rounded-[20px] border-[#D6DFF0] bg-white py-0 shadow-[var(--sv-shadow-lift)]">
+          <Card className="sv-shadow-lift relative z-10 overflow-hidden rounded-[20px] border-[#D6DFF0] bg-white py-0">
             <CardHeader className="space-y-3 px-6 pt-7 text-left sm:px-8 sm:pt-8">
               <div className="sv-eyebrow text-[#C8372D]">Přihlášení</div>
               <CardTitle className="sv-display-sm text-[#0E2A5C]">Přihlášení rodiče</CardTitle>

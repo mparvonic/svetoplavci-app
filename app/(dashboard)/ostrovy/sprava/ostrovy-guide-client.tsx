@@ -2529,7 +2529,7 @@ export default function OstrovyGuideClient() {
                     </select>
                   </label>
 
-                  <div className="space-y-3 rounded-[20px] border border-[#D6DFF0] bg-white p-4 text-sm shadow-[var(--sv-shadow-paper)] md:col-span-2">
+                  <div className="sv-shadow-paper space-y-3 rounded-[20px] border border-[#D6DFF0] bg-white p-4 text-sm md:col-span-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-slate-700">Obrázek</span>
                       {imageSearchInfo && <span className="text-xs text-slate-500">{imageSearchInfo}</span>}
@@ -2583,7 +2583,7 @@ export default function OstrovyGuideClient() {
                             key={`${option.imageUrl}-${index}`}
                             type="button"
                             className={cn(
-                              "group overflow-hidden rounded-[12px] border bg-white text-left shadow-[var(--sv-shadow-paper)] transition hover:border-[#0E2A5C] hover:bg-[#EEF2F7] disabled:cursor-wait disabled:opacity-70",
+                              "sv-shadow-paper group overflow-hidden rounded-[12px] border bg-white text-left transition hover:border-[#0E2A5C] hover:bg-[#EEF2F7] disabled:cursor-wait disabled:opacity-70",
                               imageSavingUrl === option.imageUrl ? "border-[#0E2A5C] ring-2 ring-[#0E2A5C]/15" : "border-[#D6DFF0]",
                             )}
                             disabled={Boolean(imageSavingUrl)}
@@ -2615,7 +2615,7 @@ export default function OstrovyGuideClient() {
                     )}
                   </div>
 
-                  <div className="space-y-3 rounded-[20px] border border-[#D6DFF0] bg-white p-4 text-sm shadow-[var(--sv-shadow-paper)] md:col-span-2">
+                  <div className="sv-shadow-paper space-y-3 rounded-[20px] border border-[#D6DFF0] bg-white p-4 text-sm md:col-span-2">
                     <span className="font-medium text-slate-700">Průvodci</span>
                     {selectedGuides.length > 0 && (
                       <div className="flex flex-wrap gap-2">
@@ -2683,7 +2683,7 @@ export default function OstrovyGuideClient() {
                     </div>
                   </div>
 
-                  <div className="space-y-3 rounded-[20px] border border-[#D6DFF0] bg-white p-4 text-sm shadow-[var(--sv-shadow-paper)] md:col-span-2">
+                  <div className="sv-shadow-paper space-y-3 rounded-[20px] border border-[#D6DFF0] bg-white p-4 text-sm md:col-span-2">
                     <span className="font-medium text-slate-700">Cílové skupiny</span>
                     {selectedAudienceGroups.length > 0 && (
                       <div className="flex flex-wrap gap-2">

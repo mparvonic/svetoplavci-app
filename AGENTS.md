@@ -68,6 +68,8 @@ M01 runs on internal PostgreSQL tables:
 
 `M01SvpVersion` is the lodičky set/catalog version. It stores validity, status, and the RVP binding.
 
+Lodička can be deactivated only from the catalog/set (`M01Lodicka.isDeleted` / `app_m01_lodicka.is_deleted`). That change must cascade to every linked personal lodička (`M01OsobniLodicka.isDeleted` / `app_m01_osobni_lodicka.is_deleted`). Never introduce a workflow that deactivates an individual personal lodička while its catalog lodička remains active. Keep personal history events intact; do not hard-delete them.
+
 Current role meanings:
 
 - `garant`: can change personal lodička status.

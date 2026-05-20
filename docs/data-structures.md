@@ -46,6 +46,8 @@ Hlavní M01 entity:
 
 `M01SvpVersion` je prakticky „set lodiček“. Obsahuje verzi, platnost, vazbu na RVP a stav aktivace.
 
+Lodička se deaktivuje pouze na úrovni katalogu/sady (`M01Lodicka.isDeleted`). Samostatná deaktivace jedné osobní lodičky při aktivní katalogové lodičce není povolená. Deaktivace katalogové lodičky se vždy propisuje do všech navázaných osobních lodiček (`M01OsobniLodicka.isDeleted`). Historie stavů v `M01OsobniLodickaEvent` se kvůli auditu nemaže.
+
 ## Stav vs školní stupeň
 
 V dokumentaci rozlišujeme:

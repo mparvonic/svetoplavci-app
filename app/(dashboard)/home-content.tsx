@@ -90,7 +90,7 @@ export function HomeContent({
                 variant="outline"
                 size="sm"
                 className={cn(
-                  "sv-card-hover flex h-auto flex-col items-start justify-start rounded-[20px] border px-4 py-3 text-left shadow-[var(--sv-shadow-paper)]",
+                  "sv-card-hover sv-shadow-paper flex h-auto flex-col items-start justify-start rounded-[20px] border px-4 py-3 text-left",
                   isSelected
                     ? "border-[#0E2A5C] bg-[#0E2A5C] text-white hover:bg-[#07173A]"
                     : "border-[#D6DFF0] bg-white text-[#0E2A5C] hover:border-[#0E2A5C] hover:bg-[#EEF2F7]"

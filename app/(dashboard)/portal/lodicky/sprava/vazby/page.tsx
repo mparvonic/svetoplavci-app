@@ -12,7 +12,7 @@ import { getRvpGraphOverview } from "@/src/lib/m01/rvp-graph";
 
 import { VazbyWorkspace } from "./vazby-workspace";
 
-import { canViewLodickyManagement } from "../data";
+import { canViewRvpManagement } from "../data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -63,7 +63,7 @@ export default async function RvpVazbyPage({ searchParams }: PageProps) {
   }
 
   const roles = selectedDevUser?.roles ?? (session ? collectSessionRoles(session) : LOCAL_DEV_ROLES);
-  if (!canViewLodickyManagement(roles)) {
+  if (!canViewRvpManagement(roles)) {
     redirect("/portal/lodicky");
   }
 
