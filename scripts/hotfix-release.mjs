@@ -275,6 +275,60 @@ function prepareReleaseCommit() {
   releaseSha = fullSha();
 }
 
+function releaseKindsForTarget() {
+  if (target === "test") return ["test"];
+  if (target === "prod") return ["prod"];
+  if (target === "both") return ["test", "prod"];
+  return [];
+}
+
+function targetKindForImageCommit(kinds) {
+  return kinds.includes("prod") ? "prod" : "test";
+}
+
+function prepareImageReleaseCommit(kinds) {
+  const message = flagValue("--message", "-m");
+  if (hasFlag("--include-all")) {
+    run("git", ["add", "-A"], { cwd: originalCwd });
+  }
+
+  const baseKind = targetKindForImageCommit(kinds);
+  fetchTarget(baseKind);
+  const baseRef = targetRef(baseKind);
+  const baseCommit = output("git", ["rev-parse", baseRef], { cwd: originalCwd });
+
+  if (!hasStagedChanges()) {
+    console.log(`[hotfix] No staged changes; building ${baseRef} directly.`);
+    releaseSha = baseCommit;
+    releaseCwd = originalCwd;
+    return;
+  }
+
+  if (!message) {
+    throw new Error("Staged changes are present. Commit them with --message or unstage them before hotfix release.");
+  }
+
+  const patch = rawOutput("git", ["diff", "--cached", "--binary", "--full-index", "--unified=8"], { cwd: originalCwd });
+  const tempPrefix = path.join(tmpdir(), `svetoplavci-hotfix-${process.pid}-${Date.now()}`);
+  const indexPath = `${tempPrefix}.index`;
+  const patchPath = `${tempPrefix}.patch`;
+  const env = { ...process.env, GIT_INDEX_FILE: indexPath };
+
+  try {
+    writeFileSync(patchPath, patch, "utf8");
+    run("git", ["read-tree", baseCommit], { cwd: originalCwd, env });
+    run("git", ["apply", "--cached", "--3way", "--binary", patchPath], { cwd: originalCwd, env });
+    const tree = output("git", ["write-tree"], { cwd: originalCwd, env });
+    releaseSha = output("git", ["commit-tree", tree, "-p", baseCommit, "-m", message], { cwd: originalCwd });
+    releaseCwd = originalCwd;
+    console.log(`[hotfix] Prepared image release commit ${releaseSha.slice(0, 7)} on ${baseRef} without a local worktree.`);
+  } finally {
+    rmSync(indexPath, { force: true });
+    rmSync(`${indexPath}.lock`, { force: true });
+    rmSync(patchPath, { force: true });
+  }
+}
+
 function runChecksOnce() {
   if (hasFlag("--skip-checks")) {
     console.log("[hotfix] Skipping checks by request.");
@@ -328,7 +382,20 @@ function alignWithTarget(kind) {
 
   console.log(`[hotfix] Rebasing hotfix commits onto ${ref} so ${kind} push is fast-forward.`);
   git(["checkout", "--detach", ref]);
-  git(["cherry-pick", ...commits]);
+  for (const commit of commits) {
+    const result = git(["cherry-pick", commit], { check: false });
+    if (result.status === 0) continue;
+
+    const hasWorkingDiff = git(["diff", "--quiet"], { check: false }).status !== 0;
+    const hasStagedDiff = git(["diff", "--cached", "--quiet"], { check: false }).status !== 0;
+    if (!hasWorkingDiff && !hasStagedDiff) {
+      console.log(`[hotfix] Skipping already-applied commit ${commit.slice(0, 7)}.`);
+      git(["cherry-pick", "--skip"]);
+      continue;
+    }
+
+    throw new Error(`Could not cherry-pick ${commit.slice(0, 7)} onto ${ref}. Resolve the conflict or rerun from a cleaner base.`);
+  }
   releaseSha = fullSha();
 }
 
@@ -441,7 +508,9 @@ trap cleanup EXIT
 cleanup
 
 git -C "$REPO" worktree add --detach "$BUILD_DIR" "$SHA"
-git -C "$REPO" bundle create "$BUNDLE_PATH" "$SHA^..$SHA" >/dev/null 2>&1 || git -C "$REPO" bundle create "$BUNDLE_PATH" "$SHA" >/dev/null
+git -C "$REPO" bundle create "$BUNDLE_PATH" "$SHA^..$SHA" >/dev/null 2>&1 ||
+  git -C "$REPO" bundle create "$BUNDLE_PATH" "$SHA" >/dev/null 2>&1 ||
+  echo "[hotfix] Audit bundle could not be created; continuing deploy."
 
 cd "$BUILD_DIR"
 printf '%s' "$HOTFIX_GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
@@ -524,34 +593,36 @@ try {
   } else {
     requireTool("git");
     if (isInMergeState()) throw new Error("Repository is in a merge state. Finish or abort the merge before hotfix release.");
-    prepareReleaseCommit();
     const mode = deployMode();
     if (!["image", "git"].includes(mode)) throw new Error(`Unsupported hotfix deploy mode: ${mode}`);
-    if (target === "prod" || target === "both") alignWithTarget("prod");
-    if (hasFlag("--precheck")) runChecksOnce();
+    const kinds = releaseKindsForTarget();
+    if (kinds.length === 0) {
+      usage();
+      process.exit(1);
+    }
 
     let releases = [];
     if (mode === "image") {
-      if (target === "test") releases = await imageRelease(["test"]);
-      else if (target === "prod") releases = await imageRelease(["prod"]);
-      else if (target === "both") releases = await imageRelease(["test", "prod"]);
-      else {
-        usage();
-        process.exit(1);
+      prepareImageReleaseCommit(kinds);
+      if (hasFlag("--precheck")) {
+        console.log("[hotfix] --precheck is not supported in image mode without a local worktree; Docker build will validate the image.");
       }
+      releases = await imageRelease(kinds);
     } else if (target === "test") {
+      prepareReleaseCommit();
       runChecksOnce();
       releases.push(await release("test"));
     } else if (target === "prod") {
+      prepareReleaseCommit();
+      alignWithTarget("prod");
       runChecksOnce();
       releases.push(await release("prod"));
     } else if (target === "both") {
+      prepareReleaseCommit();
+      alignWithTarget("prod");
       runChecksOnce();
       releases.push(await release("test"));
       releases.push(await release("prod", { skipTestGate: true }));
-    } else {
-      usage();
-      process.exit(1);
     }
 
     writeAudit({
@@ -559,13 +630,13 @@ try {
       commandTarget: target,
       deployMode: mode,
       commit: releaseSha || fullSha(),
-      shortCommit: shortSha(),
+      shortCommit: releaseSha ? releaseSha.slice(0, 7) : shortSha(),
       message: flagValue("--message", "-m") || null,
       skipChecks: hasFlag("--skip-checks"),
       skipTestGate: hasFlag("--skip-test-gate"),
       releases,
     });
-    console.log(`[hotfix] Done at ${shortSha()}.`);
+    console.log(`[hotfix] Done at ${releaseSha ? releaseSha.slice(0, 7) : shortSha()}.`);
   }
 } catch (error) {
   writeAudit({
