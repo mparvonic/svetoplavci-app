@@ -29,6 +29,9 @@ Environment:
   HOTFIX_DEPLOY_MODE                            image (default) or git
   HOTFIX_GX10_HOST                              default: gx10
   HOTFIX_GX10_REPO_PATH                         default: /srv/projects/svetoplavci-app
+  HOTFIX_IMAGE_BUILD_HOST                       default: vps
+  HOTFIX_REMOTE_CONTEXT_ROOT                    default: /tmp
+  HOTFIX_DOCKER_BUILDKIT                        default: 0 on vps, 1 otherwise
   HOTFIX_GX10_BUILD_ROOT                        default: /data/tmp/svetoplavci/hotfix-image-builds
   HOTFIX_BUNDLE_DIR                             default: /data/projects/svetoplavci-app/hotfix-bundles
   HOTFIX_IMAGE_NAME                             default: ghcr.io/mparvonic/svetoplavci-app
@@ -168,6 +171,19 @@ function gx10Host() {
 
 function gx10RepoPath() {
   return flagValue("--gx10-repo") || process.env.HOTFIX_GX10_REPO_PATH || "/srv/projects/svetoplavci-app";
+}
+
+function imageBuildHost() {
+  return flagValue("--build-host") || process.env.HOTFIX_IMAGE_BUILD_HOST || "vps";
+}
+
+function remoteContextRoot() {
+  return process.env.HOTFIX_REMOTE_CONTEXT_ROOT || "/tmp";
+}
+
+function dockerBuildkitFor(host) {
+  if (process.env.HOTFIX_DOCKER_BUILDKIT) return process.env.HOTFIX_DOCKER_BUILDKIT;
+  return host === "vps" ? "0" : "1";
 }
 
 function gx10BuildRoot() {
@@ -471,9 +487,14 @@ function dockerTagsFor(kinds) {
   return [...new Set(tags)];
 }
 
-function remoteImageBuildScript(tags) {
+function dockerBuildAndPushCommands(tags) {
   const tagArgs = tags.map((tag) => `-t ${shQuote(tag)}`).join(" ");
   const pushCommands = tags.map((tag) => `docker push ${shQuote(tag)}`).join("\n");
+  return { tagArgs, pushCommands };
+}
+
+function remoteImageBuildScript(tags) {
+  const { tagArgs, pushCommands } = dockerBuildAndPushCommands(tags);
   const bundlePath = `${bundleDir().replace(/\/$/, "")}/${releaseSha}.bundle`;
 
   return `set -euo pipefail
@@ -514,7 +535,7 @@ git -C "$REPO" bundle create "$BUNDLE_PATH" "$SHA^..$SHA" >/dev/null 2>&1 ||
 
 cd "$BUILD_DIR"
 printf '%s' "$HOTFIX_GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
-export DOCKER_BUILDKIT=1
+export DOCKER_BUILDKIT=${shQuote(dockerBuildkitFor(gx10Host()))}
 docker build \\
   --build-arg POSTGRES_PRISMA_URL="$POSTGRES_URL" \\
   --build-arg RUN_PRISMA_DB_PUSH=0 \\
@@ -528,12 +549,82 @@ echo "[hotfix] Audit bundle: $BUNDLE_PATH"
 `;
 }
 
+function remoteContextImageBuildScript(tags, buildDir, envTmp) {
+  const { tagArgs, pushCommands } = dockerBuildAndPushCommands(tags);
+  return `set -euo pipefail
+set +x
+
+ENV_FILE=${shQuote(envTmp)}
+BUILD_DIR=${shQuote(buildDir)}
+SHA=${shQuote(releaseSha)}
+GHCR_USER_DEFAULT=${shQuote(hotfixGhcrUser())}
+
+cleanup() {
+  rm -f "$ENV_FILE"
+  if [ "\${HOTFIX_KEEP_REMOTE_CONTEXT:-0}" != "1" ]; then
+    rm -rf "$BUILD_DIR"
+  fi
+}
+trap cleanup EXIT
+
+set -a
+. "$ENV_FILE"
+set +a
+
+: "\${HOTFIX_GHCR_TOKEN:?Missing HOTFIX_GHCR_TOKEN in $ENV_FILE.}"
+GHCR_USER="\${HOTFIX_GHCR_USER:-$GHCR_USER_DEFAULT}"
+POSTGRES_URL="\${HOTFIX_DOCKER_POSTGRES_PRISMA_URL:-\${POSTGRES_PRISMA_URL:-}}"
+: "\${POSTGRES_URL:?Missing HOTFIX_DOCKER_POSTGRES_PRISMA_URL or POSTGRES_PRISMA_URL for Docker build.}"
+
+cd "$BUILD_DIR"
+printf '%s' "$HOTFIX_GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
+export DOCKER_BUILDKIT=${shQuote(dockerBuildkitFor(imageBuildHost()))}
+docker build \\
+  --build-arg POSTGRES_PRISMA_URL="$POSTGRES_URL" \\
+  --build-arg RUN_PRISMA_DB_PUSH=0 \\
+  --build-arg NEXT_DEPLOYMENT_ID="$SHA" \\
+  ${tagArgs} \\
+  .
+${pushCommands}
+docker logout ghcr.io >/dev/null 2>&1 || true
+echo "[hotfix] Image build completed for $SHA"
+`;
+}
+
+function streamReleaseContextToBuildHost(buildHost, buildDir, envTmp) {
+  const repoHost = gx10Host();
+  run("ssh", [buildHost, `rm -rf ${shQuote(buildDir)} ${shQuote(envTmp)}; mkdir -p ${shQuote(buildDir)}`]);
+  run("sh", [
+    "-lc",
+    `ssh ${shQuote(repoHost)} ${shQuote(
+      `git -C ${shQuote(gx10RepoPath())} archive --format=tar ${shQuote(releaseSha)}`,
+    )} | ssh ${shQuote(buildHost)} ${shQuote(`tar -xf - -C ${shQuote(buildDir)}`)}`,
+  ]);
+  run("sh", [
+    "-lc",
+    `ssh ${shQuote(repoHost)} ${shQuote(`cat ${shQuote(remoteEnvFile())}`)} | ssh ${shQuote(buildHost)} ${shQuote(
+      `umask 077; cat > ${shQuote(envTmp)}`,
+    )}`,
+  ]);
+}
+
 function runRemoteImageBuild(tags) {
-  const host = gx10Host();
-  console.log(`[hotfix] Building Docker image once on ${host}: ${tags.join(", ")}`);
-  const script = remoteImageBuildScript(tags);
-  const command = host === "local" ? "bash" : "ssh";
-  const commandArgs = host === "local" ? ["-se"] : [host, "bash -se"];
+  const repoHost = gx10Host();
+  const buildHost = imageBuildHost();
+  console.log(`[hotfix] Building Docker image once on ${buildHost}: ${tags.join(", ")}`);
+
+  let script = "";
+  if (buildHost === repoHost || buildHost === "local") {
+    script = remoteImageBuildScript(tags);
+  } else {
+    const buildDir = `${remoteContextRoot().replace(/\/$/, "")}/svetoplavci-hotfix-${releaseSha}`;
+    const envTmp = `${remoteContextRoot().replace(/\/$/, "")}/svetoplavci-hotfix-env-${releaseSha}`;
+    streamReleaseContextToBuildHost(buildHost, buildDir, envTmp);
+    script = remoteContextImageBuildScript(tags, buildDir, envTmp);
+  }
+
+  const command = buildHost === "local" ? "bash" : "ssh";
+  const commandArgs = buildHost === "local" ? ["-se"] : [buildHost, "bash -se"];
   const result = spawnSync(command, commandArgs, {
     cwd: originalCwd,
     input: script,
@@ -569,6 +660,7 @@ function status() {
   console.log(`- image: ${hotfixImageName()}`);
   console.log(`- gx10 host: ${gx10Host()}`);
   console.log(`- gx10 repo: ${gx10RepoPath()}`);
+  console.log(`- image build host: ${imageBuildHost()}`);
   console.log(`- ghcr user: ${hotfixGhcrUser()}`);
   console.log(`- ghcr token: ${process.env.HOTFIX_GHCR_TOKEN ? "configured" : "not configured"}`);
   for (const kind of ["test", "prod"]) {
