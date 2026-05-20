@@ -182,13 +182,7 @@ function normalizeStatusValue(row: PortalLodickaRow, viewDate = ""): number {
 }
 
 function buildDownloadFilename(childName: string) {
-  const surname = extractSurname(childName);
-  return `mapa_rozvoje_${slugifyFilenamePart(surname)}_${formatPragueDateStamp(new Date())}.pdf`;
-}
-
-function extractSurname(childName: string) {
-  const parts = childName.trim().split(/\s+/).filter(Boolean);
-  return parts.at(-1) ?? "dite";
+  return `mapa_rozvoje_${slugifyFilenamePart(childName)}_${formatPragueDateStamp(new Date())}.pdf`;
 }
 
 function formatPragueDateStamp(date: Date) {
