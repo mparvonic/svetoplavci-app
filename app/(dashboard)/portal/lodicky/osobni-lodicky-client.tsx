@@ -2482,7 +2482,7 @@ function DevelopmentMapPanel({
             )}
 
             {pdfHref && (
-              <Button asChild className="hidden h-10 bg-[#002060] text-white hover:bg-[#001540]">
+              <Button asChild className="h-10 bg-[#002060] text-white hover:bg-[#001540]">
                 <a href={pdfHref}>
                   <Download className="size-4" />
                   Stáhnout PDF
