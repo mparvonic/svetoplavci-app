@@ -95,14 +95,17 @@ Bez `HOTFIX_AUDIT_LOG` se audit zapisuje do ignorovaného lokálního souboru `.
 
 ## Codex, NFS a buildy
 
-Mac NFS mount je vhodný jako pracovní zrcadlo pro Codex Desktop: čtení, malé editace a diffy. Není vhodný pro `npm ci`, `next build`, Docker build ani release. Tyto operace musí běžet na lokálním filesystemu GX10:
+NFS mount nesmí být součást release/hotfix cesty. Pokud se `scripts/hotfix-release.mjs` spustí z Mac mountu `/Users/miroslav/Projects/gx10/...`, okamžitě se přes SSH znovu spustí na GX10 v `/srv/projects/svetoplavci-app` a Mac proces skončí jako pouhý wrapper.
 
-- běžná lokální kontrola používá clean GX10 worktree přes `release-checks.sh`,
-- rychlý hotfix používá `/data/tmp/svetoplavci/hotfix-image-builds`,
-- npm cache drží Linux-native artefakty mimo sdílený mount,
-- Docker cache zůstává na GX10 a zrychluje další hotfix buildy.
+Pravidla:
 
-Lepší dlouhodobý směr je nechat Codex Desktop dál editovat přes NFS, ale všechny těžké příkazy směrovat přes SSH wrapper na GX10. Ještě čistší varianta je spouštět Codex CLI přímo na GX10 pro release zásahy.
+- Git status, diff, index, commit-tree a archive pro hotfix běží na GX10 lokálně.
+- Build kontext vzniká z `git archive` na GX10, ne čtením přes NFS.
+- Docker image se buildí na hostu nastaveném v `HOTFIX_IMAGE_BUILD_HOST`; pro produkční VPS architekturu je výchozí `vps`.
+- Dočasné build adresáře jsou mimo repo a mimo NFS.
+- Audit log je na `/data/projects/svetoplavci-app/hotfix-audit.jsonl`.
+
+Pokud má být bez NFS i samotné čtení a editace souborů Codexem, nepoužívat Codex Desktop nad Mac mountem; pro release zásahy spouštět Codex CLI přímo na GX10 v `/srv/projects/svetoplavci-app`. Desktop nad NFS je pouze pohodlné zobrazení/editace, ne provozní release prostředí.
 
 ## GitHub nastavení
 

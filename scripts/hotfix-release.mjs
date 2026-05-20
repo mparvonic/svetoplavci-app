@@ -13,6 +13,37 @@ let releaseCwd = originalCwd;
 let releaseWorktree = "";
 let releaseSha = "";
 
+function gx10PathForMacMountValue(localPath) {
+  if (!localPath.startsWith(`${macGx10Prefix}/`)) return "";
+  return localPath.replace(macGx10Prefix, "");
+}
+
+function remoteReexecHost() {
+  return process.env.HOTFIX_GX10_HOST || "gx10";
+}
+
+function remoteReexecRepoPath() {
+  return process.env.HOTFIX_GX10_REPO_PATH || gx10PathForMacMountValue(originalCwd) || "/srv/projects/svetoplavci-app";
+}
+
+function maybeReexecOnGx10() {
+  if (process.env.HOTFIX_REMOTE_EXEC === "1") return;
+  if (process.env.HOTFIX_NO_REMOTE_REEXEC === "1") return;
+  if (!originalCwd.startsWith(`${macGx10Prefix}/`)) return;
+
+  const host = remoteReexecHost();
+  const repoPath = remoteReexecRepoPath();
+  const forwardedArgs = process.argv.slice(2).map(shQuote).join(" ");
+  console.log(`[hotfix] Mac NFS mount detected; re-executing on ${host}:${repoPath}.`);
+  const result = spawnSync("ssh", [host, `cd ${shQuote(repoPath)} && HOTFIX_REMOTE_EXEC=1 node scripts/hotfix-release.mjs ${forwardedArgs}`], {
+    stdio: "inherit",
+    encoding: "utf8",
+  });
+  process.exit(result.status ?? 1);
+}
+
+maybeReexecOnGx10();
+
 function usage() {
   console.log(`Usage:
   node scripts/hotfix-release.mjs status
@@ -632,7 +663,7 @@ function runRemoteImageBuild(tags) {
     stdio: ["pipe", "inherit", "inherit"],
   });
   if (result.status !== 0) {
-    throw new Error(`Image build/push failed on ${host}.`);
+    throw new Error(`Image build/push failed on ${buildHost}.`);
   }
 }
 
