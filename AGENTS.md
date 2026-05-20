@@ -11,6 +11,9 @@ npm run dev:down   # Stop the background Next dev server started by dev:up
 npm run ops:doctor # Diagnose mount, env, SSH, DB tunnel, Next dev, and git state
 npm run release:test -- --message "fix: summary" # Commit/push toward staging/test
 npm run release:prod                             # Open/reuse staging -> main production PR
+npm run prod:db:doctor                           # Verify production DB read-only access via GX10/VPS
+npm run prod:db:sql -- "select count(*) from app_person" # One-off read-only production SQL
+npm run prod:db:node -- --input-type=module      # One-off read-only production Node script from stdin
 npm run build      # prisma generate + next build
 npm run lint       # Run ESLint
 npm run db:check:schema
@@ -100,6 +103,7 @@ Správa lodiček is a portal workflow under `/portal/lodicky/sprava`, not an adm
 - Do not rediscover local startup manually. First run `npm run ops:doctor`; start local work with `npm run dev:up`.
 - GX10 runtime env file lives outside the repo at `/data/projects/svetoplavci-app/secrets/env.local`. From the Mac mount the same secret path is `/Users/miroslav/Projects/gx10/data/projects/svetoplavci-app/secrets/env.local`. Source it for DB-backed commands when repo `.env.local` is absent; never print or commit its contents.
 - Release/deploy automation is scripted. Use `npm run release:test -- --message "..."` for test/staging and `npm run release:prod` for production promotion. Do not hand-roll branch pushes unless the scripts are broken.
+- Production DB read-only access is scripted. Use `npm run prod:db:doctor`, `npm run prod:db:sql`, or `npm run prod:db:node`; do not source `/data/projects/svetoplavci-app/secrets/env.local` for production reads because that file may point at `svetoplavci_dev`.
 - `main` branch -> production (`app.svetoplavci.cz`)
 - `staging` branch -> staging/test (`test-app.svetoplavci.cz`)
 - Feature development on feature branches, PR into `staging` first.

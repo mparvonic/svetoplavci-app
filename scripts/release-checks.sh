@@ -19,37 +19,40 @@ run_local_checks() {
   npm run build
 }
 
-run_gx10_checks() {
+run_clean_worktree_checks() {
   local revision
   revision="$(git rev-parse HEAD)"
   local short_revision
   short_revision="$(git rev-parse --short HEAD)"
   local tmp_dir="$GX10_RELEASE_TMP_ROOT/$short_revision-$(date +%Y%m%d%H%M%S)"
+  CHECK_TMP_DIR="$tmp_dir"
 
-  log "Running checks on GX10 in clean temp checkout: $tmp_dir"
-  ssh gx10 "bash -lc 'set -euo pipefail
-    tmp_dir=\"$tmp_dir\"
-    repo_path=\"$GX10_REPO_PATH\"
-    revision=\"$revision\"
-    cleanup() {
-      git -C \"\$repo_path\" worktree remove --force \"\$tmp_dir\" >/dev/null 2>&1 || rm -rf \"\$tmp_dir\"
-    }
-    rm -rf \"\$tmp_dir\"
-    mkdir -p \"\$tmp_dir\"
-    rmdir \"\$tmp_dir\"
-    git -C \"\$repo_path\" worktree add --detach \"\$tmp_dir\" \"\$revision\"
-    cd \"\$tmp_dir\"
-    if [ -f \"$GX10_ENV_FILE\" ]; then
-      cp \"$GX10_ENV_FILE\" .env.local
-    fi
-    npm ci
-    npm run lint
-    npm run build
-    cleanup
-  '"
+  log "Running checks in clean temp checkout: $tmp_dir"
+  cleanup() {
+    git -C "$GX10_REPO_PATH" worktree remove --force "$CHECK_TMP_DIR" >/dev/null 2>&1 || rm -rf "$CHECK_TMP_DIR"
+  }
+  trap cleanup EXIT
+
+  rm -rf "$tmp_dir"
+  mkdir -p "$tmp_dir"
+  rmdir "$tmp_dir"
+  git -C "$GX10_REPO_PATH" worktree add --detach "$tmp_dir" "$revision"
+  cd "$tmp_dir"
+  if [ -f "$GX10_ENV_FILE" ]; then
+    cp "$GX10_ENV_FILE" .env.local
+  fi
+  npm ci
+  npm run lint
+  npm run build
 }
 
-if [[ "$ROOT_DIR" == "$MAC_MOUNT_PREFIX"* ]] && ssh -o BatchMode=yes -o ConnectTimeout=4 gx10 "printf ok" >/dev/null 2>&1; then
+run_gx10_checks() {
+  ssh gx10 "cd '$GX10_REPO_PATH' && GX10_CLEAN_CHECKS=1 ./scripts/release-checks.sh"
+}
+
+if [[ "${GX10_CLEAN_CHECKS:-0}" == "1" || "$ROOT_DIR" == "$GX10_REPO_PATH" ]]; then
+  run_clean_worktree_checks
+elif [[ "$ROOT_DIR" == "$MAC_MOUNT_PREFIX"* ]] && ssh -o BatchMode=yes -o ConnectTimeout=4 gx10 "printf ok" >/dev/null 2>&1; then
   run_gx10_checks
 else
   log "Running checks locally."

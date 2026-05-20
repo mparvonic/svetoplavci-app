@@ -13,6 +13,7 @@ Aktuální runbooky:
 - `coolify-setup-runbook.md`
 - `coolify-cutover-no-downtime-plan.md`
 - `local-codex-automation.md`
+- `prod-db-readonly.md`
 - `release-and-hotfix-runbook.md`
 - `test-db-refresh-runbook.md`
 - `user-sync-edookit-runbook.md`
