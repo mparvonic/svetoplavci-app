@@ -17,7 +17,106 @@
 
 Skripty jsou závazná cesta pro agenty. Neřešit ručně, jestli pushnout `staging`, jaký host odpovídá testu nebo jak se otevírá produkční PR; skript tuto logiku drží na jednom místě.
 
-## Hotfix
+## Rychlý hotfix
+
+Rychlý hotfix je určený pro malé, reverzibilní změny s nízkým rizikem: skrytí tlačítka, opravu textu, vypnutí části UI, drobný guard nebo konfiguraci. Cíl je jeden izolovaný commit, jeden Docker build na GX10, push hotového image tagu a přímý Coolify deploy. Rychlá cesta nečeká na GitHub PR, branch protection ani GitHub Actions.
+
+Základní postup:
+
+1. Nastaguj jen přesné soubory hotfixu: `git add cesta/k/souboru`.
+2. Ověř staged diff: `git diff --cached`.
+3. Test + produkce jedním průchodem: `npm run release:hotfix -- --message "fix: short summary"`.
+4. Jen test: `npm run hotfix:test -- --message "fix: short summary"`.
+5. Jen produkce: `npm run hotfix:prod -- --message "fix: short summary"`.
+6. Volitelná lokální precheck fáze před Docker buildem: přidej `--precheck`.
+
+Skript `hotfix:*`:
+
+- nikdy nedělá `git add -A`, pokud není explicitně předán `--include-all`,
+- vytváří dočasný izolovaný `git worktree`, kde commitne pouze staged diff a ignoruje ostatní rozpracované lokální změny,
+- pro produkci přerovná hotfix commit nad aktuální `origin/main`,
+- spustí Docker build přes SSH přímo na GX10 v lokálním worktree mimo Mac NFS mount,
+- pro `hotfix:both` buildí jen jednou a pouze přidá tagy `:staging`, `:latest` a `:sha-...`,
+- pushne hotový image do registry, kterou Coolify sleduje,
+- zavolá Coolify deploy hook pro vybraná prostředí,
+- zapisuje auditní JSONL záznam s commitem, cíli, časem, autorem, důvodem a výsledkem deploy hooku.
+
+Konfigurace:
+
+```bash
+HOTFIX_DEPLOY_MODE=image
+HOTFIX_GX10_HOST=gx10
+HOTFIX_GX10_REPO_PATH=/srv/projects/svetoplavci-app
+HOTFIX_GX10_BUILD_ROOT=/data/tmp/svetoplavci/hotfix-image-builds
+HOTFIX_BUNDLE_DIR=/data/projects/svetoplavci-app/hotfix-bundles
+
+HOTFIX_IMAGE_NAME=ghcr.io/mparvonic/svetoplavci-app
+HOTFIX_GHCR_USER=mparvonic
+HOTFIX_GHCR_TOKEN=...
+HOTFIX_DOCKER_POSTGRES_PRISMA_URL=...
+
+HOTFIX_TEST_REMOTE=origin
+HOTFIX_TEST_BRANCH=staging
+HOTFIX_TEST_DEPLOY_WEBHOOK=https://...
+
+HOTFIX_PROD_REMOTE=origin
+HOTFIX_PROD_BRANCH=main
+HOTFIX_PROD_DEPLOY_WEBHOOK=https://...
+HOTFIX_DEPLOY_AUTH_BEARER=...
+
+HOTFIX_AUDIT_LOG=/data/projects/svetoplavci-app/hotfix-audit.jsonl
+HOTFIX_WORKTREE_ROOT=/data/tmp/svetoplavci/hotfix-worktrees
+```
+
+`HOTFIX_GHCR_TOKEN` musí mít právo zapisovat package do GHCR (`write:packages`). `HOTFIX_DOCKER_POSTGRES_PRISMA_URL` je jen build-time Prisma URL; runtime databázi dál určuje env v Coolify. Pokud není nastavená, skript použije `POSTGRES_PRISMA_URL`.
+
+Alternativní názvy hooků jsou `COOLIFY_TEST_DEPLOY_WEBHOOK` a `COOLIFY_PROD_DEPLOY_WEBHOOK`. Alternativní název pro Bearer token je `COOLIFY_API_TOKEN`.
+
+Hotfix skript načítá secrets z prostředí a potom z těchto souborů, pokud existují:
+
+- `HOTFIX_ENV_FILE`
+- `.env.local`
+- `/Users/miroslav/Projects/gx10/data/projects/svetoplavci-app/secrets/env.local`
+- `/data/projects/svetoplavci-app/secrets/env.local`
+
+Git fallback existuje jen pro situaci, kdy image lane není dostupná. Spustí původní chráněnou cestu přes větve:
+
+```bash
+npm run release:hotfix -- --mode git --message "fix: short summary"
+```
+
+Stav konfigurace:
+
+```bash
+npm run hotfix:status
+```
+
+Bez `HOTFIX_AUDIT_LOG` se audit zapisuje do ignorovaného lokálního souboru `.tmp/hotfix-audit.jsonl`. Pro provoz nastav trvalou cestu mimo repozitář, ideálně na GX10. Image lane zároveň ukládá git bundle hotfix commitu do `HOTFIX_BUNDLE_DIR`, aby šel později dohledat a promítnout do standardního Git toku.
+
+## Codex, NFS a buildy
+
+Mac NFS mount je vhodný jako pracovní zrcadlo pro Codex Desktop: čtení, malé editace a diffy. Není vhodný pro `npm ci`, `next build`, Docker build ani release. Tyto operace musí běžet na lokálním filesystemu GX10:
+
+- běžná lokální kontrola používá clean GX10 worktree přes `release-checks.sh`,
+- rychlý hotfix používá `/data/tmp/svetoplavci/hotfix-image-builds`,
+- npm cache drží Linux-native artefakty mimo sdílený mount,
+- Docker cache zůstává na GX10 a zrychluje další hotfix buildy.
+
+Lepší dlouhodobý směr je nechat Codex Desktop dál editovat přes NFS, ale všechny těžké příkazy směrovat přes SSH wrapper na GX10. Ještě čistší varianta je spouštět Codex CLI přímo na GX10 pro release zásahy.
+
+## GitHub nastavení
+
+Pro `main` ponechat branch protection a povinné kontroly pro standardní release. Nezeslabovat ochranu produkční větve jen kvůli hotfixům; rychlá cesta ji nepotřebuje, protože deployuje hotový image tag a ukládá audit mimo větev.
+
+Doporučené nastavení:
+
+- `main`: vyžadovat PR, povinné checks, zakázat přímý push běžným uživatelům.
+- `staging`: může zůstat chráněná pro standardní lane; hotfix image lane ji nepotřebuje.
+- GitHub Actions `docker-build*`: ponechat pro standardní release, ne pro urgentní hotfix.
+- Hotfix evidence: po urgentním deployi vytvořit následný PR nebo backport commit do `staging/main`, ale tento krok už nesmí blokovat nasazení.
+- GHCR: vytvořit samostatný fine-grained token pro hotfix lane s minimálním právem zapisovat package `mparvonic/svetoplavci-app`; uložit jako `HOTFIX_GHCR_TOKEN` do `/data/projects/svetoplavci-app/secrets/env.local`.
+
+## Pomalý hotfix přes PR
 
 1. Vytvořit `hotfix/*` z `main`.
 2. Oprava + commit.
