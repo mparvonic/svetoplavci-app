@@ -307,6 +307,14 @@
     box-shadow: var(--sv-shadow-paper);
   }
 
+  .sv-shadow-paper {
+    box-shadow: var(--sv-shadow-paper);
+  }
+
+  .sv-shadow-lift {
+    box-shadow: var(--sv-shadow-lift);
+  }
+
   .sv-card-fog {
     border-color: var(--sv-line);
     background: var(--sv-paper-warm);

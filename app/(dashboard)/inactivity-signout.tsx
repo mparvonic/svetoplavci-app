@@ -9,8 +9,10 @@ const ACTIVITY_EVENTS = ["mousedown", "mousemove", "keydown", "scroll", "touchst
 
 export function InactivitySignOut({ children }: { children: React.ReactNode }) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDevRuntime = process.env.NODE_ENV !== "production";
 
   const resetTimer = useCallback(() => {
+    if (isDevRuntime) return;
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -18,9 +20,10 @@ export function InactivitySignOut({ children }: { children: React.ReactNode }) {
     timeoutRef.current = setTimeout(() => {
       void signOut({ redirectTo: "/auth/signin?reason=inactivity" });
     }, INACTIVITY_MS);
-  }, []);
+  }, [isDevRuntime]);
 
   useEffect(() => {
+    if (isDevRuntime) return;
     resetTimer();
     for (const ev of ACTIVITY_EVENTS) {
       window.addEventListener(ev, resetTimer);
@@ -31,7 +34,7 @@ export function InactivitySignOut({ children }: { children: React.ReactNode }) {
         window.removeEventListener(ev, resetTimer);
       }
     };
-  }, [resetTimer]);
+  }, [isDevRuntime, resetTimer]);
 
   return <>{children}</>;
 }

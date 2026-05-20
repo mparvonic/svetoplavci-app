@@ -301,6 +301,10 @@ export function canManageWholeFleet(roles: string[]): boolean {
   return normalized.includes("admin") || normalized.includes("spravce_flotily");
 }
 
+export function canViewRvpManagement(roles: string[]): boolean {
+  return normalizeRoles(roles).includes("spravce_flotily");
+}
+
 export function hasLodickyManagerRole(roles: string[]): boolean {
   return normalizeRoles(roles).includes("spravce_lodicek");
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft, BookOpen, Database, Filter, Sailboat } from "lucide-react";
+import { ArrowLeft, BookOpen, Database, Filter, Network, Sailboat } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { auth } from "@/src/lib/auth";
 import { LOCAL_DEV_ROLES, collectSessionRoles, isLocalDevAuthBypass } from "@/src/lib/api/session";
 import { getSelectedDevAuthUser } from "@/src/lib/dev-auth";
 
-import { canViewLodickyManagement, getRvpManagementPage, parseRvpManagementFilters } from "../data";
+import { canViewRvpManagement, getRvpManagementPage, parseRvpManagementFilters } from "../data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -28,6 +28,29 @@ function formatDate(value: Date | null) {
   return value.toLocaleDateString("cs-CZ", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+function RvpSectionNav() {
+  return (
+    <div className="flex flex-wrap gap-2 rounded-[12px] border border-[#D6DFF0] bg-white p-2">
+      <Button asChild variant="outline">
+        <Link href="/portal/lodicky/sprava">
+          <Sailboat className="size-4" aria-hidden={true} />
+          Správa sady lodiček
+        </Link>
+      </Button>
+      <Button type="button" aria-current="page" className="cursor-default hover:translate-y-0 hover:bg-primary">
+        <BookOpen className="size-4" aria-hidden={true} />
+        Správa RVP
+      </Button>
+      <Button asChild variant="outline">
+        <Link href="/portal/lodicky/sprava/vazby">
+          <Network className="size-4" aria-hidden={true} />
+          Vazby RVP
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
 export default async function RvpSpravaPage({ searchParams }: PageProps) {
   const session = await auth();
   const selectedDevUser = isLocalDevAuthBypass() ? await getSelectedDevAuthUser() : null;
@@ -37,7 +60,7 @@ export default async function RvpSpravaPage({ searchParams }: PageProps) {
   }
 
   const roles = selectedDevUser?.roles ?? (session ? collectSessionRoles(session) : LOCAL_DEV_ROLES);
-  if (!canViewLodickyManagement(roles)) {
+  if (!canViewRvpManagement(roles)) {
     redirect("/portal/lodicky");
   }
 
@@ -64,20 +87,7 @@ export default async function RvpSpravaPage({ searchParams }: PageProps) {
             </span>
           </div>
         </section>
-        <div className="flex flex-wrap gap-2 rounded-[12px] border border-[#D6DFF0] bg-white p-2">
-          <Button asChild variant="outline">
-            <Link href="/portal/lodicky/sprava">
-              <Sailboat className="size-4" aria-hidden={true} />
-              Správa sady lodiček
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href="/portal/lodicky/sprava/rvp">
-              <BookOpen className="size-4" aria-hidden={true} />
-              Správa RVP
-            </Link>
-          </Button>
-        </div>
+        <RvpSectionNav />
         <Card>
           <CardHeader>
             <CardTitle>Databáze není dostupná</CardTitle>
@@ -134,20 +144,7 @@ export default async function RvpSpravaPage({ searchParams }: PageProps) {
         </div>
       </section>
 
-      <div className="flex flex-wrap gap-2 rounded-[12px] border border-[#D6DFF0] bg-white p-2">
-        <Button asChild variant="outline">
-          <Link href="/portal/lodicky/sprava">
-            <Sailboat className="size-4" aria-hidden={true} />
-            Správa sady lodiček
-          </Link>
-        </Button>
-        <Button asChild>
-          <Link href="/portal/lodicky/sprava/rvp">
-            <BookOpen className="size-4" aria-hidden={true} />
-            Správa RVP
-          </Link>
-        </Button>
-      </div>
+      <RvpSectionNav />
 
       <div className="grid gap-4 md:grid-cols-3">
         {page.rvpVersions.map((rvp) => (

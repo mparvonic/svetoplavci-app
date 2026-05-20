@@ -54,6 +54,8 @@ Do not hand-roll branch or deploy procedures. Use:
 npm run release:status
 npm run release:test -- --message "fix: short summary"
 npm run release:prod
+npm run release:hotfix -- --message "fix: short summary"
+npm run hotfix:both -- --message "fix: short summary"
 ```
 
 `release:test`:
@@ -88,7 +90,9 @@ npm run release:prod -- --auto-merge
 
 This asks GitHub to merge `staging -> main` automatically once required checks allow it. The merge to `main` triggers the production image and Coolify production deploy.
 
-`release:checks` runs locally on non-mounted checkouts. From the Mac GX10 mount, it creates a clean temporary checkout on GX10 from `git archive HEAD`, installs Linux-native dependencies with `npm ci`, then runs lint and build there. This avoids mixing macOS and Linux native packages in the shared mounted repository.
+`release:checks` runs locally on non-mounted checkouts. From the Mac GX10 mount, it runs checks in a clean GX10 worktree, installs Linux-native dependencies with `npm ci`, then runs lint and build there. This avoids mixing macOS and Linux native packages in the shared mounted repository.
+
+For small reversible fixes, prefer `release:hotfix` after staging only the exact files. It creates an isolated temporary worktree, commits only the staged diff there, builds the Docker image once on GX10 outside the NFS mount, pushes the image tags that Coolify already watches, triggers Coolify deploy hooks, and writes a JSONL audit record. Use `npm run hotfix:status` to see the configured mode, image, hooks, and audit paths.
 
 ## Fixed Environment Map
 

@@ -168,6 +168,7 @@ async function main() {
   console.log("- npm run dev:up");
   console.log("- npm run release:test -- --message \"type: summary\"");
   console.log("- npm run release:prod");
+  console.log("- npm run release:hotfix -- --message \"fix: summary\"");
 }
 
 main().catch((error) => {

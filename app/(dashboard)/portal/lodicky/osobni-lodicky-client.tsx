@@ -724,6 +724,16 @@ function OsobniLodickyPrototypePageInner({
 
     return PROTO_STUDENTS;
   }, [activeRole, activeUser, datasetVersion]);
+  const canShowDevelopmentMapTab =
+    (activeRole !== "rodic" && activeRole !== "zak") ||
+    accessibleStudents.length === 0 ||
+    accessibleStudents.some((student) => student.rocnik !== 1);
+
+  useEffect(() => {
+    if (!canShowDevelopmentMapTab && pageTab === "mapa") {
+      setPageTab("lodicky");
+    }
+  }, [canShowDevelopmentMapTab, pageTab]);
 
   const selectedMapStudentIdEffective = useMemo(() => {
     const ids = accessibleStudents.map((student) => student.id);
@@ -1772,7 +1782,7 @@ function OsobniLodickyPrototypePageInner({
         <div className="flex flex-wrap gap-2 rounded-xl border border-[#D6DFF0] bg-white p-1 shadow-sm">
           {[
             { id: "lodicky", label: "Osobní lodičky" },
-            { id: "mapa", label: "Mapa rozvoje" },
+            ...(canShowDevelopmentMapTab ? [{ id: "mapa", label: "Mapa rozvoje" }] : []),
           ].map((tab) => (
             <button
               key={tab.id}
@@ -2089,7 +2099,7 @@ function OsobniLodickyPrototypePageInner({
         </Card>
         )}
 
-        {!dbLoading && pageTab === "mapa" && (
+        {!dbLoading && canShowDevelopmentMapTab && pageTab === "mapa" && (
           <DevelopmentMapPanel
             activeRole={activeRole}
             rows={developmentMapRows}
@@ -2695,7 +2705,7 @@ function DetailSheet({
       onClick={onClose}
     >
       <div
-        className={`relative max-h-[90vh] w-full ${detailWidthClass} overflow-y-auto rounded-xl border border-[#D6DFF0] bg-white shadow-[var(--sv-shadow-lift)]`}
+        className={`sv-shadow-lift relative max-h-[90vh] w-full ${detailWidthClass} overflow-y-auto rounded-xl border border-[#D6DFF0] bg-white`}
         onClick={(event) => event.stopPropagation()}
       >
         <Button

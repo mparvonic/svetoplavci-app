@@ -39,5 +39,6 @@ Tabulka `M01LodickaGarant` pochází ze starého importního pojmenování, ale 
 - Stav plnění osobní lodičky je hodnota `0..4`.
 - Školní stupeň je `I_STUPEN` nebo `II_STUPEN`.
 - Projekce aktuálního stavu osobní lodičky se počítá pouze z aktivních (`is_invalidated = false`) eventů.
+- Lodička se deaktivuje pouze na úrovni katalogu/sady (`M01Lodicka.isDeleted`). Samostatná deaktivace jedné osobní lodičky při aktivní katalogové lodičce není povolená. Deaktivace katalogové lodičky musí deaktivovat všechny navázané osobní lodičky (`M01OsobniLodicka.isDeleted`); eventová historie zůstává zachovaná.
 - Historická data se nepřepisují.
 - Coda není runtime zdroj M01; zůstává pouze auditní původ importovaných dat.

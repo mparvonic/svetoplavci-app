@@ -16,7 +16,12 @@
 
 # next.js
 /.next/
+.next.*/
+/.next.bad-*/
 /out/
+
+# local assistant/tool settings
+.claude/
 
 # xcode
 DerivedData/
