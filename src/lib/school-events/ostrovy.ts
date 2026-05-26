@@ -1399,13 +1399,13 @@ export async function listOstrovyForChild(personId: string, params: { from?: str
   const events = await prisma.appSchoolEvent.findMany({
     where: {
       isActive: true,
-      startsAt: to ? { lt: to, gte: from } : { gte: from },
+      endsAt: { gte: from },
+      ...(to ? { startsAt: { lt: to } } : {}),
       eventType: { code: OSTROVY_EVENT_TYPE_CODE },
       lifecycleStatus: AppSchoolEventLifecycleStatus.PUBLISHED,
       registrationPolicy: {
         isEnabled: true,
         opensAt: { lte: now },
-        closesAt: { gte: now },
       },
     },
     include: {
