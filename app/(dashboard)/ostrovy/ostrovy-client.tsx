@@ -140,6 +140,12 @@ function hasCapacity(event: OstrovEvent): boolean {
   return capacity == null || event.occupied < capacity || activeRegistration(event.myRegistration);
 }
 
+function registrationStatusLabel(event: OstrovEvent, now: Date): string {
+  return isRegistrationOpen(event, now)
+    ? "Přihlašování je otevřené."
+    : "Přihlašování je uzavřené, zápis už nejde měnit.";
+}
+
 function groupEvents(events: OstrovEvent[]) {
   const groups = new Map<string, { id: string; name: string; startsAt: string | null; events: OstrovEvent[] }>();
   for (const event of events) {
@@ -387,6 +393,7 @@ export default function OstrovyClient() {
                       <div className="mt-auto space-y-2 text-xs text-slate-500">
                         <p>{event.location || "Místo bude upřesněno"}</p>
                         <p>Zápis: {formatDateTime(event.registrationPolicy?.opensAt)} - {formatDateTime(event.registrationPolicy?.closesAt)}</p>
+                        <p className={cn("font-medium", open ? "text-emerald-700" : "text-amber-700")}>{registrationStatusLabel(event, now)}</p>
                       </div>
                       <div className="space-y-3 rounded-xl border border-[#D6DFF0] bg-[#EEF2F7] p-3 text-sm">
                         <div className="grid gap-2 text-slate-700">
@@ -421,7 +428,7 @@ export default function OstrovyClient() {
                             type="button"
                             variant="outline"
                             className="border-[#C8372D] text-[#C8372D] hover:bg-[#FAEAE9]"
-                            disabled={savingEventId === event.id}
+                            disabled={!open || savingEventId === event.id}
                             onClick={() => void changeRegistration(event, "unregister", false)}
                           >
                             {savingEventId === event.id ? <Loader2 className="animate-spin" /> : <XCircle />}
